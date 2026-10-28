@@ -21,6 +21,8 @@
                 <td><div class="ra">
                     <button type="button" class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" data-remote="/Users/Details/@u.Id">@Ui.Icon("eye", 16)</button>
                     <a class="btn sm g" title="تعديل" aria-label="تعديل" href="/Users/Edit/@u.Id">@Ui.Icon("edit", 16)</a>
+                    <a class="btn sm g" title="تصدير السيارات" aria-label="تصدير السيارات" href="/Exports/Cars?all=true&UserId=@u.Id">@Ui.Icon("car", 16)</a>
+                    <a class="btn sm g" title="تصدير قطع الغيار" aria-label="تصدير قطع الغيار" href="/Exports/Parts?kind=counted&UserId=@u.Id">@Ui.Icon("part", 16)</a>
                     <span class="sep"></span>
                     @if (u.IsActive) {
                         <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم؟" data-text="@u.Name ما يكدر يدخل للتطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
