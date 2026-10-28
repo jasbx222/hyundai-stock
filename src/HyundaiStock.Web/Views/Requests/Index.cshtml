@@ -13,7 +13,7 @@
         <tbody>
         @foreach (var r in Model.Items) {
             var pending = r.Status == RequestStatus.Pending;
-            <tr title="@r.PartNumber · @r.PartDescription"><td><span class="idx">#@r.Id.ToString("0000")</span></td>
+            <tr title="@r.PartNumber · @r.PartDescription@(string.IsNullOrEmpty(r.Reason) ? "" : " · " + r.Reason)"><td><span class="idx">#@r.Id.ToString("0000")</span></td>
                 <td>@Ui.Who(r.RequestedBy)</td>
                 <td><b class="num">@r.NewQuantity</b></td>
                 <td>@Ui.Step(r.Status, r.Level)</td><td>@Ui.Qty(r.Status, r.Level)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Clock(r.CreatedAt)</td>
