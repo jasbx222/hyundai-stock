@@ -2,17 +2,17 @@
 @{ ViewData["Title"] = "الفروع"; ViewData["Nav"] = "branches"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; var manage = Menu.ManageOrg(s); }
 <div class="ph">
     <div><h1>الفروع</h1></div>
-    <div class="acts">@if (manage) { <button class="btn p" data-modal="#branch-m" data-title="إضافة فرع" data-v-id="" data-form-action="/Branches/Save">@Ui.Icon("plus", 16) إضافة فرع</button> }</div>
+    <div class="acts">@if (manage) { <button class="btn p" data-modal="#branch-m" data-title="إضافة فرع" data-v-id="" data-v-number="" data-form-action="/Branches/Save">@Ui.Icon("plus", 16) إضافة فرع</button> }</div>
 </div>
 <div class="card" style="overflow:visible">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف أول فرع لبدء إدارة المخازن." : "جرّب اسم فرع ثاني.", "branch")) }
     else {
     <table>
-        <thead><tr><th>الرقم</th><th>اسم الفرع</th><th>الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>رقم الفرع</th><th>اسم الفرع</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var b in Model.Items) {
-            <tr><td><span class="idx">@Ui.Idx(b.Id)</span></td><td><b>@b.Name</b></td>
+            <tr><td><span class="idx">@Ui.Idx(b.Id)</span></td><td class="mono">@(b.Number?.ToString() ?? "—")</td><td><b>@b.Name</b></td>
             <td><div class="ra">
                 <div class="dd"><button type="button" class="btn sm" data-dd aria-haspopup="menu">@Ui.Icon("export", 16) تصدير</button><div class="menu">
                     <a href="/Exports/Vins?BranchId=@b.Id">@Ui.Icon("vin", 16) تصدير VINs</a>
@@ -21,7 +21,7 @@
                     <a href="/Exports/Parts?kind=counted&BranchId=@b.Id">@Ui.Icon("layers", 16) تصدير قطع الجرد</a>
                 </div></div>
                 @if (manage) {
-                    <button type="button" class="btn sm g" title="تعديل" aria-label="تعديل" data-modal="#branch-m" data-title="تعديل الفرع" data-v-id="@b.Id" data-v-name="@b.Name" data-form-action="/Branches/Save">@Ui.Icon("edit", 16)</button>
+                    <button type="button" class="btn sm g" title="تعديل" aria-label="تعديل" data-modal="#branch-m" data-title="تعديل الفرع" data-v-id="@b.Id" data-v-name="@b.Name" data-v-number="@b.Number" data-form-action="/Branches/Save">@Ui.Icon("edit", 16)</button>
                     <button type="button" class="btn sm g" title="حذف" aria-label="حذف" data-confirm data-action="/Branches/Delete" data-hidden='{"id":"@b.Id"}' data-kind="d" data-icon="trash" data-title="حذف الفرع؟" data-text="حذف فرع «@b.Name» نهائي. ما يمكن حذف فرع عنده مخازن أو بيانات مرتبطة." data-ok="حذف">@Ui.Icon("trash", 16)</button>
                 }
             </div></td></tr>
@@ -35,7 +35,8 @@
 <div class="ov" id="branch-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Branches/Save">
     @Html.AntiForgeryToken()<input type="hidden" name="id" />
     <div class="mh"><div class="mic pr">@Ui.Icon("branch", 20)</div><div><h3 data-title-slot>إضافة فرع</h3></div></div>
-    <div class="mb"><div><label class="lbl">اسم الفرع<i> *</i></label><div class="field"><input name="name" required minlength="2" maxlength="150" placeholder="أدخل اسم الفرع" /></div><div class="hint">حرفين على الأقل</div></div></div>
+    <div class="mb"><div><label class="lbl">اسم الفرع<i> *</i></label><div class="field"><input name="name" required minlength="2" maxlength="150" placeholder="أدخل اسم الفرع" /></div><div class="hint">حرفين على الأقل</div></div>
+        <div><label class="lbl">رقم الفرع (BranchNo.)</label><div class="field"><input name="number" type="number" min="1" max="9999" inputmode="numeric" placeholder="مثال: 2" /></div><div class="hint">نفس رقم الفرع بملفات الإكسل</div></div></div>
     
     <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div></div>

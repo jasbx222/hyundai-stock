@@ -22,12 +22,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder b)
     {
-        b.Entity<Branch>(e => { e.Property(x => x.Name).HasMaxLength(150).IsRequired(); e.HasIndex(x => x.Name).IsUnique(); });
+        b.Entity<Branch>(e => { e.Property(x => x.Name).HasMaxLength(150).IsRequired(); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Number).IsUnique(); });
         b.Entity<Warehouse>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(150).IsRequired();
             e.HasOne(x => x.Branch).WithMany(x => x.Warehouses).HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.BranchId, x.Name }).IsUnique();
+            e.HasIndex(x => x.Number).IsUnique();
         });
         b.Entity<Admin>(e =>
         {

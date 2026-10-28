@@ -47,14 +47,30 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         return b;
     }
 
-    private static ExportFile Build(string sheet, string fileBase, string[] headers, IEnumerable<object?[]> rows)
+    /// <summary>Text form used by the Hyundai system files: local time, "yyyy-MM-dd HH:mm:ss".</summary>
+    public static string Stamp(DateTime? utc) => utc is DateTime d ? Local(d).ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) : "";
+    public static string MapLink(double? lat, double? lng) =>
+        lat is double a && lng is double b ? FormattableString.Invariant($"https://www.google.com/maps?q={a},{b}") : "";
+
+    /// <summary>
+    /// Builds a sheet in the exact layout of the Hyundai system exports: LTR, header row bold black on light grey (#D3D3D3)
+    /// with thin borders, fixed column widths, General number format, no freeze pane, no autofilter.
+    /// Strings are always written as text so part numbers keep their leading zeros.
+    /// </summary>
+    private static ExportFile Build(string sheet, string fileBase, string[] headers, double[] widths, IEnumerable<object?[]> rows)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add(sheet.Length > 31 ? sheet[..31] : sheet);
-        ws.RightToLeft = true;
-        for (int i = 0; i < headers.Length; i++) ws.Cell(1, i + 1).Value = headers[i];
-        var hr = ws.Range(1, 1, 1, headers.Length);
-        hr.Style.Font.Bold = true; hr.Style.Fill.BackgroundColor = XLColor.FromHtml("#002C5F"); hr.Style.Font.FontColor = XLColor.White;
+        for (int i = 0; i < headers.Length; i++)
+        {
+            var h = ws.Cell(1, i + 1);
+            h.Value = headers[i];
+            h.Style.Font.Bold = true; h.Style.Font.FontColor = XLColor.Black;
+            h.Style.Fill.BackgroundColor = XLColor.FromHtml("#D3D3D3");
+            h.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        }
+        // ClosedXML stores width + ~0.71 padding; subtract it so the saved widths equal the Hyundai files.
+        for (int i = 0; i < widths.Length; i++) ws.Column(i + 1).Width = widths[i] - 0.71;
         int r = 2;
         foreach (var row in rows)
         {
@@ -67,43 +83,73 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
                     case int n: cell.Value = n; break;
                     case decimal d: cell.Value = d; break;
                     case double d2: cell.Value = d2; break;
-                    case DateTime dt: cell.Value = Local(dt); cell.Style.DateFormat.Format = "yyyy/MM/dd HH:mm"; break;
-                    default: cell.Value = row[c]!.ToString(); break;
+                    case DateTime dt: cell.Value = Stamp(dt); break;
+                    default: cell.SetValue(row[c]!.ToString()); break;
                 }
             }
             r++;
         }
-        ws.SheetView.FreezeRows(1);
-        if (r > 2) ws.Range(1, 1, r - 1, headers.Length).SetAutoFilter();
-        ws.Columns().AdjustToContents(1, Math.Min(r, 500));
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         var safe = string.Concat(fileBase.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '-' : ch));
         return new ExportFile(ms.ToArray(), $"{safe}-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx");
     }
 
+    public static readonly string[] DataHeaders = { "Part Number", "Description", "Location In Stock", "System Quantity", "Total Counted", "Difference", "Counted Location", "Counted Quantity", "User", "Branch", "Date", "Links" };
+    private static readonly double[] DataWidths = { 14.21, 12.34, 18.16, 16.99, 15.59, 11.19, 18.11, 18.11, 9.14, 9.14, 9.14, 9.14 };
+    public static readonly string[] NotCountedHeaders = { "Part Number", "Description", "Location In Stock", "System Quantity", "Branch" };
+    private static readonly double[] NotCountedWidths = { 27.61, 54.76, 23.18, 16.99, 9.14 };
+    public static readonly string[] VinsHeaders = { "VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link" };
+    private static readonly double[] VinsWidths = { 9.14, 12.38, 9.14, 9.14, 9.14, 9.14, 10.98, 9.84 };
+    public static readonly string[] CarsNotFoundHeaders = { "VIN", "Warehouse", "Branch", "Date Added" };
+    private static readonly double[] CarsNotFoundWidths = { 23.72, 28.08, 9.14, 22.43 };
+    public static readonly string[] WarehousesHeaders = { "WarehouseNo.", "Name", "Branch" };
+    private static readonly double[] WarehousesWidths = { 16.48, 28.08, 9.14 };
+
+    /// <summary>
+    /// Counted / all parts → sheet "Data"; not counted → sheet "Not Counted Parts" (Hyundai system layout).
+    /// Total Counted sums every counted row of the same part number in the same branch; Difference = Total Counted − System Quantity of that group.
+    /// </summary>
     public async Task<ExportFile> PartsAsync(PartExportKind kind, ExportFilter f, AdminScope scope)
     {
         var (sid, label) = await ResolveSession(f);
         var b = await BranchFilter(f, scope);
         var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid);
         if (b is int bb) q = q.Where(x => x.BranchId == bb);
-        if (f.WarehouseId is int w) q = q.Where(x => x.WarehouseId == w);
+        if (f.WarehouseId is int w)
+        {
+            var wb = await db.Warehouses.Where(z => z.Id == w).Select(z => (int?)z.BranchId).FirstOrDefaultAsync();
+            q = q.Where(x => x.WarehouseId == w || (x.WarehouseId == null && x.BranchId == wb));
+        }
         if (f.UserId is int u) q = q.Where(x => x.CountedByUserId == u);
         if (kind == PartExportKind.Counted) q = q.Where(x => x.CountedQuantity != null);
         if (kind == PartExportKind.Uncounted) q = q.Where(x => x.CountedQuantity == null);
-        var data = await q.OrderBy(x => x.PartNumber).Select(x => new
+        var data = await q.OrderBy(x => x.BranchId).ThenBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new
         {
-            x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.SystemLocation, x.CountedLocation,
-            Wh = x.Warehouse != null ? x.Warehouse.Name : "", Br = x.Branch != null ? x.Branch.Name : "", User = x.CountedByUser != null ? x.CountedByUser.Name : "", x.CountedAt
+            x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.SystemLocation, x.CountedLocation, x.BranchId,
+            Br = x.Branch != null ? x.Branch.Name : "", User = x.CountedByUser != null ? x.CountedByUser.Name : "", x.CountedAt, x.Latitude, x.Longitude
         }).ToListAsync();
-        var name = kind switch { PartExportKind.Counted => "قطع-الجرد", PartExportKind.Uncounted => "قطع-غير-معدودة", _ => "قطع-الغيار" };
-        return Build(name, $"{name}-{label}",
-            new[] { "رقم القطعة", "الوصف", "الكمية في النظام", "الكمية المعدودة", "الفرق", "الموقع في المخزون", "الموقع المحسوب", "المخزن", "الفرع", "المستخدم", "تاريخ العد" },
-            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.CountedQuantity.HasValue ? x.CountedQuantity - x.SystemQuantity : null,
-                x.SystemLocation, x.CountedLocation, x.Wh, x.Br, x.User, x.CountedAt }));
+        if (kind == PartExportKind.Uncounted)
+            return Build("Not Counted Parts", $"Not-Counted-Parts-{label}", NotCountedHeaders, NotCountedWidths,
+                data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemLocation ?? "", x.SystemQuantity, x.Br }));
+
+        // Group totals over the whole session (not only the filtered rows) so a user-filtered export still shows the real total.
+        var groups = await db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid)
+            .GroupBy(x => new { x.PartNumber, x.BranchId })
+            .Select(g => new { g.Key.PartNumber, g.Key.BranchId, Sys = g.Sum(x => x.SystemQuantity), Cnt = g.Sum(x => x.CountedQuantity ?? 0), Any = g.Any(x => x.CountedQuantity != null) })
+            .ToListAsync();
+        var gi = groups.ToDictionary(g => (g.PartNumber, g.BranchId));
+        return Build("Data", $"{(kind == PartExportKind.Counted ? "Counted-Parts" : "Parts")}-{label}", DataHeaders, DataWidths,
+            data.Select(x =>
+            {
+                var g = gi[(x.PartNumber, x.BranchId)];
+                return new object?[] { x.PartNumber, x.Description, x.SystemLocation ?? "", x.SystemQuantity,
+                    g.Any ? g.Cnt : null, g.Any ? g.Cnt - g.Sys : null, x.CountedLocation, x.CountedQuantity, x.User, x.Br,
+                    x.CountedAt is DateTime d ? Stamp(d) : "", MapLink(x.Latitude, x.Longitude) };
+            }));
     }
 
+    /// <summary>Scanned VINs → sheet "Vins".</summary>
     public async Task<ExportFile> ScannedVinsAsync(ExportFilter f, AdminScope scope, bool allSessions = false)
     {
         var (sid, label) = await ResolveSession(f);
@@ -113,12 +159,12 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (b is int bb) q = q.Where(x => x.BranchId == bb);
         if (f.WarehouseId is int w) q = q.Where(x => x.WarehouseId == w);
         if (f.UserId is int u) q = q.Where(x => x.UserId == u);
-        var data = await q.OrderByDescending(x => x.CreatedAt).Select(x => new { x.Vin, x.Session!.Year, U = x.User!.Name, W = x.Warehouse!.Name, B = x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt }).ToListAsync();
-        return Build("السيارات", $"السيارات-{(allSessions && f.SessionId == null ? "كل-الجلسات" : label)}",
-            new[] { "VIN", "اسم الجلسة", "المستخدم", "المستودع", "الفرع", "خط العرض", "خط الطول", "تاريخ الإضافة" },
-            data.Select(x => new object?[] { x.Vin, $"جلسة جرد {x.Year}", x.U, x.W, x.B, x.Latitude, x.Longitude, x.CreatedAt }));
+        var data = await q.OrderByDescending(x => x.CreatedAt).Select(x => new { x.Vin, U = x.User!.Name, W = x.Warehouse!.Name, B = x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt }).ToListAsync();
+        return Build("Vins", $"Vins-{(allSessions && f.SessionId == null ? "all" : label)}", VinsHeaders, VinsWidths,
+            data.Select(x => new object?[] { x.Vin, x.W, x.B, x.U, Stamp(x.CreatedAt), x.Latitude, x.Longitude, MapLink(x.Latitude, x.Longitude) }));
     }
 
+    /// <summary>Expected VINs; missing only → sheet "Cars Not Found" (Date Added = when the VIN was imported).</summary>
     public async Task<ExportFile> ExpectedVinsAsync(ExportFilter f, AdminScope scope, bool missingOnly)
     {
         var (sid, label) = await ResolveSession(f);
@@ -126,31 +172,52 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         var q = db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == sid);
         if (b is int bb) q = q.Where(x => x.BranchId == bb);
         if (f.WarehouseId is int w) q = q.Where(x => x.WarehouseId == w);
+        if (missingOnly) q = q.Where(x => !db.ScannedVins.Any(s => s.SessionId == x.SessionId && s.Vin == x.Vin));
         var data = await q.OrderBy(x => x.Vin).Select(x => new
         {
-            x.Vin, x.Model, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "",
-            Scanned = db.ScannedVins.Any(s => s.SessionId == x.SessionId && s.Vin == x.Vin)
+            x.Vin, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "", x.CreatedAt
         }).ToListAsync();
-        if (missingOnly) data = data.Where(x => !x.Scanned).ToList();
-        var name = missingOnly ? "VINs-غير-موجودة" : "VINs";
-        return Build(name, $"{name}-{label}", new[] { "VIN", "الموديل", "المستودع", "الفرع", "تم المسح" },
-            data.Select(x => new object?[] { x.Vin, x.Model, x.W, x.B, x.Scanned ? "نعم" : "لا" }));
+        return Build(missingOnly ? "Cars Not Found" : "Cars", $"{(missingOnly ? "Cars-Not-Found" : "Cars")}-{label}", CarsNotFoundHeaders, CarsNotFoundWidths,
+            data.Select(x => new object?[] { x.Vin, x.W, x.B, Stamp(x.CreatedAt) }));
     }
 
     public async Task<ExportFile> BranchesAsync(AdminScope scope)
     {
         var q = db.Branches.AsNoTracking().AsQueryable();
         if (scope.ScopeBranch is int b) q = q.Where(x => x.Id == b);
-        var data = await q.OrderBy(x => x.Id).Select(x => new { x.Id, x.Name, W = x.Warehouses.Count() }).ToListAsync();
-        return Build("الفروع", "الفروع", new[] { "الرقم", "اسم الفرع", "عدد المخازن" }, data.Select(x => new object?[] { x.Id, x.Name, x.W }));
+        var data = await q.OrderBy(x => x.Number ?? int.MaxValue).ThenBy(x => x.Id).Select(x => new { x.Number, x.Name }).ToListAsync();
+        return Build("Branches", "Branches", new[] { "BranchNo.", "Name" }, new[] { 16.48, 28.08 }, data.Select(x => new object?[] { x.Number, x.Name }));
     }
 
+    /// <summary>Warehouses → sheet "Warehouses" (WarehouseNo., Name, Branch), same as the Hyundai reference file.</summary>
     public async Task<ExportFile> WarehousesAsync(int? branchId, AdminScope scope)
     {
         var q = db.Warehouses.AsNoTracking().AsQueryable();
         if (scope.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
         if (branchId is int f) q = q.Where(x => x.BranchId == f);
-        var data = await q.OrderBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Type, B = x.Branch!.Name }).ToListAsync();
-        return Build("المخازن", "المخازن", new[] { "الرقم", "اسم المخزن", "النوع", "الفرع" }, data.Select(x => new object?[] { x.Id, x.Name, Labels.Type(x.Type), x.B }));
+        var data = await q.OrderBy(x => x.Number ?? int.MaxValue).ThenBy(x => x.Id).Select(x => new { x.Number, x.Name, B = x.Branch!.Name }).ToListAsync();
+        return Build("Warehouses", "Warehouses", WarehousesHeaders, WarehousesWidths, data.Select(x => new object?[] { x.Number, x.Name, x.B }));
+    }
+
+    /// <summary>Empty session import template: sheets "Parts" (Quantity, Description, Location, Serial, BranchNo.) and "Vins" (VIN, WarehouseNo.).</summary>
+    public static byte[] ImportTemplate()
+    {
+        using var wb = new XLWorkbook();
+        void Sheet(string name, string[] h, double[] w, object?[] sample)
+        {
+            var ws = wb.Worksheets.Add(name);
+            for (int i = 0; i < h.Length; i++) { ws.Cell(1, i + 1).Value = h[i]; ws.Column(i + 1).Width = w[i]; }
+            ws.Range(1, 1, 1, h.Length).Style.Font.Bold = true;
+            for (int i = 0; i < sample.Length; i++)
+            {
+                var c = ws.Cell(2, i + 1);
+                if (sample[i] is int n) c.Value = n; else { c.SetValue(sample[i]?.ToString() ?? ""); }
+            }
+        }
+        Sheet("Parts", ExcelImportService.PartsHeaders, new[] { 10.0, 43.33, 19.11, 22.55, 10.0 }, new object?[] { 4, "فلتر زيت", "A-01-02", "0263001080", 2 });
+        Sheet("Vins", ExcelImportService.VinsHeaders, new[] { 25.33, 13.33 }, new object?[] { "TMAJB81D4TJ653724", 2 });
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
     }
 }

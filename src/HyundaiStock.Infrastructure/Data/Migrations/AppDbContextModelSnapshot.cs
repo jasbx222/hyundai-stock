@@ -155,10 +155,17 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<int?>("Number")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasFilter("[Number] IS NOT NULL");
 
                     b.ToTable("Branches");
                 });
@@ -597,10 +604,17 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<int?>("Number")
+                        .HasColumnType("int");
+
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasFilter("[Number] IS NOT NULL");
 
                     b.HasIndex("BranchId", "Name")
                         .IsUnique();

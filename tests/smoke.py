@@ -23,8 +23,10 @@ s, r = login(APHONE, APW); check("main admin login", r.status_code == 302, r.sta
 check("anon redirected to login", requests.get(B + "/Users", allow_redirects=False).headers.get("Location", "").startswith("/Account/Login") or "Login" in requests.get(B + "/Users", allow_redirects=False).headers.get("Location", ""))
 
 # --- org
-r = post(s, "/Branches/Save", {"name": "فرع بغداد"}, ref="/Branches"); check("create branch", flash(r)[0] == "ok", flash(r))
-post(s, "/Branches/Save", {"name": "فرع البصرة"}, ref="/Branches")
+r = post(s, "/Branches/Save", {"name": "فرع بغداد", "number": 1}, ref="/Branches"); check("create branch", flash(r)[0] == "ok", flash(r))
+post(s, "/Branches/Save", {"name": "فرع البصرة", "number": 2}, ref="/Branches")
+r = post(s, "/Branches/Save", {"name": "فرع رقم مكرر", "number": 2}, ref="/Branches"); check("duplicate branch number rejected", flash(r)[0] == "er", flash(r))
+check("branch number listed", 'data-v-number="2"' in s.get(B + "/Branches").text)
 r = post(s, "/Branches/Save", {"name": "فرع بغداد"}, ref="/Branches"); check("duplicate branch rejected", flash(r)[0] == "er", flash(r))
 r = post(s, "/Branches/Save", {"name": ""}, ref="/Branches"); check("empty branch rejected", flash(r)[0] == "er", flash(r))
 html = s.get(B + "/Branches").text
@@ -34,8 +36,9 @@ bg, bs = bids.get("فرع بغداد"), bids.get("فرع البصرة")
 post(s, "/Branches/Save", {"name": "فرع حذف"}, ref="/Branches")
 did = int(re.findall(r'data-v-id="(\d+)" data-v-name="فرع حذف"', s.get(B + "/Branches").text)[0])
 r = post(s, "/Branches/Delete", {"id": did}, ref="/Branches"); check("delete empty branch", flash(r)[0] == "ok", flash(r))
-for n, t, b in [("مخزن بغداد الرئيسي", 1, bg), ("مخزن بغداد المركبات", 2, bg), ("مخزن البصرة", 1, bs)]:
-    r = post(s, "/Warehouses/Save", {"name": n, "type": t, "branchId": b}, ref="/Warehouses"); check(f"create warehouse {n}", flash(r)[0] == "ok", flash(r))
+for n, t, b, no in [("مخزن بغداد الرئيسي", 1, bg, 1), ("مخزن بغداد المركبات", 2, bg, 2), ("مخزن البصرة", 1, bs, 6)]:
+    r = post(s, "/Warehouses/Save", {"name": n, "type": t, "branchId": b, "number": no}, ref="/Warehouses"); check(f"create warehouse {n}", flash(r)[0] == "ok", flash(r))
+r = post(s, "/Warehouses/Save", {"name": "مخزن رقم مكرر", "type": 1, "branchId": bs, "number": 6}, ref="/Warehouses"); check("duplicate warehouse number rejected", flash(r)[0] == "er", flash(r))
 r = post(s, "/Branches/Delete", {"id": bg}, ref="/Branches"); check("delete branch with warehouses blocked", flash(r)[0] == "er", flash(r))
 whtml = s.get(B + "/Warehouses").text
 wids = dict((n, int(i)) for i, n in re.findall(r'data-v-id="(\d+)" data-v-name="([^"]+)"', whtml))
@@ -62,18 +65,25 @@ r = s.get(B + f"/Users/Edit/{uids[0]}"); check("user edit form", r.status_code =
 check("user details partial", "تفاصيل المستخدم" in s.get(B + f"/Users/Details/{uids[0]}").text)
 
 # --- session upload
-wb = openpyxl.Workbook(); p = wb.active; p.title = "قطع الغيار"
-p.append(["رقم القطعة", "الوصف", "السعر", "الكمية", "الموقع", "المخزن"])
-for i in range(1, 24): p.append([f"58101-D3A{i:02d}", f"قطعة تجريبية {i}", 1000 * i, i * 2, f"A-{i:02d}-01", "مخزن بغداد الرئيسي" if i % 4 else "مخزن البصرة"])
-v = wb.create_sheet("المركبات"); v.append(["VIN", "الموديل", "المخزن"])
-for i in range(1, 13): v.append([f"KMHD341CBMU{100000 + i}", "Elantra", "مخزن بغداد المركبات"])
+# Hyundai system format: Parts (Quantity, Description, Location, Serial, BranchNo.) + Vins (VIN, WarehouseNo.)
+wb = openpyxl.Workbook(); p = wb.active; p.title = "Parts"
+p.append(["Quantity", "Description", "Location", "Serial", "BranchNo."])
+for i in range(1, 24): p.append([i * 2, f"قطعة تجريبية {i}", f"A-{i:02d}-01" if i != 3 else "NULL", f"58101-D3A{i:02d}", 1 if i % 4 else 2])
+p.append([5, "قطعة بصفر بالبداية", "-", "0263001080", 2])
+p.append([1, "قطعة بموقع NULL", "NULL", "58101-NUL01", 2])
+v = wb.create_sheet("Vins"); v.append(["VIN", "WarehouseNo."])
+for i in range(1, 13): v.append([f"KMHD341CBMU{100000 + i}" + ("*" if i == 12 else ""), 2])
+v.append([None, None])
 buf = io.BytesIO(); wb.save(buf); open("/tmp/session.xlsx", "wb").write(buf.getvalue())
+bad = openpyxl.Workbook(); bp = bad.active; bp.title = "Parts"; bp.append(["Quantity", "Description", "Location", "Serial", "BranchNo."]); bp.append([1, "x", "A", "P-1", 99]); bb = io.BytesIO(); bad.save(bb)
+r = post(s, "/Sessions/Start", {"year": 2024}, files={"file": ("bad-branch.xlsx", bb.getvalue(), "application/octet-stream")}, ref="/Sessions"); check("unknown BranchNo. rejected", flash(r)[0] == "er" and "99" in (flash(r)[1] or ""), flash(r))
 r = post(s, "/Sessions/Start", {"year": 2026}, files={"file": ("session-2026.xlsx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}, ref="/Sessions"); check("start session with xlsx", flash(r)[0] == "ok", flash(r))
 r = post(s, "/Sessions/Start", {"year": 2026}, files={"file": ("again.xlsx", buf.getvalue(), "application/octet-stream")}, ref="/Sessions"); check("second in-progress session blocked", flash(r)[0] == "er", flash(r))
 r = post(s, "/Sessions/Start", {"year": 2025}, files={"file": ("bad.txt", b"nope", "text/plain")}, ref="/Sessions"); check("non-excel file rejected", flash(r)[0] == "er", flash(r))
 sid = int(re.findall(r'/Sessions/File/(\d+)', s.get(B + "/Sessions").text)[0])
 r = s.get(B + f"/Sessions/File/{sid}"); check("download session file", r.status_code == 200 and r.content[:2] == b"PK")
 r = s.get(B + "/Sessions/Template"); check("download template", r.status_code == 200 and r.content[:2] == b"PK")
+tw = openpyxl.load_workbook(io.BytesIO(r.content)); check("template = Hyundai import format", tw.sheetnames == ["Parts", "Vins"] and [c.value for c in tw["Parts"][1]] == ["Quantity", "Description", "Location", "Serial", "BranchNo."] and [c.value for c in tw["Vins"][1]] == ["VIN", "WarehouseNo."])
 
 # --- mobile API
 api = requests.Session()
@@ -166,6 +176,23 @@ for path in ["/Exports/Parts?kind=all", "/Exports/Parts?kind=counted", "/Exports
         w = openpyxl.load_workbook(io.BytesIO(r.content)); ok = w.active.max_row >= 1
     check("export " + path, ok, r.status_code)
 w = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Parts?kind=counted").content)); check("counted export rows", w.active.max_row - 1 == 6, w.active.max_row)
+FMT = {"/Exports/Parts?kind=counted": ("Data", ["Part Number", "Description", "Location In Stock", "System Quantity", "Total Counted", "Difference", "Counted Location", "Counted Quantity", "User", "Branch", "Date", "Links"]),
+       "/Exports/Parts?kind=all": ("Data", None), "/Exports/Parts?kind=uncounted": ("Not Counted Parts", ["Part Number", "Description", "Location In Stock", "System Quantity", "Branch"]),
+       "/Exports/Cars": ("Vins", ["VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link"]),
+       "/Exports/Vins?missing=true": ("Cars Not Found", ["VIN", "Warehouse", "Branch", "Date Added"]), "/Exports/Warehouses": ("Warehouses", ["WarehouseNo.", "Name", "Branch"])}
+for path, (sheet, hdr) in FMT.items():
+    w = openpyxl.load_workbook(io.BytesIO(s.get(B + path).content)); ws = w.active
+    check(f"export format {path}", w.sheetnames == [sheet] and (hdr is None or [c.value for c in ws[1]] == hdr) and not ws.sheet_view.rightToLeft and ws.freeze_panes is None and ws["A1"].fill.fgColor.rgb == "FFD3D3D3", (w.sheetnames, [c.value for c in ws[1]]))
+ws = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Parts?kind=uncounted").content)).active
+rows = {r[0]: r for r in ws.iter_rows(min_row=2, values_only=True)}
+check("uncounted export keeps leading zero + text part no", "0263001080" in rows and rows["0263001080"][2] == "-" and rows["0263001080"][3] == 5 and rows["0263001080"][4] == "فرع البصرة", rows.get("0263001080"))
+check("uncounted export keeps NULL location", any(r[2] == "NULL" for r in rows.values()))
+ws = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Parts?kind=counted").content)).active; r2 = [c.value for c in ws[2]]
+check("counted export values", isinstance(r2[4], int) and r2[5] == r2[4] - r2[3] and re.match(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$", r2[10] or "") and (r2[11] or "").startswith("https://www.google.com/maps?q="), r2)
+ws = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Vins?missing=true").content)).active; r2 = [c.value for c in ws[2]]
+check("cars not found values", r2[1] == "مخزن بغداد المركبات" and r2[2] == "فرع بغداد" and re.match(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$", r2[3] or ""), r2)
+ws = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Warehouses").content)).active
+check("warehouses export values", [c.value for c in ws[2]] == [1, "مخزن بغداد الرئيسي", "فرع بغداد"], [c.value for c in ws[2]])
 w = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Vins?missing=true").content)); check("missing VIN export rows", w.active.max_row - 1 == 7, w.active.max_row)
 
 # --- role 2 admin
