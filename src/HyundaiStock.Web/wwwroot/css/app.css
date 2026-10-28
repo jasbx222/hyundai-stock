@@ -1,0 +1,114 @@
+/* App-level additions on top of design.css (from the UIUX design source) */
+html,body{min-height:100%}
+body{width:auto;min-width:1200px}
+a{color:inherit;text-decoration:none}
+button{font-family:Plex;cursor:pointer}
+.app{min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto}
+.side .deco{position:absolute;bottom:-60px;right:-330px;pointer-events:none;transform:rotate(-8deg)}
+.side .nav:hover:not(.on){background:rgba(255,255,255,.06);color:#fff}
+.side .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px}
+.side .me .t{flex:1;min-width:0}.side .me b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side .me form{margin:0}.side .me button{background:transparent;border:0;color:rgba(255,255,255,.7);display:grid;place-items:center;width:32px;height:32px;border-radius:8px}
+.side .me button:hover{background:rgba(255,255,255,.1);color:#fff}
+.page{padding:32px 32px 0;gap:20px;flex:1}
+.ph{align-items:center}.ph h1{font-size:24px}
+.ph .acts{flex-wrap:wrap}
+.sysfoot{padding:20px 32px;color:var(--t3);font-size:12px;border-top:1px solid var(--bd2);margin-top:24px}
+th{height:44px;padding:0 14px;background:#F8FAFC}
+td{height:56px;padding:0 14px;font-size:13px}
+td.wrap{white-space:normal;max-width:280px}
+tbody tr:hover td{background:#F7FAFD}
+.btn:hover{filter:brightness(1.04)} .btn:not(.p):not(.d):not(.okb):hover{background:#F2F4F7}
+.btn:focus-visible,.nav:focus-visible,.ib:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,170,210,.35)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.ib{cursor:pointer;border:0;background:transparent;box-shadow:none;width:32px;height:32px}
+.ib:hover{background:#F2F4F7}
+.toolbar form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}
+.inp{color:var(--tx)} .inp input{border:0;outline:0;background:transparent;font:inherit;flex:1;min-width:0;color:var(--tx)}
+.inp:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px rgba(0,170,210,.18);background:#fff}
+select.sel{appearance:none;font:inherit;padding-left:32px;background:#F6F8FB url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A94A6' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat left 10px center;min-width:180px}
+.field{padding:0}
+.field input,.field select,.field textarea{border:0;outline:0;background:transparent;font:inherit;color:var(--tx);width:100%;height:100%;padding:0 12px;border-radius:8px}
+.field select{appearance:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A94A6' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat left 12px center}
+.field.ta{height:auto} .field textarea{min-height:96px;padding:10px 12px;resize:vertical}
+.field:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px rgba(0,170,210,.18)}
+.field.err:focus-within{border-color:var(--er)}
+.field input[type=file]{padding:8px 12px}
+.field.file{height:auto;min-height:40px}
+.fg{display:grid;gap:18px}.fg2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.formcard{padding:24px;max-width:820px}
+.formcard .acts{display:flex;gap:8px;margin-top:24px}
+.hint.e{color:var(--er)}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-radius:12px;font-size:13px;white-space:pre-line}
+.alert.ok{background:var(--oks);color:var(--ok)} .alert.er{background:var(--ers);color:var(--er)}
+/* dropdown menus */
+.dd{position:relative;display:inline-block}
+.dd>.menu{display:none;top:calc(100% + 4px);left:0}
+.dd.open>.menu{display:block}
+.dd.up>.menu{top:auto;bottom:calc(100% + 4px)}
+.menu{width:auto;min-width:220px}
+.menu a,.menu button.mi{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:6px;color:var(--t2);font-size:13px;width:100%;border:0;background:transparent;text-align:right;font-family:Plex;white-space:nowrap}
+.menu a:hover,.menu button.mi:hover{background:#F2F4F7;color:var(--tx)}
+.menu .er{color:var(--er)!important} .menu .okc{color:var(--ok)!important}
+.menu .t{display:flex;align-items:center;padding:0 10px}
+/* modals */
+.ov{position:fixed;display:none;z-index:50}
+.ov.show{display:flex}
+.modal{max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);overflow:auto}
+.modal .mh p{white-space:pre-line}
+.modal .mb .kv{margin:0}
+/* pager */
+.pg a,.pg span{min-width:32px;height:32px;border-radius:8px;display:grid;place-items:center;border:1px solid var(--bd);font-family:Mono;font-size:12px;color:var(--t2);padding:0 6px;background:#fff}
+.pg a:hover{background:#F2F4F7}
+.pg .on{background:var(--pr)!important;color:#fff!important;border-color:var(--pr)!important}
+.pg .dis{opacity:.45;pointer-events:none}
+/* tabs as links */
+.tabs a{height:44px;display:flex;align-items:center;gap:8px;color:var(--t2);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+.tabs a.on{color:var(--pr);border-color:var(--pr);font-weight:600}
+.tabpane{display:none}.tabpane.on{display:block}
+/* multi select */
+details.msel{position:relative}
+details.msel summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;height:40px;padding:0 12px;color:var(--tx)}
+details.msel summary::-webkit-details-marker{display:none}
+details.msel .opts{position:absolute;top:calc(100% + 4px);right:0;left:0;background:#fff;border:1px solid var(--bd);border-radius:10px;box-shadow:0 12px 32px -8px rgba(16,24,40,.2);padding:6px;z-index:10;max-height:260px;overflow:auto}
+details.msel label{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:6px;cursor:pointer}
+details.msel label:hover{background:#F2F4F7}
+details.msel label small{color:var(--t3);margin-inline-start:auto}
+details.msel input{accent-color:var(--pr);width:16px;height:16px}
+.field.msel-wrap{height:auto;display:block}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.kv b .bd{display:inline-flex;width:auto}
+.kv div{min-height:64px}
+.login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(800px 400px at 80% 0%,rgba(0,170,210,.10),transparent 70%),#F3F5F9}
+.login .card{width:440px;padding:40px}
+.login .brandl{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login .brandl img{width:44px;height:24px;object-fit:contain}
+.login h2{font-size:24px;font-weight:700;margin-bottom:24px}
+.welcome{flex:1;min-height:520px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--t3);background:linear-gradient(180deg,#fff,#F8FAFC)}
+.welcome img{width:120px;opacity:.2}
+.nf{min-height:100vh;display:grid;place-items:center;text-align:center}
+.nf .code{font-size:96px;font-weight:700;color:var(--pr);line-height:1;letter-spacing:-2px}
+.gps{display:inline-flex;align-items:center;gap:6px;color:var(--inf);font-family:Mono;font-size:12px;direction:ltr}
+.gps:hover{text-decoration:underline}
+.lvl{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--t2)}
+.muted{color:var(--t3)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* modal body spacing for forms rendered inside .modal */
+.modal form > .fg,.modal form > .fg2,.modal > .kv,.modal form > .kv{margin:20px 24px}
+.modal .fg .kv{margin:0}
+.modal .mf{margin-top:0!important}
+.modal .opt{height:auto;min-height:52px;padding:8px 12px;cursor:pointer}
+.modal .opt:has(input:checked){border-color:#B9CBE3;background:var(--prs)}
+.formcard .mf{display:flex;gap:8px;padding-top:20px;border-top:1px solid var(--bd2)}
+.formcard .kv{margin-top:20px}
+.field select{height:100%}
+.sel select{border:0;outline:0;background:transparent;font:inherit;color:inherit;min-width:160px;height:100%;cursor:pointer}
+.kv.k4{grid-template-columns:repeat(4,1fr);border:0;border-radius:16px}
+.kv.k4 div{border-left:1px solid var(--bd2)}
+.kpi .v .bd{font-size:14px;vertical-align:middle}
+.ph .crumb{font-size:12px;color:var(--t3);margin-bottom:6px} .ph .crumb a:hover{color:var(--pr)}
+#cf-extra{height:20px}
+table.compact th,table.compact td{padding-inline:8px}
+table.compact td.clip{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td a.fl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;color:var(--inf)}

@@ -1,0 +1,39 @@
+@model PagedResult<SessionRow>
+@{ ViewData["Title"] = "جلسات الجرد"; ViewData["Nav"] = "sessions"; var year = Ui.Local(DateTime.UtcNow).Year; }
+<div class="ph">
+    <div><h1>جلسات الجرد</h1><p>جلسة وحدة قيد التنفيذ بنفس الوقت، وجلسة وحدة لكل سنة</p></div>
+    <div class="toolbar"><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
+</div>
+<div class="card">
+    <div class="ch">@await Html.PartialAsync("_Search", "ابحث بالسنة أو اسم الملف")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد جلسات جرد", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }
+    else {
+    <table class="compact">
+        <thead><tr><th style="width:60px">الرقم</th><th>السنة</th><th>الحالة</th><th>بدأت بواسطة</th><th>تاريخ البدء</th><th>تاريخ الانتهاء</th><th>الملف</th><th>القطع</th><th>المركبات</th><th style="width:80px">الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var x in Model.Items) {
+            <tr><td class="idx mono">@Ui.Idx(x.Id)</td><td class="num"><b>@x.Year</b></td><td>@Ui.Session(x.Status)</td><td>@x.StartedBy</td><td class="num">@Ui.DT(x.StartedAt)</td><td class="num">@Ui.DT(x.EndedAt)</td>
+                <td><a class="fl" href="/Sessions/File/@x.Id">@Ui.Icon("file", 14) @x.FileName</a></td><td class="num">@x.Parts</td><td class="num">@x.Vins</td>
+                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
+                    <a href="/Sessions/File/@x.Id">@Ui.Icon("file", 16) تحميل الملف</a>
+                    <a href="/Exports/Parts?kind=all&sessionId=@x.Id">@Ui.Icon("export", 16) تصدير القطع</a>
+                    <a href="/Exports/Cars?sessionId=@x.Id">@Ui.Icon("export", 16) تصدير المركبات</a>
+                    @if (x.Status == SessionStatus.InProgress) {
+                        <a href="#" class="dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" data-title="إنهاء الجلسة" data-text="راح يتم إنهاء جلسة جرد @x.Year، وما يكدر المستخدمين يرسلون عد أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 16) إنهاء الجلسة</a>
+                    }
+                </div></div></td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>
+<div class="ov" id="start-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Sessions/Start" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+    <div class="mh"><div class="mic pr">@Ui.Icon("session", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel يحتوي ورقة القطع وورقة المركبات</p></div></div>
+    <div class="fg">
+        <div><label class="lbl">السنة<i> *</i></label><div class="field"><input name="year" type="number" min="2000" max="2100" value="@year" required /></div></div>
+        <div><label class="lbl">ملف Excel<i> *</i></label><div class="field"><input name="file" type="file" accept=".xlsx,.xls" required /></div><span class="hint">الصيغ المدعومة: xlsx و xls · الحد الأقصى 25 MB · <a href="/Sessions/Template">تحميل القالب</a></span></div>
+    </div>
+    <div class="mf"><button class="btn p" type="submit">بدء الجلسة</button><button type="button" class="btn" data-close>إلغاء</button></div>
+</form></div></div>

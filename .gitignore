@@ -1,0 +1,11 @@
+bin/
+obj/
+*.user
+.vs/
+App_Data/
+appsettings.Development.json
+appsettings.*.local.json
+screens/*.tmp
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,2 @@
+@if (TempData["ok"] is string ok && ok.Length > 0) { <div class="alert ok" role="status">@Ui.Icon("check", 18)<span>@ok</span></div> }
+@if (TempData["err"] is string err && err.Length > 0) { <div class="alert er" role="alert">@Ui.Icon("alert", 18)<span>@err</span></div> }

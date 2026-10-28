@@ -1,0 +1,5 @@
+@model string
+<form method="get" role="search">
+    <label class="inp">@Ui.Icon("search", 16)<input type="search" name="search" value="@Context.Request.Query["search"]" placeholder="@Model" aria-label="@Model" /></label>
+    @foreach (var kv in Context.Request.Query.Where(x => x.Key is not ("search" or "page"))) { <input type="hidden" name="@kv.Key" value="@kv.Value" /> }
+</form>

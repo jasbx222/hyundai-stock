@@ -1,0 +1,21 @@
+@model PagerVm
+@{
+    string Url(int p)
+    {
+        var q = Context.Request.Query.Where(x => x.Key != "page").SelectMany(x => x.Value.Select(v => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(v ?? "")}")).ToList();
+        q.Add($"page={p}");
+        return Context.Request.Path + "?" + string.Join("&", q);
+    }
+    var start = Math.Max(1, Model.Page - 2); var end = Math.Min(Model.TotalPages, start + 4); start = Math.Max(1, end - 4);
+}
+@if (Model.Total > 0)
+{
+<div class="foot">
+    <span>عرض <b class="num">@Model.From–@Model.To</b> من <b class="num">@Model.Total</b></span>
+    <nav class="pg" aria-label="الصفحات">
+        <a href="@Url(Model.Page - 1)" class="@(Model.Page <= 1 ? "dis" : "")" aria-label="السابق">@Ui.Icon("chevr", 14)</a>
+        @for (var i = start; i <= end; i++) { <a href="@Url(i)" class="@(i == Model.Page ? "on" : "")" @(i == Model.Page ? "aria-current=page" : "")>@i</a> }
+        <a href="@Url(Model.Page + 1)" class="@(Model.Page >= Model.TotalPages ? "dis" : "")" aria-label="التالي">@Ui.Icon("chevl", 14)</a>
+    </nav>
+</div>
+}

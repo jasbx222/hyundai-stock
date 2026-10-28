@@ -1,0 +1,51 @@
+@model PartDetails
+@{ var p = Model.Part; ViewData["Title"] = p.PartNumber; ViewData["Nav"] = "parts"; string tab = ViewBag.Tab as string ?? "corrections"; if (tab is not ("corrections" or "recounts" or "logs")) tab = "corrections"; }
+<div class="ph">
+    <div><div class="crumb"><a href="/Parts">قطع الغيار</a> / <span class="mono">@p.PartNumber</span></div><h1 class="mono">@p.PartNumber</h1><p>@p.Description</p></div>
+    <div class="toolbar">
+        <button class="btn" data-remote="/Parts/RecountForm/@p.Id">@Ui.Icon("refresh", 16) طلب إعادة العد</button>
+        <button class="btn p" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تحديث الكمية</button>
+    </div>
+</div>
+<div class="kpis">
+    <div class="card kpi"><div class="l">كمية النظام</div><div class="v"><b class="num">@p.SystemQuantity</b></div></div>
+    <div class="card kpi"><div class="l">الكمية المعدودة</div><div class="v"><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></div></div>
+    <div class="card kpi"><div class="l">الفرق</div><div class="v"><b>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</b></div></div>
+    <div class="card kpi"><div class="l">المخزن</div><div class="v" style="font-size:18px;line-height:28px"><b>@(p.Warehouse?.Name ?? "—")</b></div><div class="s">@(p.Branch?.Name)</div></div>
+</div>
+<div class="card" style="margin-top:16px">
+    <div class="kv k4">
+        <div><span>السعر</span><b class="num">@p.Price.ToString("N0") د.ع</b></div>
+        <div><span>موقع النظام</span><b class="mono">@(p.SystemLocation ?? "—")</b></div>
+        <div><span>الموقع المعدود</span><b class="mono">@(p.CountedLocation ?? "—")</b></div>
+        <div><span>عُدّت بواسطة</span><b>@(p.CountedByUser?.Name ?? "—")</b></div>
+        <div><span>وقت العد</span><b class="num">@Ui.DT(p.CountedAt)</b></div>
+        <div><span>الإحداثيات</span><b class="mono" dir="ltr">@(p.Latitude.HasValue ? $"{p.Latitude:F6}, {p.Longitude:F6}" : "—")</b></div>
+        <div><span>الجلسة</span><b class="num">@(p.Session?.Year)</b></div>
+    </div>
+</div>
+<div class="card" style="margin-top:16px">
+    <div class="tabs" role="tablist">
+        <a href="?tab=corrections" data-tab="corrections" class="@(tab == "corrections" ? "on" : "")" role="tab">طلبات التصحيح <span class="num">(@Model.Corrections.Count)</span></a>
+        <a href="?tab=recounts" data-tab="recounts" class="@(tab == "recounts" ? "on" : "")" role="tab">طلبات إعادة العد <span class="num">(@Model.Recounts.Count)</span></a>
+        <a href="?tab=logs" data-tab="logs" class="@(tab == "logs" ? "on" : "")" role="tab">سجل التغييرات <span class="num">(@Model.Logs.Count)</span></a>
+    </div>
+    <div class="tabpane @(tab == "corrections" ? "on" : "")" id="corrections">
+        @if (Model.Corrections.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات تصحيح", "طلبات تعديل الكمية لهذي القطعة تظهر هنا.", "edit")) }
+        else { <table><thead><tr><th>الرقم</th><th>الكمية القديمة</th><th>الكمية الجديدة</th><th>السبب</th><th>طلب بواسطة</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
+            @foreach (var r in Model.Corrections) { <tr><td class="idx mono">@Ui.Idx(r.Id)</td><td class="num">@(r.OldQuantity?.ToString() ?? "—")</td><td class="num"><b>@r.NewQuantity</b></td><td>@r.Reason</td><td>@r.RequestedBy</td><td>@Ui.Qty(r.Status, r.Level)</td><td class="num">@Ui.DT(r.CreatedAt)</td></tr> }
+        </tbody></table> }
+    </div>
+    <div class="tabpane @(tab == "recounts" ? "on" : "")" id="recounts">
+        @if (Model.Recounts.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات إعادة عد", "اطلب إعادة العد من الزر بالأعلى.", "refresh")) }
+        else { <table><thead><tr><th>الرقم</th><th>المستخدم</th><th>طلب بواسطة</th><th>الحالة</th><th>النتيجة</th><th>تاريخ الطلب</th><th>تاريخ الإكمال</th></tr></thead><tbody>
+            @foreach (var r in Model.Recounts) { <tr><td class="idx mono">@Ui.Idx(r.Id)</td><td>@r.UserName</td><td>@r.RequestedBy</td><td>@Ui.Recount(r.Status)</td><td class="num">@(r.ResultQuantity?.ToString() ?? "—")</td><td class="num">@Ui.DT(r.CreatedAt)</td><td class="num">@Ui.DT(r.CompletedAt)</td></tr> }
+        </tbody></table> }
+    </div>
+    <div class="tabpane @(tab == "logs" ? "on" : "")" id="logs">
+        @if (Model.Logs.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا يوجد سجل تغييرات", "أي تغيير على القطعة ينسجل هنا.", "history")) }
+        else { <table><thead><tr><th>الحقل</th><th>القيمة القديمة</th><th>القيمة الجديدة</th><th>بواسطة</th><th>المصدر</th><th>التاريخ</th></tr></thead><tbody>
+            @foreach (var l in Model.Logs) { <tr><td>@l.Field</td><td class="num">@(l.OldValue ?? "—")</td><td class="num"><b>@(l.NewValue ?? "—")</b></td><td>@l.ChangedBy</td><td>@l.Source</td><td class="num">@Ui.DT(l.CreatedAt)</td></tr> }
+        </tbody></table> }
+    </div>
+</div>
