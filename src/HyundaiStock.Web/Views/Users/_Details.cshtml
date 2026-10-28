@@ -1,12 +1,13 @@
 @model UserDetails
-<div class="modal">
-    <div class="mh"><div class="mic pr">@Ui.Icon("user", 20)</div><div><h3>@Model.Name</h3><p>تفاصيل المستخدم</p></div><button class="ib" data-close style="margin-inline-start:auto" aria-label="إغلاق">@Ui.Icon("x", 18)</button></div>
-    <div class="kv">
-        <div><span>رقم الهاتف</span><b class="mono" dir="ltr">@Model.PhoneNumber</b></div>
-        <div><span>الفروع</span><b>@(Model.Branches.Count == 0 ? "—" : string.Join("، ", Model.Branches))</b></div>
-        <div><span>المخازن</span><b>@(Model.Warehouses.Count == 0 ? "—" : string.Join("، ", Model.Warehouses))</b></div>
+<div class="modal" style="width:480px">
+    <div class="mh"><div class="mic pr">@Ui.Icon("user", 20)</div><div><h3>تفاصيل المستخدم</h3></div></div>
+    <div class="mb"><div class="kv">
+        <div><span>الاسم</span><b>@Model.Name</b></div>
+        <div><span>رقم الهاتف</span><b class="mono">@Model.PhoneNumber</b></div>
+        <div><span>الفروع</span><b>@if (Model.Branches.Count == 0) {<text>—</text>} else {<span class="chips">@foreach (var b in Model.Branches) {<span class="chip">@b</span>}</span>}</b></div>
+        <div><span>المستودعات</span><b>@if (Model.Warehouses.Count == 0) {<text>—</text>} else {<span class="chips">@foreach (var w in Model.Warehouses) {<span class="chip">@w</span>}</span>}</b></div>
         <div><span>الحالة</span><b>@Ui.Active(Model.IsActive)</b></div>
-        <div><span>تاريخ الإنشاء</span><b class="num">@Ui.DT(Model.CreatedAt)</b></div>
-    </div>
-    <div class="mf" style="margin-top:20px"><a class="btn p" href="/Users/Edit/@Model.Id">@Ui.Icon("edit", 16) تعديل</a><button class="btn" data-close>إغلاق</button></div>
+        <div><span>تاريخ الإنشاء</span><b>@Ui.Day(Model.CreatedAt)</b></div>
+    </div></div>
+    <div class="mf"><button class="btn" data-close>إغلاق</button></div>
 </div>

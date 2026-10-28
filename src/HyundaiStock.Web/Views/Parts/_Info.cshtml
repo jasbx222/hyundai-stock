@@ -9,7 +9,7 @@
         <div><span>الموقع المعدود</span><b class="mono">@(Model.CountedLocation ?? "—")</b></div>
         <div><span>الفرع / المخزن</span><b>@(Model.Branch?.Name ?? "—") / @(Model.Warehouse?.Name ?? "—")</b></div>
         <div><span>عُدّت بواسطة</span><b>@(Model.CountedByUser?.Name ?? "—")</b></div>
-        <div><span>وقت العد</span><b class="num">@Ui.DT(Model.CountedAt)</b></div>
+        <div><span>وقت العد</span><b>@Ui.When(Model.CountedAt)</b></div>
         <div><span>الإحداثيات</span><b class="mono" dir="ltr">@(Model.Latitude.HasValue ? $"{Model.Latitude:F6}, {Model.Longitude:F6}" : "—")</b></div>
     </div>
     <div class="mf" style="margin-top:20px"><a class="btn p" href="/Parts/Details/@Model.Id">عرض التفاصيل</a><button class="btn" data-close>إغلاق</button></div>

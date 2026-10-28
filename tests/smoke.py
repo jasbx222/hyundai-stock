@@ -14,7 +14,7 @@ def login(phone, pw):
 def post(s, path, data, files=None, ref="/"):
     t = tok(s.get(B + ref).text); data = dict(data); data["__RequestVerificationToken"] = t
     return s.post(B + path, data=data, files=files, headers={"Referer": B + ref}, allow_redirects=True)
-def flash(r): m = re.search(r'class="alert (ok|er)"[^>]*>.*?<span>(.*?)</span>', r.text, re.S); return (m.group(1), m.group(2)) if m else (None, None)
+def flash(r): m = re.search(r'class="toast (ok|er) alert"[^>]*>.*?class="tx">(.*?)</div>', r.text, re.S) or re.search(r'class="alert (ok|er)"[^>]*>.*?<span>(.*?)</span>', r.text, re.S); return (m.group(1), m.group(2)) if m else (None, None)
 
 # --- auth
 _, r = login(APHONE, "wrong-password"); check("login wrong password rejected", r.status_code == 200 and "غير صحيحة" in r.text)
@@ -129,16 +129,16 @@ html = s.get(B + "/Parts").text; check("parts list paged 10", html.count("/Parts
 check("parts search", "D3A05" in s.get(B + "/Parts?search=D3A05").text)
 check("parts page 2", s.get(B + "/Parts?page=2").status_code == 200)
 r = s.get(B + f"/Parts/Details/{pid}"); check("part details", r.status_code == 200 and "سجل التغييرات" in r.text)
-r = s.get(B + f"/Parts/Info/{pid}"); check("part info partial (no price)", r.status_code == 200 and "السعر" not in r.text)
-check("recount form partial", "طلب إعادة العد" in s.get(B + f"/Parts/RecountForm/{pid}").text)
-check("quantity form partial", "تحديث الكمية" in s.get(B + f"/Parts/QuantityForm/{pid}").text)
+check("part info partial (no price shown)", "السعر" not in s.get(B + f"/Parts/Info/{pid}").text and "السعر" not in s.get(B + f"/Parts/Details/{pid}").text)
+check("recount form partial", "طلب إعادة عد" in s.get(B + f"/Parts/RecountForm/{pid}").text)
+check("quantity form partial", "تعديل الكمية" in s.get(B + f"/Parts/QuantityForm/{pid}").text)
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "other", "userId": uids[0] if False else ""}, ref="/Parts"); check("recount other w/o user rejected", flash(r)[0] == "er", flash(r))
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "same"}, ref="/Parts"); check("recount same user", flash(r)[0] == "ok", flash(r))
 r = api.get(B + "/api/v1/recounts", headers=H); check("API my recounts", r.json()["data"]["totalCount"] == 1, r.text[:200])
 rid = r.json()["data"]["items"][0]["id"]
 r = api.post(B + f"/api/v1/recounts/{rid}/submit", headers=H, json={"quantity": 9, "location": "A-05-02", "latitude": 33.3, "longitude": 44.3}); check("API submit recount", r.status_code == 200, r.text[:300])
 r = api.post(B + f"/api/v1/recounts/{rid}/submit", headers=H, json={"quantity": 9, "latitude": 33.3, "longitude": 44.3}); check("API recount twice rejected", r.status_code in (400, 409), r.status_code)
-r = post(s, f"/Parts/Quantity/{pid}", {"newQuantity": 12, "reason": "تصحيح بعد المراجعة"}, ref="/Parts"); check("quantity update request", flash(r)[0] == "ok", flash(r))
+r = post(s, f"/Parts/Quantity/{pid}", {"newQuantity": 12}, ref="/Parts"); check("quantity update request", flash(r)[0] == "ok", flash(r))
 r = post(s, "/Requests/Create", {"PartNumber": "58101-D3A03", "NewQuantity": 5, "Reason": "طلب يدوي"}, ref="/Requests/Create"); check("manual request create", "تم إرسال طلب التعديل" in r.text, flash(r))
 r = post(s, "/Requests/Create", {"PartNumber": "NOPE", "NewQuantity": "", "Reason": ""}, ref="/Requests/Create"); check("request validation", "hint e" in r.text)
 rq = s.get(B + "/Requests").text; qids = sorted(set(int(x) for x in re.findall(r'/Requests/Edit/(\d+)', rq)) - {app_qid}); check("requests list", len(qids) == 2, qids)

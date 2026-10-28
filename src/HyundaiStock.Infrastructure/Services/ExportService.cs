@@ -94,7 +94,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (kind == PartExportKind.Uncounted) q = q.Where(x => x.CountedQuantity == null);
         var data = await q.OrderBy(x => x.PartNumber).Select(x => new
         {
-            x.PartNumber, x.Description, x.Price, x.SystemQuantity, x.CountedQuantity, x.SystemLocation, x.CountedLocation,
+            x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.SystemLocation, x.CountedLocation,
             Wh = x.Warehouse != null ? x.Warehouse.Name : "", Br = x.Branch != null ? x.Branch.Name : "", User = x.CountedByUser != null ? x.CountedByUser.Name : "", x.CountedAt
         }).ToListAsync();
         var name = kind switch { PartExportKind.Counted => "قطع-الجرد", PartExportKind.Uncounted => "قطع-غير-معدودة", _ => "قطع-الغيار" };

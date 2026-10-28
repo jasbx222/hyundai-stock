@@ -1,15 +1,15 @@
 @model QtyInput
-@{ int? id = ViewBag.Id; ViewData["Title"] = id.HasValue ? "تعديل طلب" : "طلب تعديل جديد"; ViewData["Nav"] = "requests"; var ms = ViewData.ModelState; }
-<div class="ph"><div><div class="crumb"><a href="/Requests">طلبات التعديل</a> / @ViewData["Title"]</div><h1>@ViewData["Title"]</h1><p>أدخل رقم القطعة كما موجود بجلسة الجرد الحالية</p></div></div>
+@{ int? id = ViewBag.Id; ViewData["Title"] = id.HasValue ? "تعديل طلب" : "إضافة طلب"; ViewData["Nav"] = "requests"; var ms = ViewData.ModelState; }
+<div class="ph"><div><h1>@ViewData["Title"]</h1></div></div>
 <form class="card formcard" method="post" novalidate>
     @Html.AntiForgeryToken()
-    @if (ms.ErrorOf("") is string ge) { <div class="alert er">@Ui.Icon("alert", 18)<span>@ge</span></div> }
+    @if (ms.ErrorOf("") is string ge) { <div class="alert er" style="margin-bottom:18px">@Ui.Icon("alert", 18)<span>@ge</span></div> }
     <div class="fg2">
-        <div><label class="lbl" for="PartNumber">رقم القطعة<i> *</i></label><div class="@ms.Cls("PartNumber")"><input id="PartNumber" name="PartNumber" value="@Model.PartNumber" class="mono" dir="ltr" maxlength="60" required placeholder="58101-D3A00" /></div>@ms.Err("PartNumber")</div>
-        <div><label class="lbl" for="PartDescription">وصف القطعة</label><div class="@ms.Cls("PartDescription")"><input id="PartDescription" name="PartDescription" value="@Model.PartDescription" maxlength="300" placeholder="يتعبأ تلقائياً من الجلسة إذا تركته فارغ" /></div>@ms.Err("PartDescription")</div>
-        <div><label class="lbl" for="OldQuantity">الكمية القديمة</label><div class="@ms.Cls("OldQuantity")"><input id="OldQuantity" name="OldQuantity" value="@Model.OldQuantity" type="number" min="0" placeholder="تؤخذ من الكمية المعدودة إذا تركتها فارغة" /></div>@ms.Err("OldQuantity")</div>
-        <div><label class="lbl" for="NewQuantity">الكمية الجديدة<i> *</i></label><div class="@ms.Cls("NewQuantity")"><input id="NewQuantity" name="NewQuantity" value="@Model.NewQuantity" type="number" min="0" required placeholder="0" /></div>@ms.Err("NewQuantity")</div>
-        <div style="grid-column:1/-1"><label class="lbl" for="Reason">السبب<i> *</i></label><div class="@ms.Cls("Reason") ta"><textarea id="Reason" name="Reason" rows="3" maxlength="500" required placeholder="اكتب سبب التعديل">@Model.Reason</textarea></div>@ms.Err("Reason")</div>
+        <div><label class="lbl" for="PartNumber">رقم القطعة<i> *</i></label><div class="@ms.Cls("PartNumber")"><input id="PartNumber" name="PartNumber" value="@Model.PartNumber" class="mono" dir="ltr" style="text-align:right" maxlength="60" required placeholder="58101-D3A00" /></div>@ms.Err("PartNumber")</div>
+        <div><label class="lbl" for="PartDescription">وصف القطعة<i> *</i></label><div class="@ms.Cls("PartDescription")"><input id="PartDescription" name="PartDescription" value="@Model.PartDescription" maxlength="300" placeholder="يتعبأ تلقائياً من الجلسة" /></div>@ms.Err("PartDescription")</div>
+        <div><label class="lbl" for="OldQuantity">الكمية القديمة<i> *</i></label><div class="@ms.Cls("OldQuantity")"><input id="OldQuantity" name="OldQuantity" value="@Model.OldQuantity" type="number" min="0" class="num" placeholder="من الكمية المعدودة" /></div>@ms.Err("OldQuantity")</div>
+        <div><label class="lbl" for="NewQuantity">الكمية الجديدة<i> *</i></label><div class="@ms.Cls("NewQuantity")"><input id="NewQuantity" name="NewQuantity" value="@Model.NewQuantity" type="number" min="0" class="num" required placeholder="0" /></div>@ms.Err("NewQuantity")</div>
     </div>
-    <div class="mf" style="margin-top:24px"><button class="btn p" type="submit">@Ui.Icon("check", 16) @(id.HasValue ? "حفظ" : "إرسال الطلب")</button><a class="btn" href="/Requests">إلغاء</a></div>
+    <div style="margin-top:18px"><label class="lbl" for="Reason">السبب</label><div class="@ms.Cls("Reason")"><input id="Reason" name="Reason" value="@Model.Reason" maxlength="500" placeholder="اكتب سبب التعديل" /></div>@ms.Err("Reason")</div>
+    <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Requests">إلغاء</a></div>
 </form>

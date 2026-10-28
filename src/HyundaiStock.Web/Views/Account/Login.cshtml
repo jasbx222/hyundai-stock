@@ -1,24 +1,24 @@
 @model HyundaiStock.Web.Controllers.LoginVm
 @{ ViewData["Title"] = "تسجيل الدخول"; }
 <div class="login">
-    <form class="card" method="post" action="/Account/Login" novalidate>
+    <form class="card" style="width:440px;padding:40px;border-radius:20px;box-shadow:var(--sh2)" method="post" action="/Account/Login" novalidate>
         @Html.AntiForgeryToken()
         <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
-        <div class="brandl"><img src="~/img/hy_emblem_navy.png" alt="Hyundai" /><div><b style="display:block;font-size:15px">جرد هيونداي</b><span class="muted" style="font-size:12px">هيونداي موتورز العراق</span></div></div>
-        <h2>تسجيل الدخول</h2>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px"><img src="~/img/hy_emblem_navy.png" alt="Hyundai" style="width:44px;height:23px;object-fit:contain" /><div><b style="font-size:16px">جرد هيونداي</b><div style="font-size:12px;color:var(--t3)">هيونداي موتورز العراق</div></div></div>
+        <h1 style="font-size:24px;font-weight:700;margin-bottom:28px">تسجيل الدخول</h1>
         @if (ViewData.ModelState[""]?.Errors.Count > 0) { <div class="alert er" style="margin-bottom:16px">@Ui.Icon("alert", 18)<span>@ViewData.ModelState[""]!.Errors[0].ErrorMessage</span></div> }
         <div class="fg">
             <div>
                 <label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label>
                 <div class="field @(ViewData.ModelState["PhoneNumber"]?.Errors.Count > 0 ? "err" : "")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" autocomplete="username" placeholder="أدخل رقم الهاتف" required autofocus /></div>
-                <span class="hint e" asp-validation-for="PhoneNumber"></span>
+                @if (ViewData.ModelState["PhoneNumber"]?.Errors.Count > 0) { <span class="hint e">@ViewData.ModelState["PhoneNumber"]!.Errors[0].ErrorMessage</span> }
             </div>
             <div>
                 <label class="lbl" for="Password">كلمة المرور<i> *</i></label>
                 <div class="field @(ViewData.ModelState["Password"]?.Errors.Count > 0 ? "err" : "")"><input id="Password" name="Password" type="password" autocomplete="current-password" placeholder="أدخل كلمة المرور" required /></div>
-                <span class="hint e" asp-validation-for="Password"></span>
+                @if (ViewData.ModelState["Password"]?.Errors.Count > 0) { <span class="hint e">@ViewData.ModelState["Password"]!.Errors[0].ErrorMessage</span> }
             </div>
-            <button class="btn p lg" type="submit" style="width:100%;justify-content:center;margin-top:8px">تسجيل الدخول</button>
+            <button class="btn p lg" type="submit" style="width:100%;justify-content:center;margin-top:28px">تسجيل الدخول</button>
         </div>
     </form>
 </div>

@@ -1,35 +1,41 @@
 @model PagedResult<AdminRow>
 @{ ViewData["Title"] = "المشرفين"; ViewData["Nav"] = "admins"; var branches = (List<NamedItem>)ViewBag.Branches; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
-    <div><h1>المشرفين</h1><p>حسابات لوحة التحكم وصلاحياتها</p></div>
-    <div class="toolbar"><a class="btn p" href="/Admins/Create">@Ui.Icon("plus", 16) إضافة مشرف</a></div>
+    <div><h1>المشرفين</h1></div>
+    <div class="acts"><a class="btn p" href="/Admins/Create">@Ui.Icon("plus", 16) إضافة مشرف</a></div>
 </div>
-<div class="card">
-    <div class="ch">@await Html.PartialAsync("_Search", "ابحث بالاسم أو رقم الهاتف")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا يوجد مشرفين", "ما في نتائج مطابقة.", "shield")) }
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم الهاتف")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد نتائج", "ما في مشرفين مطابقين.", "shield")) }
     else {
     <table>
-        <thead><tr><th style="width:70px">الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الدور</th><th>الفرع</th><th>الحالة</th><th>تاريخ الإنشاء</th><th style="width:90px">الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الدور</th><th>الفرع</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var a in Model.Items) {
             var self = a.Id == s.Id;
-            <tr><td class="idx mono">@Ui.Idx(a.Id)</td>
-                <td><div class="who"><div class="av">@Ui.Initial(a.Name)</div><b>@a.Name</b></div></td>
-                <td class="mono" dir="ltr" style="text-align:right">@a.PhoneNumber</td>
-                <td>@Ui.Badge(Labels.Role(a.Role), a.Role == AdminRole.MainAdmin ? "pr" : a.Role == AdminRole.SuperAdmin ? "in" : "ne")</td>
-                <td>@(a.BranchName ?? "—")</td><td>@Ui.Active(a.IsActive)</td><td class="num">@Ui.Date(a.CreatedAt)</td>
-                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
-                    <a href="#" data-remote="/Admins/Details/@a.Id">@Ui.Icon("eye", 16) عرض التفاصيل</a>
+            <tr><td><span class="idx">@Ui.Idx(a.Id)</span></td>
+                <td>@Ui.Who(a.Name)</td>
+                <td><span class="mono">@a.PhoneNumber</span></td>
+                <td>@Labels.Role(a.Role)</td>
+                <td>@(a.Role == AdminRole.Admin ? (a.BranchName ?? "—") : "كل الفروع")</td><td>@Ui.Active(a.IsActive)</td><td>@Ui.Day(a.CreatedAt)</td>
+                <td><div class="ra">
+                    <button type="button" class="btn sm g" title="التفاصيل" aria-label="التفاصيل" data-remote="/Admins/Details/@a.Id">@Ui.Icon("eye", 16)</button>
                     @if (!self && a.Role != AdminRole.MainAdmin) {
-                        <a href="#" data-modal="#reset-m" data-v-id="@a.Id" data-sub="@a.Name">@Ui.Icon("key", 16) تغيير كلمة المرور</a>
-                        @if (a.Role == AdminRole.Admin) { <a href="#" data-modal="#assign-m" data-v-id="@a.Id" data-v-branchId="@(a.BranchId?.ToString() ?? "")" data-sub="@a.Name">@Ui.Icon("branch", 16) تعيين فرع</a> }
+                        <button type="button" class="btn sm g" title="إعادة تعيين كلمة المرور" aria-label="إعادة تعيين كلمة المرور" data-modal="#reset-m" data-v-id="@a.Id" data-sub="@a.Name">@Ui.Icon("key", 16)</button>
+                        @if (a.Role == AdminRole.Admin) { <button type="button" class="btn sm g" title="تعيين فرع" aria-label="تعيين فرع" data-modal="#assign-m" data-v-id="@a.Id" data-v-branchId="@(a.BranchId?.ToString() ?? "")" data-sub="@a.Name">@Ui.Icon("branch", 16)</button> }
+                    }
+                    <span class="sep"></span>
+                    <a class="btn sm g" title="تصدير VINs" aria-label="تصدير VINs" href="/Exports/Cars?AdminId=@a.Id">@Ui.Icon("vin", 16)</a>
+                    <a class="btn sm g" title="تصدير قطع الغيار" aria-label="تصدير قطع الغيار" href="/Exports/Parts?kind=counted&AdminId=@a.Id">@Ui.Icon("part", 16)</a>
+                    @if (!self && a.Role != AdminRole.MainAdmin) {
+                        <span class="sep"></span>
                         if (a.IsActive) {
-                            <a href="#" class="dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف" data-text="راح يتم تعطيل حساب «@a.Name» ويتم تسجيل خروجه فوراً." data-ok="تعطيل">@Ui.Icon("power", 16) تعطيل</a>
+                            <button type="button" class="btn sm dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف؟" data-text="حساب @a.Name راح يتعطل ويطلع من الجلسة فوراً" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                         } else {
-                            <a href="#" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="check" data-title="تفعيل المشرف" data-text="راح يتم تفعيل حساب «@a.Name»." data-ok="تفعيل">@Ui.Icon("check", 16) تفعيل</a>
+                            <button type="button" class="btn sm en" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المشرف؟" data-text="@a.Name يكدر يدخل مرة ثانية" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                         }
                     }
-                </div></div></td></tr>
+                </div></td></tr>
         }
         </tbody>
     </table>
@@ -38,13 +44,13 @@
 </div>
 <div class="ov" id="reset-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Admins/ResetPassword">
     @Html.AntiForgeryToken()<input type="hidden" name="id" />
-    <div class="mh"><div class="mic pr">@Ui.Icon("key", 20)</div><div><h3>تغيير كلمة المرور</h3><p data-sub-slot></p></div></div>
-    <div class="fg"><div><label class="lbl">كلمة المرور الجديدة<i> *</i></label><div class="field"><input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="6 أحرف على الأقل" /></div></div></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("key", 20)</div><div><h3>إعادة تعيين كلمة المرور</h3><p data-sub-slot></p></div></div>
+    <div class="mb"><div><label class="lbl">كلمة المرور الجديدة<i> *</i></label><div class="field"><input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="••••••" /></div><div class="hint">6 أحرف على الأقل</div></div></div>
     <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div></div>
 <div class="ov" id="assign-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Admins/AssignBranch">
     @Html.AntiForgeryToken()<input type="hidden" name="id" />
     <div class="mh"><div class="mic pr">@Ui.Icon("branch", 20)</div><div><h3>تعيين فرع</h3><p data-sub-slot></p></div></div>
-    <div class="fg"><div><label class="lbl">الفرع<i> *</i></label><div class="field"><select name="branchId" required><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div></div>
+    <div class="mb"><div><label class="lbl">الفرع<i> *</i></label><div class="field"><select name="branchId" required><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div></div>
     <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div></div>

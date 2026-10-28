@@ -139,7 +139,6 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         if (i.NewQuantity is null) err["NewQuantity"] = "الكمية الجديدة مطلوبة";
         else if (i.NewQuantity < 0) err["NewQuantity"] = "الكمية ما تكون سالبة";
         if (i.OldQuantity < 0) err["OldQuantity"] = "الكمية ما تكون سالبة";
-        if (string.IsNullOrEmpty(reason)) err["Reason"] = "السبب مطلوب";
         if (err.Count > 0) return err;
 
         if (part == null)
@@ -165,7 +164,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
             r = new QuantityCorrectionRequest { RequestedByAdminId = s.Id };
             db.QuantityCorrections.Add(r);
         }
-        r.PartNumber = pn!; r.PartDescription = desc!; r.OldQuantity = i.OldQuantity; r.NewQuantity = i.NewQuantity!.Value; r.Reason = reason!;
+        r.PartNumber = pn!; r.PartDescription = desc!; r.OldQuantity = i.OldQuantity; r.NewQuantity = i.NewQuantity!.Value; r.Reason = reason ?? "";
         r.InventoryPartId = part?.Id ?? r.InventoryPartId;
         r.BranchId = part?.BranchId ?? r.BranchId ?? s.BranchId;
         r.UpdatedAt = DateTime.UtcNow;

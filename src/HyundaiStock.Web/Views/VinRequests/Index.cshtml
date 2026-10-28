@@ -1,21 +1,21 @@
 @model PagedResult<VinReqRow>
 @{ ViewData["Title"] = "طلبات تصحيح VIN"; ViewData["Nav"] = "vinrequests"; }
-<div class="ph"><div><h1>طلبات تصحيح VIN</h1><p>طلبات المستخدمين لتصحيح أرقام VIN الممسوحة</p></div></div>
-<div class="card">
-    <div class="ch">@await Html.PartialAsync("_Search", "ابحث برقم VIN أو السبب")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات", "طلبات تصحيح VIN من التطبيق راح تظهر هنا.", "vin")) }
+<div class="ph"><div><h1>طلبات تصحيح VIN</h1></div></div>
+<div class="card vt" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "طلبات تصحيح VIN من التطبيق راح تظهر هنا.", "vin")) }
     else {
-    <table class="compact">
-        <thead><tr><th style="width:60px">الرقم</th><th>VIN الحالي</th><th>VIN الجديد</th><th>السبب</th><th>طلب بواسطة</th><th>تمت الموافقة بواسطة</th><th>الحالة</th><th>تاريخ الطلب</th><th>تاريخ الموافقة</th><th style="width:80px">الإجراءات</th></tr></thead>
+    <table>
+        <thead><tr><th>الرقم</th><th>VIN الحالي</th><th>VIN الجديد</th><th>السبب</th><th>طلب بواسطة</th><th>تمت الموافقة بواسطة</th><th>الحالة</th><th>تاريخ الطلب</th><th>تاريخ الموافقة</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
-            <tr><td class="idx mono">@Ui.Idx(r.Id)</td><td class="mono" dir="ltr" style="text-align:right">@r.CurrentVin</td><td class="mono" dir="ltr" style="text-align:right"><b>@r.NewVin</b></td>
-                <td class="clip" title="@r.Reason">@r.Reason</td><td>@r.RequestedBy</td><td>@(r.ApprovedBy ?? "—")</td><td>@Ui.Vin(r.Status)</td><td class="num">@Ui.Date(r.CreatedAt)</td><td class="num">@Ui.Date(r.ApprovedAt)</td>
+            <tr><td><span class="idx">#@r.Id.ToString("0000")</span></td><td><span class="mono" dir="ltr">@r.CurrentVin</span></td><td><span class="mono" dir="ltr"><b>@r.NewVin</b></span></td>
+                <td class="clip" title="@r.Reason">@r.Reason</td><td>@Ui.Who(r.RequestedBy)</td><td>@Ui.Who(r.ApprovedBy)</td><td>@Ui.Vin(r.Status)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Day(r.ApprovedAt)</td>
                 <td>@if (r.Status == RequestStatus.Pending) {
-                    <div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
-                        <a href="#" data-confirm data-action="/VinRequests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="الموافقة على التصحيح" data-text="راح يتغير رقم VIN من @r.CurrentVin إلى @r.NewVin." data-ok="موافقة">@Ui.Icon("check", 16) موافقة</a>
-                        <a href="#" class="dz" data-confirm data-action="/VinRequests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="رفض الطلب" data-text="راح يتم رفض طلب التصحيح." data-ok="رفض">@Ui.Icon("x", 16) رفض</a>
-                    </div></div>
+                    <div class="ra">
+                        <button type="button" class="btn sm okb" data-confirm data-action="/VinRequests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="الموافقة على التصحيح؟" data-text="راح يتغير رقم VIN من @r.CurrentVin إلى @r.NewVin." data-ok="الموافقة">@Ui.Icon("check", 16) الموافقة</button>
+                        <button type="button" class="btn sm dg" data-confirm data-action="/VinRequests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="رفض الطلب؟" data-text="راح يتم رفض طلب التصحيح." data-ok="رفض">@Ui.Icon("x", 16) رفض</button>
+                    </div>
                 } else { <span class="muted">—</span> }</td></tr>
         }
         </tbody>

@@ -1,2 +1,8 @@
-@if (TempData["ok"] is string ok && ok.Length > 0) { <div class="alert ok" role="status">@Ui.Icon("check", 18)<span>@ok</span></div> }
-@if (TempData["err"] is string err && err.Length > 0) { <div class="alert er" role="alert">@Ui.Icon("alert", 18)<span>@err</span></div> }
+@{ var ok = TempData["ok"] as string; var err = TempData["err"] as string; }
+@if (!string.IsNullOrEmpty(ok) || !string.IsNullOrEmpty(err))
+{
+<div class="toasts">
+    @if (!string.IsNullOrEmpty(ok)) { <div class="toast ok alert" role="status" data-toast><div class="ti">@Ui.Icon("check", 16)</div><div class="tx">@ok</div><button type="button" aria-label="إغلاق" data-toast-close>@Ui.Icon("x", 14)</button></div> }
+    @if (!string.IsNullOrEmpty(err)) { <div class="toast er alert" role="alert" data-toast data-sticky><div class="ti">@Ui.Icon("alert", 16)</div><div class="tx">@err</div><button type="button" aria-label="إغلاق" data-toast-close>@Ui.Icon("x", 14)</button></div> }
+</div>
+}

@@ -1,32 +1,33 @@
 @model PagedResult<UserRow>
 @{ ViewData["Title"] = "المستخدمين"; ViewData["Nav"] = "users"; }
 <div class="ph">
-    <div><h1>المستخدمين</h1><p>مستخدمي تطبيق الجرد (الموبايل)</p></div>
-    <div class="toolbar"><a class="btn p" href="/Users/Create">@Ui.Icon("plus", 16) إضافة مستخدم</a></div>
+    <div><h1>المستخدمين</h1></div>
+    <div class="acts"><a class="btn p" href="/Users/Create">@Ui.Icon("plus", 16) إضافة مستخدم</a></div>
 </div>
-<div class="card">
-    <div class="ch">@await Html.PartialAsync("_Search", "ابحث بالاسم أو رقم الهاتف")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا يوجد مستخدمين", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف مستخدم حتى يكدر يسجل دخول بتطبيق الجرد." : "ما في نتائج مطابقة للبحث.", "users")) }
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف مستخدم حتى يكدر يسجل دخول بتطبيق الجرد." : "جرّب اسم أو رقم هاتف ثاني.", "users")) }
     else {
     <table>
-        <thead><tr><th style="width:70px">الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الفروع</th><th>المخازن</th><th>الحالة</th><th>تاريخ الإنشاء</th><th style="width:90px">الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الفروع</th><th>المستودعات</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var u in Model.Items) {
-            <tr><td class="idx mono">@Ui.Idx(u.Id)</td>
-                <td><div class="who"><div class="av">@Ui.Initial(u.Name)</div><b>@u.Name</b></div></td>
-                <td class="mono" dir="ltr" style="text-align:right">@u.PhoneNumber</td>
-                <td>@(u.Branches.Count == 0 ? "—" : string.Join("، ", u.Branches))</td>
-                <td>@(u.Warehouses.Count == 0 ? "—" : u.Warehouses.Count > 2 ? $"{string.Join("، ", u.Warehouses.Take(2))} +{u.Warehouses.Count - 2}" : string.Join("، ", u.Warehouses))</td>
-                <td>@Ui.Active(u.IsActive)</td><td class="num">@Ui.Date(u.CreatedAt)</td>
-                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
-                    <a href="#" data-remote="/Users/Details/@u.Id">@Ui.Icon("eye", 16) عرض التفاصيل</a>
-                    <a href="/Users/Edit/@u.Id">@Ui.Icon("edit", 16) تعديل</a>
+            <tr><td><span class="idx">@Ui.Idx(u.Id)</span></td>
+                <td>@Ui.Who(u.Name)</td>
+                <td><span class="mono">@u.PhoneNumber</span></td>
+                <td>@(u.Branches.Count == 0 ? "—" : string.Join(" / ", u.Branches))</td>
+                <td>@(u.Warehouses.Count == 0 ? "—" : u.Warehouses.Count > 2 ? $"{string.Join(" / ", u.Warehouses.Take(2))} +{u.Warehouses.Count - 2}" : string.Join(" / ", u.Warehouses))</td>
+                <td>@Ui.Active(u.IsActive)</td><td>@Ui.Day(u.CreatedAt)</td>
+                <td><div class="ra">
+                    <button type="button" class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" data-remote="/Users/Details/@u.Id">@Ui.Icon("eye", 16)</button>
+                    <a class="btn sm g" title="تعديل" aria-label="تعديل" href="/Users/Edit/@u.Id">@Ui.Icon("edit", 16)</a>
+                    <span class="sep"></span>
                     @if (u.IsActive) {
-                        <a href="#" class="dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم" data-text="راح يتم تعطيل «@u.Name» وما يكدر يستخدم التطبيق." data-ok="تعطيل">@Ui.Icon("power", 16) تعطيل</a>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم؟" data-text="@u.Name ما يكدر يدخل للتطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                     } else {
-                        <a href="#" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="check" data-title="تفعيل المستخدم" data-text="راح يتم تفعيل «@u.Name»." data-ok="تفعيل">@Ui.Icon("check", 16) تفعيل</a>
+                        <button type="button" class="btn sm en" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المستخدم؟" data-text="@u.Name يكدر يدخل مرة ثانية" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                     }
-                </div></div></td></tr>
+                </div></td></tr>
         }
         </tbody>
     </table>

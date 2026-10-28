@@ -113,6 +113,31 @@
   document.addEventListener('click', function (e) { if (!e.target.closest('details.msel')) $$('details.msel[open]').forEach(function (d) { d.open = false; }); });
   syncMsel();
 
+  // toasts: success fades after 4s, errors stay until closed
+  $$('[data-toast]').forEach(function (t) {
+    var hide = function () { t.classList.add('hide'); setTimeout(function () { t.remove(); }, 300); };
+    var b = t.querySelector('[data-toast-close]'); if (b) b.addEventListener('click', hide);
+    if (!t.hasAttribute('data-sticky')) setTimeout(hide, 4000);
+  });
+
+  // drag & drop file picker
+  function bindDrop(z) {
+    var inp = z.querySelector('input[type=file]'), fn = z.querySelector('.fn');
+    var show = function () { var f = inp.files && inp.files[0]; z.classList.toggle('has', !!f); z.classList.remove('err'); if (fn) fn.textContent = f ? f.name : ''; };
+    inp.addEventListener('change', show);
+    ['dragenter', 'dragover'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.remove('over'); }); });
+    z.addEventListener('drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return;
+      if (!/\.(xlsx|xls)$/i.test(f.name)) { z.classList.add('err'); if (fn) fn.textContent = 'الملف لازم يكون xlsx أو xls'; return; }
+      var dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; show();
+    });
+    var form = z.closest('form');
+    if (form) form.addEventListener('submit', function (e) { if (!inp.files || !inp.files.length) { e.preventDefault(); e.stopImmediatePropagation(); z.classList.add('err'); if (fn) fn.textContent = 'اختر ملف Excel'; } }, true);
+  }
+  $$('.drop').forEach(bindDrop);
+  document.addEventListener('click', function (e) { var b = e.target.closest('[data-close-after]'); if (!b) return; var ov = b.closest('.ov'); var f = b.form; if (ov && f && f.checkValidity()) setTimeout(function () { closeOv(ov); }, 300); });
+
   // auto-open a modal requested by the server (e.g. after validation)
   var auto = document.querySelector('[data-autoopen]'); if (auto) openOv(auto);
 })();

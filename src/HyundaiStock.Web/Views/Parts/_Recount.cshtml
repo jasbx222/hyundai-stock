@@ -1,13 +1,13 @@
 @model InventoryPart
-@{ var users = (List<NamedItem>)ViewBag.Users; }
+@{ var users = (List<NamedItem>)ViewBag.Users; var same = Model.CountedByUserId != null; }
 <div class="modal"><form method="post" action="/Parts/Recount/@Model.Id">
     @Html.AntiForgeryToken()<input type="hidden" name="returnUrl" />
-    <div class="mh"><div class="mic pr">@Ui.Icon("refresh", 20)</div><div><h3>طلب إعادة العد</h3><p class="mono">@Model.PartNumber · @Model.Description</p></div></div>
-    <div class="fg">
-        <label class="opt"><input type="radio" name="mode" value="same" checked @(Model.CountedByUserId == null ? "disabled" : "") /> <span><b>نفس المستخدم</b><br /><span class="muted">@(Model.CountedByUser?.Name ?? "القطعة ما انعدّت بعد")</span></span></label>
-        <label class="opt"><input type="radio" name="mode" value="other" /> <span><b>مستخدم آخر</b><br /><span class="muted">اختر مستخدم من نفس المخزن</span></span></label>
-        <div id="other-user" style="display:none"><label class="lbl">المستخدم<i> *</i></label><div class="field"><select name="userId"><option value="">اختر المستخدم</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("refresh", 20)</div><div><h3>طلب إعادة عد</h3><p><span class="mono">@Model.PartNumber</span> · @Model.Description</p></div></div>
+    <div class="mb" style="display:grid;gap:10px">
+        <label class="opt"><input type="radio" name="mode" value="same" @(same ? "checked" : "disabled") /> <span>نفس المستخدم (@(Model.CountedByUser?.Name ?? "ما انعدّت بعد"))</span></label>
+        <label class="opt"><input type="radio" name="mode" value="other" @(same ? "" : "checked") /> <span>مستخدم آخر</span></label>
+        <div id="other-user" style="display:@(same ? "none" : "block")"><label class="lbl">المستخدم<i> *</i></label><div class="field"><select name="userId"><option value="">اختر المستخدم</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div>
             @if (users.Count == 0) { <span class="hint">ما في مستخدمين نشطين مرتبطين بمخزن هذي القطعة.</span> }</div>
     </div>
-    <div class="mf"><button class="btn p" type="submit">إرسال الطلب</button><button type="button" class="btn" data-close>إلغاء</button></div>
+    <div class="mf"><button class="btn p" type="submit">إرسال</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div>
