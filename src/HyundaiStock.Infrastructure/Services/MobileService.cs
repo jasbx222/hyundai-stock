@@ -240,7 +240,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     {
         var u = await db.AppUsers.FirstAsync(x => x.Id == userId);
         if (string.IsNullOrEmpty(i.CurrentPassword) || !pw.Verify(u.PasswordHash, i.CurrentPassword)) return new(false, "كلمة المرور الحالية غير صحيحة", 400);
-        if (string.IsNullOrEmpty(i.NewPassword) || i.NewPassword.Length < 8) return new(false, "كلمة المرور الجديدة لازم تكون 8 أحرف على الأقل", 400);
+        if (string.IsNullOrEmpty(i.NewPassword) || i.NewPassword.Length < 6) return new(false, "كلمة المرور 6 أحرف على الأقل", 400);
         if (i.NewPassword == i.CurrentPassword) return new(false, "كلمة المرور الجديدة لازم تختلف عن الحالية", 400);
         u.PasswordHash = pw.Hash(i.NewPassword);
         await db.SaveChangesAsync();

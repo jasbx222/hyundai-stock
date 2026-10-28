@@ -167,7 +167,7 @@
  {
   "name": "API login",
   "ok": true,
-  "info": "{\"success\":true,\"message\":null,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6Iti52YTZiiDYrdiz2YYiLCJ0eXAiOiJhcHAiLCJqdGkiOiIzMzVhODYxMmU5OGQ0ODFhODAyYmRlMGVjMzdlO"
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6Iti52YTZiiDYrdiz2YYiLCJ0eXAiOiJhcHAiLCJqdGkiOiJmNjBkNzljMzkyZmM0ZWUxOTVkMzdlNDBkMjMyZ"
  },
  {
   "name": "API 401 without token",
@@ -182,7 +182,7 @@
  {
   "name": "API current session",
   "ok": true,
-  "info": "{\"success\":true,\"message\":null,\"data\":{\"id\":1,\"year\":2026,\"name\":\"جلسة جرد 2026\",\"status\":\"قيد التنفيذ\",\"startedAt\":\"2026-10-28T11:02:45.4341303\"},\"errors\":null}"
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"id\":1,\"year\":2026,\"name\":\"جلسة جرد 2026\",\"status\":\"قيد التنفيذ\",\"startedAt\":\"2026-10-28T11:42:05.8976453\"},\"errors\":null}"
  },
  {
   "name": "API parts paged",
@@ -212,7 +212,7 @@
  {
   "name": "API submit count",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":7,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T11:02:46.4467823\",\"countedByMe\":tru"
+  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":7,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T11:42:07.7673803\",\"countedByMe\":tru"
  },
  {
   "name": "API count validation",
@@ -222,12 +222,12 @@
  {
   "name": "API count new part (not in file)",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":24,\"partNumber\":\"NEW-PART-1\",\"description\":\"قطعة جديدة غير موجودة\",\"systemLocation\":null,\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":2,\"countedLocation\":\"Z-1\",\"countedAt\":\"2026-10-28T11:02:46.4965325\",\"countedByMe\":true}"
+  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":24,\"partNumber\":\"NEW-PART-1\",\"description\":\"قطعة جديدة غير موجودة\",\"systemLocation\":null,\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":2,\"countedLocation\":\"Z-1\",\"countedAt\":\"2026-10-28T11:42:07.8323528\",\"countedByMe\":true}"
  },
  {
   "name": "API VIN scan",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم تسجيل المركبة\",\"data\":{\"id\":1,\"vin\":\"KMHD341CBMU100001\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.3152,\"longitude\":44.3661,\"createdAt\":\"2026-10-28T11:02:46.5123063Z\",\"isExpected\":true},\"errors\":null}"
+  "info": "{\"success\":true,\"message\":\"تم تسجيل المركبة\",\"data\":{\"id\":1,\"vin\":\"KMHD341CBMU100001\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.3152,\"longitude\":44.3661,\"createdAt\":\"2026-10-28T11:42:07.8543621Z\",\"isExpected\":true},\"errors\":null}"
  },
  {
   "name": "API duplicate VIN rejected",
@@ -252,17 +252,17 @@
  {
   "name": "API my VINs",
   "ok": true,
-  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":5,\"vin\":\"KMHD341CBMU100005\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.31,\"longitude\":44.36,\"createdAt\":\"2026-10-28T11:02"
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":5,\"vin\":\"KMHD341CBMU100005\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.31,\"longitude\":44.36,\"createdAt\":\"2026-10-28T11:42"
  },
  {
   "name": "API VIN correction",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":1,\"currentVin\":\"KMHD341CBMU100001\",\"newVin\":\"KMHD341CBMU199999\",\"reason\":\"خطأ بالمسح\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T11:02:46.5935821Z\",\"approvedAt\":null},\"errors\":null}"
+  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":1,\"currentVin\":\"KMHD341CBMU100001\",\"newVin\":\"KMHD341CBMU199999\",\"reason\":\"خطأ بالمسح\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T11:42:07.9611167Z\",\"approvedAt\":null},\"errors\":null}"
  },
  {
   "name": "API VIN correction #2",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":2,\"currentVin\":\"KMHD341CBMU100005\",\"newVin\":\"KMHD341CBMU188888\",\"reason\":\"تجربة رفض\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T11:02"
+  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":2,\"currentVin\":\"KMHD341CBMU100005\",\"newVin\":\"KMHD341CBMU188888\",\"reason\":\"تجربة رفض\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T11:42"
  },
  {
   "name": "API my VIN corrections",
@@ -272,7 +272,7 @@
  {
   "name": "API history parts",
   "ok": true,
-  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"type\":\"part\",\"id\":24,\"reference\":\"NEW-PART-1\",\"detail\":\"2\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"at\":\"2026-10-28T11:02:46.4965325\"},{\""
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"type\":\"part\",\"id\":24,\"reference\":\"NEW-PART-1\",\"detail\":\"2\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"at\":\"2026-10-28T11:42:07.8323528\"},{\""
  },
  {
   "name": "API history vins",
@@ -287,7 +287,7 @@
  {
   "name": "API history search",
   "ok": true,
-  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"type\":\"vin\",\"id\":1,\"reference\":\"KMHD341CBMU100001\",\"detail\":null,\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"at\":\"2026-10-28T11:02:46.51230"
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"type\":\"vin\",\"id\":1,\"reference\":\"KMHD341CBMU100001\",\"detail\":null,\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"at\":\"2026-10-28T11:42:07.85436"
  },
  {
   "name": "API parts mine",
@@ -392,7 +392,7 @@
  {
   "name": "API submit recount",
   "ok": true,
-  "info": "{\"success\":true,\"message\":\"تم حفظ إعادة العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":9,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T11:02:47.4415478\",\"countedByM"
+  "info": "{\"success\":true,\"message\":\"تم حفظ إعادة العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":9,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T11:42:08.8728509\",\"countedByM"
  },
  {
   "name": "API recount twice rejected",
