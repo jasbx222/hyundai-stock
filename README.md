@@ -44,7 +44,7 @@ Storage__UploadsPath=D:\HyundaiStock\uploads
 
 ### الاختبارات
 ```bash
-python3 tests/smoke.py     # 121 فحص للصفحات والـ API والتصدير والصلاحيات (على قاعدة فارغة)
+python3 tests/smoke.py     # 131 فحص للصفحات والـ API والتصدير والصلاحيات (على قاعدة فارغة)
 python3 tests/screens.py   # لقطات 1440px إلى screens/
 ```
 

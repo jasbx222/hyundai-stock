@@ -314,3 +314,31 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+DECLARE @var0 sysname;
+SELECT @var0 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[QuantityCorrections]') AND [c].[name] = N'RequestedByAdminId');
+IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [QuantityCorrections] DROP CONSTRAINT [' + @var0 + '];');
+ALTER TABLE [QuantityCorrections] ALTER COLUMN [RequestedByAdminId] int NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [RequestedByUserId] int NULL;
+GO
+
+CREATE INDEX [IX_QuantityCorrections_RequestedByUserId] ON [QuantityCorrections] ([RequestedByUserId]);
+GO
+
+ALTER TABLE [QuantityCorrections] ADD CONSTRAINT [FK_QuantityCorrections_AppUsers_RequestedByUserId] FOREIGN KEY ([RequestedByUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE NO ACTION;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261028110203_AppQtyRequests', N'8.0.11');
+GO
+
+COMMIT;
+GO
+

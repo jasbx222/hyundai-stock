@@ -99,8 +99,8 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         }).ToListAsync();
         var name = kind switch { PartExportKind.Counted => "قطع-الجرد", PartExportKind.Uncounted => "قطع-غير-معدودة", _ => "قطع-الغيار" };
         return Build(name, $"{name}-{label}",
-            new[] { "رقم القطعة", "الوصف", "السعر", "الكمية في النظام", "الكمية المعدودة", "الفرق", "الموقع في المخزون", "الموقع المحسوب", "المخزن", "الفرع", "المستخدم", "تاريخ العد" },
-            data.Select(x => new object?[] { x.PartNumber, x.Description, x.Price, x.SystemQuantity, x.CountedQuantity, x.CountedQuantity.HasValue ? x.CountedQuantity - x.SystemQuantity : null,
+            new[] { "رقم القطعة", "الوصف", "الكمية في النظام", "الكمية المعدودة", "الفرق", "الموقع في المخزون", "الموقع المحسوب", "المخزن", "الفرع", "المستخدم", "تاريخ العد" },
+            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.CountedQuantity.HasValue ? x.CountedQuantity - x.SystemQuantity : null,
                 x.SystemLocation, x.CountedLocation, x.Wh, x.Br, x.User, x.CountedAt }));
     }
 

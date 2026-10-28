@@ -370,7 +370,10 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<int?>("RejectedByAdminId")
                         .HasColumnType("int");
 
-                    b.Property<int>("RequestedByAdminId")
+                    b.Property<int?>("RequestedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RequestedByUserId")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
@@ -384,6 +387,8 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasIndex("InventoryPartId");
 
                     b.HasIndex("RequestedByAdminId");
+
+                    b.HasIndex("RequestedByUserId");
 
                     b.ToTable("QuantityCorrections");
                 });
@@ -739,12 +744,18 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasOne("HyundaiStock.Domain.Admin", "RequestedByAdmin")
                         .WithMany()
                         .HasForeignKey("RequestedByAdminId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HyundaiStock.Domain.AppUser", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("InventoryPart");
 
                     b.Navigation("RequestedByAdmin");
+
+                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.RecountRequest", b =>

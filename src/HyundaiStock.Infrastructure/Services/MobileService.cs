@@ -12,11 +12,14 @@ public sealed record MobilePart(int Id, string PartNumber, string Description, s
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected);
 public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
+public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt);
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
 
 public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class ScanInput { public string? Vin { get; set; } public int? WarehouseId { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class VinCorrectionInput { public int? ScannedVinId { get; set; } public string? NewVin { get; set; } public string? Reason { get; set; } }
+public sealed class QtyRequestInput { public int? PartId { get; set; } public int? NewQuantity { get; set; } public string? Reason { get; set; } }
+public sealed class ChangePasswordInput { public string? CurrentPassword { get; set; } public string? NewPassword { get; set; } }
 public sealed class RecountInput { public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 
 public sealed record MobileResult<T>(T? Data, string? Error, int Status = 200);
@@ -51,7 +54,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return s == null ? null : new MobileSession(s.Id, s.Year, $"جلسة جرد {s.Year}", Labels.Session(s.Status), s.StartedAt);
     }
 
-    public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted)
+    public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted, bool mine = false)
     {
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
@@ -61,6 +64,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (warehouseId is int ww) q = q.Where(x => x.WarehouseId == ww);
         if (counted == true) q = q.Where(x => x.CountedQuantity != null);
         if (counted == false) q = q.Where(x => x.CountedQuantity == null);
+        if (mine) q = q.Where(x => x.CountedByUserId == userId && x.CountedQuantity != null);
         if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.Description.Contains(t));
         var rows = q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId!.Value, x.Warehouse!.Name,
             x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId));
@@ -204,15 +208,54 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return res;
     }
 
+    public async Task<MobileResult<MobileQtyRequest>> QtyRequestAsync(int userId, QtyRequestInput i)
+    {
+        var s = await sessions.CurrentAsync();
+        if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
+        if (i.PartId is not int pid) return new(null, "القطعة مطلوبة", 400);
+        if (i.NewQuantity is null || i.NewQuantity < 0) return new(null, "الكمية الجديدة مطلوبة وما تكون سالبة", 400);
+        var reason = i.Reason?.Trim() ?? "";
+        if (reason.Length == 0) return new(null, "السبب مطلوب", 400);
+        if (reason.Length > 1000) reason = reason[..1000];
+        var whs = await MyWarehouses(userId);
+        var part = await db.InventoryParts.FirstOrDefaultAsync(x => x.Id == pid && x.SessionId == s.Id);
+        if (part == null) return new(null, "القطعة غير موجودة بالجلسة الحالية", 404);
+        if (part.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+        if (await db.QuantityCorrections.AnyAsync(x => x.InventoryPartId == pid && x.Status == RequestStatus.Pending)) return new(null, "يوجد طلب تعديل قيد الانتظار لنفس القطعة", 409);
+        var r = new QuantityCorrectionRequest { InventoryPartId = pid, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = i.NewQuantity.Value, Reason = reason, BranchId = part.BranchId, RequestedByUserId = userId };
+        db.QuantityCorrections.Add(r);
+        await db.SaveChangesAsync();
+        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, "قيد الانتظار", r.CreatedAt), null, 201);
+    }
+
+    public async Task<PagedResult<MobileQtyRequest>> MyQtyRequestsAsync(int userId, PageQuery p)
+    {
+        var q = db.QuantityCorrections.AsNoTracking().Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => new MobileQtyRequest(x.Id, x.InventoryPartId, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason,
+                x.Status == RequestStatus.Pending ? "قيد الانتظار" : x.Status == RequestStatus.Approved ? "موافق عليه" : "مرفوض", x.CreatedAt));
+        return Paging.Build(q, p);
+    }
+
+    public async Task<MobileResult<bool>> ChangePasswordAsync(int userId, ChangePasswordInput i)
+    {
+        var u = await db.AppUsers.FirstAsync(x => x.Id == userId);
+        if (string.IsNullOrEmpty(i.CurrentPassword) || !pw.Verify(u.PasswordHash, i.CurrentPassword)) return new(false, "كلمة المرور الحالية غير صحيحة", 400);
+        if (string.IsNullOrEmpty(i.NewPassword) || i.NewPassword.Length < 8) return new(false, "كلمة المرور الجديدة لازم تكون 8 أحرف على الأقل", 400);
+        if (i.NewPassword == i.CurrentPassword) return new(false, "كلمة المرور الجديدة لازم تختلف عن الحالية", 400);
+        u.PasswordHash = pw.Hash(i.NewPassword);
+        await db.SaveChangesAsync();
+        return new(true, null);
+    }
+
     public async Task<PagedResult<HistoryItem>> HistoryAsync(int userId, PageQuery p, string? type)
     {
         var s = await sessions.CurrentAsync();
         var sid = s?.Id ?? -1;
-        var parts = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid && x.CountedByUserId == userId && x.CountedAt != null)
-            .Select(x => new HistoryItem("part", x.Id, x.PartNumber, x.CountedQuantity.ToString(), x.WarehouseId!.Value, x.Warehouse!.Name, x.CountedAt!.Value));
-        var vins = db.ScannedVins.AsNoTracking().Where(x => x.SessionId == sid && x.UserId == userId)
-            .Select(x => new HistoryItem("vin", x.Id, x.Vin, null, x.WarehouseId, x.Warehouse!.Name, x.CreatedAt));
-        if (p.Term is string t) { parts = parts.Where(x => x.Reference.Contains(t)); vins = vins.Where(x => x.Reference.Contains(t)); }
+        var partsQ = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid && x.CountedByUserId == userId && x.CountedAt != null);
+        var vinsQ = db.ScannedVins.AsNoTracking().Where(x => x.SessionId == sid && x.UserId == userId);
+        if (p.Term is string t) { partsQ = partsQ.Where(x => x.PartNumber.Contains(t)); vinsQ = vinsQ.Where(x => x.Vin.Contains(t)); }
+        var parts = partsQ.Select(x => new HistoryItem("part", x.Id, x.PartNumber, x.CountedQuantity.ToString(), x.WarehouseId!.Value, x.Warehouse!.Name, x.CountedAt!.Value));
+        var vins = vinsQ.Select(x => new HistoryItem("vin", x.Id, x.Vin, null, x.WarehouseId, x.Warehouse!.Name, x.CreatedAt));
         var all = new List<HistoryItem>();
         if (type != "vin") all.AddRange(await parts.ToListAsync());
         if (type != "part") all.AddRange(await vins.ToListAsync());
