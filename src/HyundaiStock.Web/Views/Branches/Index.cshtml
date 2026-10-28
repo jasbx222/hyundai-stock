@@ -36,7 +36,7 @@
     @Html.AntiForgeryToken()<input type="hidden" name="id" />
     <div class="mh"><div class="mic pr">@Ui.Icon("branch", 20)</div><div><h3 data-title-slot>إضافة فرع</h3></div></div>
     <div class="mb"><div><label class="lbl">اسم الفرع<i> *</i></label><div class="field"><input name="name" required minlength="2" maxlength="150" placeholder="أدخل اسم الفرع" /></div><div class="hint">حرفين على الأقل</div></div>
-        <div><label class="lbl">رقم الفرع (BranchNo.)</label><div class="field"><input name="number" type="number" min="1" max="9999" inputmode="numeric" placeholder="مثال: 2" /></div><div class="hint">نفس رقم الفرع بملفات الإكسل</div></div></div>
+        <div><label class="lbl">رقم الفرع (BranchNo.) *</label><div class="field"><input name="number" type="number" required min="1" max="9999" inputmode="numeric" placeholder="مثال: 2" /></div><div class="hint">نفس رقم الفرع بملفات الإكسل</div></div></div>
     
     <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div></div>

@@ -31,8 +31,9 @@ public sealed class BranchService(AppDbContext db)
 
     public async Task<OpResult> SaveAsync(int? id, string? name, int? number = null)
     {
+        if (number == null) return OpResult.Fail("رقم الفرع مطلوب");
         if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم الفرع غير صالح");
-        if (number != null && await db.Branches.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail("يوجد فرع بنفس الرقم");
+        if (number != null && await db.Branches.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail($"رقم الفرع {number} مستخدم لفرع آخر");
         name = name?.Trim();
         if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم الفرع لازم يكون حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم الفرع طويل");
@@ -83,8 +84,9 @@ public sealed class WarehouseService(AppDbContext db)
 
     public async Task<OpResult> SaveAsync(int? id, string? name, int type, int branchId, int? number = null)
     {
+        if (number == null) return OpResult.Fail("رقم المخزن مطلوب");
         if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم المخزن غير صالح");
-        if (number != null && await db.Warehouses.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail("يوجد مخزن بنفس الرقم");
+        if (number != null && await db.Warehouses.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail($"رقم المخزن {number} مستخدم لمخزن آخر");
         name = name?.Trim();
         if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم المخزن لازم يكون حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم المخزن طويل");

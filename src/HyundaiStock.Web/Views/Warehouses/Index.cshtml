@@ -40,7 +40,7 @@
     <div class="mh"><div class="mic pr">@Ui.Icon("box", 20)</div><div><h3 data-title-slot>إضافة مخزن</h3></div></div>
     <div class="fg">
         <div><label class="lbl">اسم المخزن<i> *</i></label><div class="field"><input name="name" required maxlength="150" placeholder="أدخل اسم المخزن" /></div></div>
-        <div><label class="lbl">رقم المخزن (WarehouseNo.)</label><div class="field"><input name="number" type="number" min="1" max="9999" inputmode="numeric" placeholder="مثال: 4" /></div></div>
+        <div><label class="lbl">رقم المخزن (WarehouseNo.) *</label><div class="field"><input name="number" type="number" required min="1" max="9999" inputmode="numeric" placeholder="مثال: 4" /></div></div>
         <div><label class="lbl">النوع<i> *</i></label><div class="field"><select name="type" required><option value="1">نوع 1</option><option value="2">نوع 2</option></select></div></div>
         <div><label class="lbl">الفرع<i> *</i></label><div class="field"><select name="branchId" required><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div>
     </div>
