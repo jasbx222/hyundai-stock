@@ -3,6 +3,7 @@ using HyundaiStock.Domain;
 using HyundaiStock.Infrastructure.Common;
 using HyundaiStock.Infrastructure.Services;
 using HyundaiStock.Web.Infrastructure;
+using HyundaiStock.Web.Helpers;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
@@ -141,11 +142,11 @@ public sealed class SessionsController(SessionService svc) : DashboardController
 
     [HttpPost]
     [RequestSizeLimit(25 * 1024 * 1024)]
-    public async Task<IActionResult> Start(int year, IFormFile? file)
+    public async Task<IActionResult> Start(int? year, IFormFile? file)
     {
         if (file == null) return Done(OpResult.Fail("اختر ملف Excel"), "");
         await using var s = file.OpenReadStream();
-        return Done(await svc.StartAsync(year, s, file.FileName, file.Length, Scope), "تم بدء جلسة الجرد");
+        return Done(await svc.StartAsync(year ?? Ui.Local(DateTime.UtcNow).Year, s, file.FileName, file.Length, Scope), "تم بدء جلسة الجرد");
     }
 
     [HttpPost] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");

@@ -1,32 +1,28 @@
 @model PagedResult<PartRow>
-@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"sessionId={session.Id}" : ""; }
+@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"&sessionId={session.Id}" : ""; }
 <div class="ph">
-    <div><h1>قطع الغيار</h1><p>@if (session != null) {<span>جلسة جرد <b class="num">@session.Year</b> · @Ui.Session(session.Status)</span>} else {<span>لا توجد جلسة جرد بعد</span>}</p></div>
-    <div class="toolbar">
-        <div class="dd"><button class="btn" data-dd>@Ui.Icon("export", 16) تصدير Excel @Ui.Icon("chevd", 14)</button><div class="menu">
-            <a href="/Exports/Parts?kind=all&@sq">@Ui.Icon("sheet", 16) كل القطع</a>
-            <a href="/Exports/Parts?kind=counted&@sq">@Ui.Icon("check", 16) القطع المعدودة</a>
-            <a href="/Exports/Parts?kind=uncounted&@sq">@Ui.Icon("clock", 16) القطع غير المعدودة</a>
-        </div></div>
+    <div><h1>قطع الغيار</h1></div>
+    <div class="acts">
+        <a class="btn" href="/Exports/Parts?kind=uncounted@(sq)">@Ui.Icon("export", 16) تصدير الأجزاء غير المعدودة</a>
+        <a class="btn p" href="/Exports/Parts?kind=all@(sq)">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
     </div>
 </div>
-<div class="card">
-    <div class="ch">@await Html.PartialAsync("_Search", "ابحث برقم القطعة أو الوصف")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد قطع", session == null ? "ابدأ جلسة جرد ورفع ملف Excel حتى تظهر القطع." : "ما في نتائج مطابقة للبحث.", "part")) }
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم القطعة")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(session == null || string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", session == null ? "ابدأ جلسة جرد ورفع ملف Excel حتى تظهر القطع." : "جرّب رقم قطعة ثاني.", "part")) }
     else {
-    <table class="compact">
-        <thead><tr><th style="width:60px">الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th><th>كمية النظام</th><th>الفرق</th><th>الفرع</th><th>المخزن</th><th>المستخدم</th><th style="width:80px">الإجراءات</th></tr></thead>
+    <table>
+        <thead><tr><th>الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th><th>الكمية في النظام</th><th>الفرق</th><th>الفرع</th><th>المستخدم</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var p in Model.Items) {
-            <tr><td class="idx mono">@Ui.Idx(p.Id)</td><td class="mono"><a href="/Parts/Details/@p.Id">@p.PartNumber</a></td><td class="clip" title="@p.Description">@p.Description</td>
-                <td class="num"><b>@(p.CountedQuantity?.ToString() ?? "—")</b></td><td class="num">@p.SystemQuantity</td><td>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</td>
-                <td>@(p.BranchName ?? "—")</td><td>@(p.WarehouseName ?? "—")</td><td>@(p.UserName ?? "—")</td>
-                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
-                    <a href="#" data-remote="/Parts/Info/@p.Id">@Ui.Icon("info", 16) معلومات القطعة</a>
-                    <a href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16) عرض التفاصيل</a>
-                    <a href="#" data-remote="/Parts/RecountForm/@p.Id">@Ui.Icon("refresh", 16) طلب إعادة العد</a>
-                    <a href="#" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تحديث الكمية</a>
-                </div></div></td></tr>
+            <tr><td><span class="idx">@Ui.Idx(p.Id)</span></td><td><span class="mono">@p.PartNumber</span></td><td class="clip" title="@p.Description">@p.Description</td>
+                <td><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></td><td class="num">@p.SystemQuantity</td><td>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</td>
+                <td>@(p.BranchName ?? "—")</td><td>@Ui.Who(p.UserName)</td>
+                <td><div class="ra">
+                    <a class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16)</a>
+                    <button type="button" class="btn sm" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تعديل الكمية</button>
+                    <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@p.Id">@Ui.Icon("refresh", 16) إعادة العد</button>
+                </div></td></tr>
         }
         </tbody>
     </table>

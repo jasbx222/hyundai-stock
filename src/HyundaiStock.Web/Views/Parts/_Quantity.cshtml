@@ -1,12 +1,10 @@
 @model InventoryPart
 <div class="modal"><form method="post" action="/Parts/Quantity/@Model.Id">
     @Html.AntiForgeryToken()<input type="hidden" name="returnUrl" />
-    <div class="mh"><div class="mic pr">@Ui.Icon("edit", 20)</div><div><h3>تحديث الكمية</h3><p class="mono">@Model.PartNumber · @Model.Description</p></div></div>
-    <div class="fg">
-        <div class="kv"><div><span>الكمية الحالية</span><b class="num">@(Model.CountedQuantity?.ToString() ?? "—")</b></div><div><span>كمية النظام</span><b class="num">@Model.SystemQuantity</b></div></div>
-        <div><label class="lbl">الكمية الجديدة<i> *</i></label><div class="field"><input name="newQuantity" type="number" min="0" required placeholder="0" /></div></div>
-        <div><label class="lbl">السبب<i> *</i></label><div class="field ta"><textarea name="reason" rows="3" maxlength="500" required placeholder="اكتب سبب التعديل"></textarea></div></div>
-        <p class="hint">التحديث يتحول لطلب تعديل ويحتاج قبول ثم قبول نهائي.</p>
-    </div>
-    <div class="mf"><button class="btn p" type="submit">إرسال الطلب</button><button type="button" class="btn" data-close>إلغاء</button></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("edit", 20)</div><div><h3>تعديل الكمية</h3><p><span class="mono">@Model.PartNumber</span> · @Model.Description</p></div></div>
+    <div class="mb"><div class="fg2">
+        <div><label class="lbl">الكمية في النظام</label><div class="field"><input class="num" value="@Model.SystemQuantity" readonly tabindex="-1" aria-readonly="true" /></div></div>
+        <div><label class="lbl">الكمية الجديدة<i> *</i></label><div class="field"><input class="num" name="newQuantity" type="number" min="0" required placeholder="0" value="@Model.CountedQuantity" /></div></div>
+    </div></div>
+    <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div>

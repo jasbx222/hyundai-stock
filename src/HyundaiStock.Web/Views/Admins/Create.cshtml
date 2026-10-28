@@ -1,17 +1,17 @@
 @model AdminInput
 @{ ViewData["Title"] = "إضافة مشرف"; ViewData["Nav"] = "admins"; var branches = (List<NamedItem>)ViewBag.Branches; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; var ms = ViewData.ModelState; }
-<div class="ph"><div><div class="crumb"><a href="/Admins">المشرفين</a> / إضافة مشرف</div><h1>إضافة مشرف</h1></div></div>
+<div class="ph"><div><h1>إضافة مشرف</h1></div></div>
 <form class="card formcard" method="post" novalidate>
     @Html.AntiForgeryToken()
-    @if (ms.ErrorOf("") is string ge) { <div class="alert er">@Ui.Icon("alert", 18)<span>@ge</span></div> }
+    @if (ms.ErrorOf("") is string ge) { <div class="alert er" style="margin-bottom:18px">@Ui.Icon("alert", 18)<span>@ge</span></div> }
     <div class="fg2">
         <div><label class="lbl" for="Name">الاسم<i> *</i></label><div class="@ms.Cls("Name")"><input id="Name" name="Name" value="@Model.Name" maxlength="150" required placeholder="الاسم الكامل" /></div>@ms.Err("Name")</div>
-        <div><label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label><div class="@ms.Cls("PhoneNumber")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" maxlength="11" required placeholder="07XXXXXXXXX" dir="ltr" /></div>@ms.Err("PhoneNumber")</div>
+        <div><label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label><div class="@ms.Cls("PhoneNumber")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" maxlength="11" required placeholder="07XXXXXXXXX" dir="ltr" class="mono" style="text-align:right" /></div>@ms.Err("PhoneNumber")</div>
         <div><label class="lbl" for="Password">كلمة المرور<i> *</i></label><div class="@ms.Cls("Password")"><input id="Password" name="Password" type="password" minlength="6" required autocomplete="new-password" placeholder="6 أحرف على الأقل" /></div>@ms.Err("Password")</div>
         @if (s.IsMain) {
         <div><label class="lbl" for="Role">الدور<i> *</i></label><div class="field"><select id="Role" name="Role"><option value="2" selected="@(Model.Role == AdminRole.Admin)">أدمن</option><option value="1" selected="@(Model.Role == AdminRole.SuperAdmin)">سوبر أدمن</option></select></div>@ms.Err("Role")</div>
         } else { <input type="hidden" name="Role" value="2" /> }
         <div><label class="lbl" for="BranchId">الفرع</label><label class="sel @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">بدون فرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></label>@ms.Err("BranchId")<span class="hint">الأدمن يشوف بيانات فرعه فقط.</span></div>
     </div>
-    <div class="mf" style="margin-top:24px"><button class="btn p" type="submit">@Ui.Icon("check", 16) حفظ</button><a class="btn" href="/Admins">إلغاء</a></div>
+    <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Admins">إلغاء</a></div>
 </form>
