@@ -8,7 +8,7 @@ namespace HyundaiStock.Infrastructure.Services;
 public sealed record MobileWarehouse(int Id, string Name, string Type, int BranchId, string BranchName);
 public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses);
 public sealed record MobileSession(int Id, int Year, string Name, string Status, DateTime StartedAt);
-public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int WarehouseId, string WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe);
+public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe);
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected);
 public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
@@ -38,6 +38,10 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public Task<bool> IsActiveAsync(int userId) => db.AppUsers.AnyAsync(x => x.Id == userId && x.IsActive);
 
     private Task<List<int>> MyWarehouses(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
+    /// <summary>Branches of the user's warehouses: parts imported per branch (BranchNo. only) are visible to every warehouse in that branch.</summary>
+    private Task<List<int>> MyBranches(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.Warehouse!.BranchId).Distinct().ToListAsync();
+    private static bool CanSee(InventoryPart p, List<int> whs, List<int> brs) =>
+        p.WarehouseId is int w ? whs.Contains(w) : p.BranchId is int b && brs.Contains(b);
 
     public async Task<MobileProfile?> ProfileAsync(int userId)
     {
@@ -60,8 +64,14 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
         var whs = await MyWarehouses(userId);
         if (warehouseId is int w && !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-        var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == s.Id && x.WarehouseId != null && whs.Contains(x.WarehouseId.Value));
-        if (warehouseId is int ww) q = q.Where(x => x.WarehouseId == ww);
+        var brs = await MyBranches(userId);
+        var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == s.Id &&
+            ((x.WarehouseId != null && whs.Contains(x.WarehouseId.Value)) || (x.WarehouseId == null && x.BranchId != null && brs.Contains(x.BranchId.Value))));
+        if (warehouseId is int ww)
+        {
+            var wb = await db.Warehouses.Where(z => z.Id == ww).Select(z => (int?)z.BranchId).FirstOrDefaultAsync();
+            q = q.Where(x => x.WarehouseId == ww || (x.WarehouseId == null && x.BranchId == wb));
+        }
         if (counted == true) q = q.Where(x => x.CountedQuantity != null);
         if (counted == false) q = q.Where(x => x.CountedQuantity == null);
         if (mine) q = q.Where(x => x.CountedByUserId == userId && x.CountedQuantity != null);
@@ -75,7 +85,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             var cn = NormalizePartCode(code);
             q = q.Where(x => x.PartNumber.Replace(" ", "").Replace("-", "").Replace(".", "").ToUpper() == cn);
         }
-        var rows = q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId!.Value, x.Warehouse!.Name,
+        var rows = q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse != null ? x.Warehouse.Name : null,
             x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId));
         return new(Paging.Build(rows, p), null);
     }
@@ -85,10 +95,10 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public async Task<MobileResult<MobilePart>> PartAsync(int userId, int id)
     {
-        var whs = await MyWarehouses(userId);
-        var x = await db.InventoryParts.AsNoTracking().Include(z => z.Warehouse).FirstOrDefaultAsync(z => z.Id == id && z.WarehouseId != null && whs.Contains(z.WarehouseId.Value));
-        if (x == null) return new(null, "القطعة غير موجودة", 404);
-        return new(new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId!.Value, x.Warehouse!.Name, x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId), null);
+        var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
+        var x = await db.InventoryParts.AsNoTracking().Include(z => z.Warehouse).FirstOrDefaultAsync(z => z.Id == id);
+        if (x == null || !CanSee(x, whs, brs)) return new(null, "القطعة غير موجودة", 404);
+        return new(new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse?.Name, x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId), null);
     }
 
     private static string? ValidGps(double? lat, double? lng)
@@ -105,7 +115,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة وما تكون سالبة", 400);
         if (ValidGps(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
-        var whs = await MyWarehouses(userId);
+        var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
         InventoryPart? part;
         if (i.PartId is int pid)
         {
@@ -117,7 +127,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             var pn = i.PartNumber?.Trim();
             if (string.IsNullOrEmpty(pn) || pn.Length > 64) return new(null, "رقم القطعة أو partId مطلوب", 400);
             if (i.WarehouseId is not int wid) return new(null, "المستودع مطلوب", 400);
-            part = await db.InventoryParts.FirstOrDefaultAsync(x => x.SessionId == s.Id && x.PartNumber == pn && x.WarehouseId == wid);
+            var wbr = await db.Warehouses.Where(z => z.Id == wid).Select(z => (int?)z.BranchId).FirstOrDefaultAsync();
+            part = await db.InventoryParts.Where(x => x.SessionId == s.Id && x.PartNumber == pn && (x.WarehouseId == wid || (x.WarehouseId == null && x.BranchId == wbr)))
+                .OrderBy(x => x.WarehouseId == null ? 1 : 0).ThenBy(x => x.CountedQuantity == null ? 0 : 1).ThenBy(x => x.Id).FirstOrDefaultAsync();
             if (part == null)
             {
                 if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);
@@ -127,7 +139,11 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
                 db.InventoryParts.Add(part);
             }
         }
-        if (part.WarehouseId is not int pw2 || !whs.Contains(pw2)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+        if (!CanSee(part, whs, brs)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+        // Branch-level part (imported with BranchNo. only): pin it to the warehouse it was counted in.
+        if (part.WarehouseId == null && i.WarehouseId is int cw && whs.Contains(cw)) part.WarehouseId = cw;
+        if (part.WarehouseId == null)
+            part.WarehouseId = await db.Warehouses.Where(z => whs.Contains(z.Id) && z.BranchId == part.BranchId).OrderBy(z => z.Id).Select(z => (int?)z.Id).FirstOrDefaultAsync();
         var loc = i.Location?.Trim(); if (loc?.Length > 64) loc = loc[..64];
         if (part.Id != 0)
         {

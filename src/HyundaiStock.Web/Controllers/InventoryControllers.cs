@@ -160,21 +160,7 @@ public sealed class SessionsController(SessionService svc) : DashboardController
     }
 
     /// <summary>Downloadable sample workbook with the expected columns.</summary>
-    public IActionResult Template()
-    {
-        using var wb = new XLWorkbook();
-        var p = wb.Worksheets.Add("قطع الغيار"); p.RightToLeft = true;
-        string[] ph = { "رقم القطعة", "الوصف", "السعر", "الكمية", "الموقع", "المخزن" };
-        for (int i = 0; i < ph.Length; i++) p.Cell(1, i + 1).Value = ph[i];
-        p.Cell(2, 1).Value = "58101-D3A00"; p.Cell(2, 2).Value = "بطانة فرامل أمامية"; p.Cell(2, 3).Value = 42500; p.Cell(2, 4).Value = 24; p.Cell(2, 5).Value = "A-12-03"; p.Cell(2, 6).Value = "اسم المخزن كما بالنظام";
-        var v = wb.Worksheets.Add("المركبات"); v.RightToLeft = true;
-        string[] vh = { "VIN", "الموديل", "المخزن" };
-        for (int i = 0; i < vh.Length; i++) v.Cell(1, i + 1).Value = vh[i];
-        v.Cell(2, 1).Value = "KMHD341CBMU123456"; v.Cell(2, 2).Value = "Elantra"; v.Cell(2, 3).Value = "اسم المخزن كما بالنظام";
-        foreach (var ws in wb.Worksheets) { ws.Row(1).Style.Font.Bold = true; ws.Columns().AdjustToContents(); }
-        using var ms = new MemoryStream(); wb.SaveAs(ms);
-        return File(ms.ToArray(), ExportFile.ContentType, "قالب-جلسة-الجرد.xlsx");
-    }
+    public IActionResult Template() => File(ExportService.ImportTemplate(), ExportFile.ContentType, "session-import-template.xlsx");
 }
 
 public sealed class ExportsController(ExportService svc) : DashboardController

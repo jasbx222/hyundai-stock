@@ -11,7 +11,7 @@ public sealed class BranchesController(BranchService svc) : DashboardController
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
-    public async Task<IActionResult> Save(int? id, string? name) => Done(await svc.SaveAsync(id, name), id == null ? "تمت إضافة الفرع" : "تم تعديل الفرع");
+    public async Task<IActionResult> Save(int? id, string? name, int? number) => Done(await svc.SaveAsync(id, name, number), id == null ? "تمت إضافة الفرع" : "تم تعديل الفرع");
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
     public async Task<IActionResult> Delete(int id) => Done(await svc.DeleteAsync(id), "تم حذف الفرع");
@@ -27,7 +27,7 @@ public sealed class WarehousesController(WarehouseService svc, BranchService bra
     }
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
-    public async Task<IActionResult> Save(int? id, string? name, int type, int branchId) => Done(await svc.SaveAsync(id, name, type, branchId), id == null ? "تمت إضافة المخزن" : "تم تعديل المخزن");
+    public async Task<IActionResult> Save(int? id, string? name, int type, int branchId, int? number) => Done(await svc.SaveAsync(id, name, type, branchId, number), id == null ? "تمت إضافة المخزن" : "تم تعديل المخزن");
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
     public async Task<IActionResult> Delete(int id) => Done(await svc.DeleteAsync(id), "تم حذف المخزن");

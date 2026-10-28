@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HyundaiStock.Infrastructure.Services;
 
-public sealed record BranchRow(int Id, string Name, int Warehouses);
-public sealed record WarehouseRow(int Id, string Name, WarehouseType Type, int BranchId, string BranchName);
+public sealed record BranchRow(int Id, string Name, int Warehouses, int? Number = null);
+public sealed record WarehouseRow(int Id, string Name, WarehouseType Type, int BranchId, string BranchName, int? Number = null);
 public sealed record NamedItem(int Id, string Name, int? ParentId = null);
 
 public sealed class BranchService(AppDbContext db)
@@ -15,8 +15,8 @@ public sealed class BranchService(AppDbContext db)
     {
         var q = db.Branches.AsNoTracking().AsQueryable();
         if (s.ScopeBranch is int b) q = q.Where(x => x.Id == b);
-        if (p.Term is string t) q = q.Where(x => x.Name.Contains(t));
-        var rows = q.OrderBy(x => x.Id).Select(x => new BranchRow(x.Id, x.Name, x.Warehouses.Count()));
+        if (p.Term is string t) q = q.Where(x => x.Name.Contains(t) || x.Number.ToString() == t);
+        var rows = q.OrderBy(x => x.Id).Select(x => new BranchRow(x.Id, x.Name, x.Warehouses.Count(), x.Number));
         return await Task.FromResult(Paging.Build(rows, p));
     }
 
@@ -29,8 +29,10 @@ public sealed class BranchService(AppDbContext db)
 
     public Task<Branch?> GetAsync(int id) => db.Branches.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
 
-    public async Task<OpResult> SaveAsync(int? id, string? name)
+    public async Task<OpResult> SaveAsync(int? id, string? name, int? number = null)
     {
+        if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم الفرع غير صالح");
+        if (number != null && await db.Branches.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail("يوجد فرع بنفس الرقم");
         name = name?.Trim();
         if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم الفرع لازم يكون حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم الفرع طويل");
@@ -38,7 +40,7 @@ public sealed class BranchService(AppDbContext db)
         Branch? e;
         if (id is int i) { e = await db.Branches.FindAsync(i); if (e == null) return OpResult.Fail("الفرع غير موجود"); }
         else { e = new Branch(); db.Branches.Add(e); }
-        e.Name = name;
+        e.Name = name; e.Number = number;
         await db.SaveChangesAsync();
         return OpResult.Success(e.Id);
     }
@@ -65,8 +67,8 @@ public sealed class WarehouseService(AppDbContext db)
         var q = db.Warehouses.AsNoTracking().AsQueryable();
         if (s.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
         if (branchId is int f) q = q.Where(x => x.BranchId == f);
-        if (p.Term is string t) q = q.Where(x => x.Name.Contains(t) || x.Branch!.Name.Contains(t));
-        var rows = q.OrderBy(x => x.Id).Select(x => new WarehouseRow(x.Id, x.Name, x.Type, x.BranchId, x.Branch!.Name));
+        if (p.Term is string t) q = q.Where(x => x.Name.Contains(t) || x.Branch!.Name.Contains(t) || x.Number.ToString() == t);
+        var rows = q.OrderBy(x => x.Id).Select(x => new WarehouseRow(x.Id, x.Name, x.Type, x.BranchId, x.Branch!.Name, x.Number));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
@@ -79,8 +81,10 @@ public sealed class WarehouseService(AppDbContext db)
 
     public Task<Warehouse?> GetAsync(int id) => db.Warehouses.AsNoTracking().Include(x => x.Branch).FirstOrDefaultAsync(x => x.Id == id);
 
-    public async Task<OpResult> SaveAsync(int? id, string? name, int type, int branchId)
+    public async Task<OpResult> SaveAsync(int? id, string? name, int type, int branchId, int? number = null)
     {
+        if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم المخزن غير صالح");
+        if (number != null && await db.Warehouses.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail("يوجد مخزن بنفس الرقم");
         name = name?.Trim();
         if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم المخزن لازم يكون حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم المخزن طويل");
@@ -92,7 +96,7 @@ public sealed class WarehouseService(AppDbContext db)
         else { e = new Warehouse(); db.Warehouses.Add(e); }
         if (id != null && e.BranchId != branchId && (await db.InventoryParts.AnyAsync(x => x.WarehouseId == e.Id) || await db.ScannedVins.AnyAsync(x => x.WarehouseId == e.Id)))
             return OpResult.Fail("ما يمكن تغيير فرع المخزن لأن بيه بيانات جرد");
-        e.Name = name; e.Type = (WarehouseType)type; e.BranchId = branchId;
+        e.Name = name; e.Type = (WarehouseType)type; e.BranchId = branchId; e.Number = number;
         await db.SaveChangesAsync();
         return OpResult.Success(e.Id);
     }

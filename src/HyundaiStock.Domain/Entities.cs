@@ -15,12 +15,16 @@ public abstract class Entity
 
 public class Branch : Entity
 {
+    /// <summary>BranchNo. used by the Hyundai system Excel files.</summary>
+    public int? Number { get; set; }
     public string Name { get; set; } = "";
     public ICollection<Warehouse> Warehouses { get; set; } = new List<Warehouse>();
 }
 
 public class Warehouse : Entity
 {
+    /// <summary>WarehouseNo. used by the Hyundai system Excel files.</summary>
+    public int? Number { get; set; }
     public string Name { get; set; } = "";
     public WarehouseType Type { get; set; } = WarehouseType.Type1;
     public int BranchId { get; set; }
