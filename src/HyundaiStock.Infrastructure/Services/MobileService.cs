@@ -54,7 +54,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return s == null ? null : new MobileSession(s.Id, s.Year, $"جلسة جرد {s.Year}", Labels.Session(s.Status), s.StartedAt);
     }
 
-    public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted, bool mine = false)
+    public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted, bool mine = false, string? code = null)
     {
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
@@ -65,11 +65,23 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (counted == true) q = q.Where(x => x.CountedQuantity != null);
         if (counted == false) q = q.Where(x => x.CountedQuantity == null);
         if (mine) q = q.Where(x => x.CountedByUserId == userId && x.CountedQuantity != null);
-        if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.Description.Contains(t));
+        if (p.Term is string t)
+        {
+            var tn = NormalizePartCode(t);
+            q = q.Where(x => x.PartNumber.Contains(t) || x.Description.Contains(t) || (tn.Length >= 3 && x.PartNumber.Replace(" ", "").Replace("-", "").Replace(".", "").ToUpper().Contains(tn)));
+        }
+        if (code != null)
+        {
+            var cn = NormalizePartCode(code);
+            q = q.Where(x => x.PartNumber.Replace(" ", "").Replace("-", "").Replace(".", "").ToUpper() == cn);
+        }
         var rows = q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId!.Value, x.Warehouse!.Name,
             x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId));
         return new(Paging.Build(rows, p), null);
     }
+
+    /// <summary>Uppercase and keep only letters/digits so "58310 BWA40", "58310-BWA40" and "58310BWA40" match.</summary>
+    public static string NormalizePartCode(string? v) => new string((v ?? "").ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
 
     public async Task<MobileResult<MobilePart>> PartAsync(int userId, int id)
     {

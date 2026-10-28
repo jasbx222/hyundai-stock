@@ -54,11 +54,11 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
         return Ok(ApiResponse.Ok(s, s == null ? "ماكو جلسة جرد قيد التنفيذ" : null));
     }
 
-    /// <summary>قطع الغيار بالجلسة الحالية ضمن مستودعات المستخدم، مع بحث وترقيم.</summary>
+    /// <summary>قطع الغيار بالجلسة الحالية ضمن مستودعات المستخدم، مع بحث وترقيم. code = مطابقة رقم القطعة بعد التطبيع (بدون مسافات/شرطات).</summary>
     [HttpGet("parts")]
-    public async Task<IActionResult> Parts([FromQuery] string? search, [FromQuery] int? warehouseId, [FromQuery] bool? counted, [FromQuery] bool? mine, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    public async Task<IActionResult> Parts([FromQuery] string? search, [FromQuery] int? warehouseId, [FromQuery] bool? counted, [FromQuery] bool? mine, [FromQuery] string? code, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var r = await svc.PartsAsync(UserId, new PageQuery(page, pageSize, search), warehouseId, counted, mine == true);
+        var r = await svc.PartsAsync(UserId, new PageQuery(page, pageSize, search), warehouseId, counted, mine == true, code);
         return r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error)) : Ok(ApiResponse.Ok(PageDto<MobilePart>.From(r.Data!)));
     }
 
