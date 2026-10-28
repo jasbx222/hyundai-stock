@@ -1,0 +1,194 @@
+using ClosedXML.Excel;
+using HyundaiStock.Domain;
+using HyundaiStock.Infrastructure.Common;
+using HyundaiStock.Infrastructure.Services;
+using HyundaiStock.Web.Infrastructure;
+using Microsoft.AspNetCore.Mvc;
+
+namespace HyundaiStock.Web.Controllers;
+
+public sealed class RequestsController(QuantityRequestService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+
+    public IActionResult Create() => View("Form", new QtyInput());
+
+    [HttpPost]
+    public async Task<IActionResult> Create(QtyInput input)
+    {
+        var err = await svc.SaveAsync(null, input, Scope);
+        if (err.Count == 0) { TempData["ok"] = "تم إرسال طلب التعديل"; return RedirectToAction(nameof(Index)); }
+        AddErrors(err);
+        return View("Form", input);
+    }
+
+    public async Task<IActionResult> Edit(int id)
+    {
+        var r = await svc.GetAsync(id, Scope);
+        if (r == null) return NotFoundPage();
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "ما يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
+        ViewBag.Id = id;
+        return View("Form", new QtyInput { PartNumber = r.PartNumber, PartDescription = r.PartDescription, OldQuantity = r.OldQuantity, NewQuantity = r.NewQuantity, Reason = r.Reason });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Edit(int id, QtyInput input)
+    {
+        var err = await svc.SaveAsync(id, input, Scope);
+        if (err.Count == 0) { TempData["ok"] = "تم تعديل الطلب"; return RedirectToAction(nameof(Index)); }
+        AddErrors(err); ViewBag.Id = id;
+        return View("Form", input);
+    }
+
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تم قبول الطلب");
+    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تم القبول النهائي وتحديث الكمية");
+    [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.RejectAsync(id, Scope), "تم رفض الطلب");
+}
+
+public sealed class PartsController(PartService svc, QuantityRequestService requests) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int page = 1)
+    {
+        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope);
+        ViewBag.Session = session;
+        return View(p);
+    }
+
+    public async Task<IActionResult> Details(int id, string? tab)
+    {
+        var d = await svc.GetAsync(id, Scope);
+        if (d == null) return NotFoundPage();
+        ViewBag.Tab = tab;
+        return View(d);
+    }
+
+    public async Task<IActionResult> Info(int id)
+    {
+        var d = await svc.GetAsync(id, Scope);
+        return d == null ? NotFound() : PartialView("_Info", d.Part);
+    }
+
+    public async Task<IActionResult> RecountForm(int id)
+    {
+        var d = await svc.GetAsync(id, Scope);
+        if (d == null) return NotFound();
+        ViewBag.Users = await svc.CandidateUsersAsync(id);
+        return PartialView("_Recount", d.Part);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Recount(int id, string mode, int? userId, string? returnUrl)
+        => Done(await svc.RequestRecountAsync(id, mode == "other" ? userId ?? -1 : null, Scope), "تم إرسال طلب إعادة العد", returnUrl);
+
+    public async Task<IActionResult> QuantityForm(int id)
+    {
+        var d = await svc.GetAsync(id, Scope);
+        return d == null ? NotFound() : PartialView("_Quantity", d.Part);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Quantity(int id, int? newQuantity, string? reason, string? returnUrl)
+    {
+        var err = await requests.SaveAsync(null, new QtyInput { InventoryPartId = id, NewQuantity = newQuantity, Reason = reason }, Scope);
+        return Done(err.Count == 0 ? OpResult.Success() : OpResult.Fail(string.Join("\n", err.Values)), "تم إرسال طلب تحديث الكمية", returnUrl);
+    }
+}
+
+public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int page = 1)
+    {
+        ViewBag.Branches = await branches.AllAsync(Scope);
+        ViewBag.Users = await users.AllAsync(Scope);
+        ViewBag.Admins = Scope.IsSuper ? (await admins.ListAsync(new PageQuery(1, 100), Scope)).Items.Select(a => new NamedItem(a.Id, a.Name)).ToList() : new List<NamedItem> { new(Scope.Id, Scope.Name) };
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    }
+
+    public async Task<IActionResult> Edit(int id)
+    {
+        var v = await svc.GetAsync(id, Scope);
+        if (v == null) return NotFoundPage();
+        ViewBag.Warehouses = await warehouses.AllAsync(Scope);
+        return View(v);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Edit(int id, string? vin, int warehouseId)
+    {
+        var err = await svc.UpdateAsync(id, vin, warehouseId, Scope);
+        if (err.Count == 0) { TempData["ok"] = "تم تعديل المركبة"; return RedirectToAction(nameof(Index)); }
+        var v = await svc.GetAsync(id, Scope);
+        if (v == null) return NotFoundPage();
+        AddErrors(err);
+        ViewBag.Warehouses = await warehouses.AllAsync(Scope);
+        ViewBag.Vin = vin; ViewBag.WarehouseId = warehouseId;
+        return View(v);
+    }
+}
+
+[Roles(AdminRole.Admin)]
+public sealed class VinRequestsController(VinRequestService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.DecideAsync(id, true, Scope), "تمت الموافقة على تصحيح VIN");
+    [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.DecideAsync(id, false, Scope), "تم رفض طلب تصحيح VIN");
+}
+
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
+public sealed class SessionsController(SessionService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search)));
+
+    [HttpPost]
+    [RequestSizeLimit(25 * 1024 * 1024)]
+    public async Task<IActionResult> Start(int year, IFormFile? file)
+    {
+        if (file == null) return Done(OpResult.Fail("اختر ملف Excel"), "");
+        await using var s = file.OpenReadStream();
+        return Done(await svc.StartAsync(year, s, file.FileName, file.Length, Scope), "تم بدء جلسة الجرد");
+    }
+
+    [HttpPost] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");
+
+    public async Task<IActionResult> File(int id)
+    {
+        var f = await svc.FileAsync(id);
+        if (f == null) return NotFoundPage();
+        var ct = f.Value.path.EndsWith(".xls", StringComparison.OrdinalIgnoreCase) ? "application/vnd.ms-excel" : ExportFile.ContentType;
+        return PhysicalFile(f.Value.path, ct, f.Value.name);
+    }
+
+    /// <summary>Downloadable sample workbook with the expected columns.</summary>
+    public IActionResult Template()
+    {
+        using var wb = new XLWorkbook();
+        var p = wb.Worksheets.Add("قطع الغيار"); p.RightToLeft = true;
+        string[] ph = { "رقم القطعة", "الوصف", "السعر", "الكمية", "الموقع", "المخزن" };
+        for (int i = 0; i < ph.Length; i++) p.Cell(1, i + 1).Value = ph[i];
+        p.Cell(2, 1).Value = "58101-D3A00"; p.Cell(2, 2).Value = "بطانة فرامل أمامية"; p.Cell(2, 3).Value = 42500; p.Cell(2, 4).Value = 24; p.Cell(2, 5).Value = "A-12-03"; p.Cell(2, 6).Value = "اسم المخزن كما بالنظام";
+        var v = wb.Worksheets.Add("المركبات"); v.RightToLeft = true;
+        string[] vh = { "VIN", "الموديل", "المخزن" };
+        for (int i = 0; i < vh.Length; i++) v.Cell(1, i + 1).Value = vh[i];
+        v.Cell(2, 1).Value = "KMHD341CBMU123456"; v.Cell(2, 2).Value = "Elantra"; v.Cell(2, 3).Value = "اسم المخزن كما بالنظام";
+        foreach (var ws in wb.Worksheets) { ws.Row(1).Style.Font.Bold = true; ws.Columns().AdjustToContents(); }
+        using var ms = new MemoryStream(); wb.SaveAs(ms);
+        return File(ms.ToArray(), ExportFile.ContentType, "قالب-جلسة-الجرد.xlsx");
+    }
+}
+
+public sealed class ExportsController(ExportService svc) : DashboardController
+{
+    private FileContentResult Send(ExportFile f) => File(f.Content, ExportFile.ContentType, f.FileName);
+
+    /// <summary>kind: all | counted | uncounted</summary>
+    public async Task<IActionResult> Parts(string kind, [FromQuery] ExportFilter f)
+    {
+        var k = kind switch { "counted" => PartExportKind.Counted, "uncounted" => PartExportKind.Uncounted, _ => PartExportKind.All };
+        return Send(await svc.PartsAsync(k, f, Scope));
+    }
+
+    public async Task<IActionResult> Cars([FromQuery] ExportFilter f, bool all = false) => Send(await svc.ScannedVinsAsync(f, Scope, all));
+    public async Task<IActionResult> Vins([FromQuery] ExportFilter f, bool missing = false) => Send(await svc.ExpectedVinsAsync(f, Scope, missing));
+    public async Task<IActionResult> Branches() => Send(await svc.BranchesAsync(Scope));
+    public async Task<IActionResult> Warehouses(int? branchId) => Send(await svc.WarehousesAsync(branchId, Scope));
+}

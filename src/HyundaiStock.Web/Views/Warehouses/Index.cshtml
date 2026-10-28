@@ -1,0 +1,50 @@
+@model PagedResult<WarehouseRow>
+@{ ViewData["Title"] = "المخازن"; ViewData["Nav"] = "warehouses"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; var manage = Menu.ManageOrg(s);
+   var branches = (List<NamedItem>)ViewBag.Branches; int? bid = ViewBag.BranchId; }
+<div class="ph">
+    <div><h1>المخازن</h1><p>المخازن التابعة للفروع وأنواعها</p></div>
+    <div class="toolbar">
+        <a class="btn" href="/Exports/Warehouses@(bid.HasValue ? "?branchId=" + bid : "")">@Ui.Icon("export", 16) تصدير Excel</a>
+        @if (manage) { <button class="btn p" data-modal="#wh-m" data-title="إضافة مخزن" data-v-id="" data-v-branchId="@(bid?.ToString() ?? "")" data-form-action="/Warehouses/Save">@Ui.Icon("plus", 16) إضافة مخزن</button> }
+    </div>
+</div>
+<div class="card">
+    <div class="ch" style="gap:12px">
+        @await Html.PartialAsync("_Search", "ابحث باسم المخزن")
+        <form method="get" style="display:flex;gap:8px">
+            <input type="hidden" name="search" value="@Context.Request.Query["search"]" />
+            <label class="sel"><select name="branchId" onchange="this.form.submit()" aria-label="الفرع"><option value="">كل الفروع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(bid == b.Id)">@b.Name</option> }</select></label>
+        </form>
+    </div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد مخازن", "ما في مخازن مطابقة. أضف مخزن جديد أو غيّر الفلتر.", "box")) }
+    else {
+    <table>
+        <thead><tr><th style="width:70px">الرقم</th><th>اسم المخزن</th><th>النوع</th><th>الفرع</th>@if (manage) {<th style="width:90px">الإجراءات</th>}</tr></thead>
+        <tbody>
+        @foreach (var w in Model.Items) {
+            <tr><td class="idx mono">@Ui.Idx(w.Id)</td><td><b>@w.Name</b></td><td>@Ui.Badge(Labels.Type(w.Type), w.Type == WarehouseType.Type1 ? "pr" : "in")</td><td>@w.BranchName</td>
+            @if (manage) {
+            <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
+                <a href="#" data-modal="#wh-m" data-title="تعديل المخزن" data-v-id="@w.Id" data-v-name="@w.Name" data-v-type="@((int)w.Type)" data-v-branchId="@w.BranchId" data-form-action="/Warehouses/Save">@Ui.Icon("edit", 16) تعديل</a>
+                <a href="#" class="dz" data-confirm data-action="/Warehouses/Delete" data-hidden='{"id":"@w.Id"}' data-kind="d" data-icon="trash" data-title="حذف المخزن" data-text="راح يتم حذف المخزن «@w.Name» نهائياً." data-ok="حذف">@Ui.Icon("trash", 16) حذف</a>
+            </div></div></td>
+            }</tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>
+@if (manage) {
+<div class="ov" id="wh-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Warehouses/Save">
+    @Html.AntiForgeryToken()<input type="hidden" name="id" />
+    <div class="mh"><div class="mic pr">@Ui.Icon("box", 20)</div><div><h3 data-title-slot>إضافة مخزن</h3><p>بيانات المخزن والفرع التابع له</p></div></div>
+    <div class="fg">
+        <div><label class="lbl">اسم المخزن<i> *</i></label><div class="field"><input name="name" required maxlength="150" placeholder="مثال: مخزن قطع الغيار الرئيسي" /></div></div>
+        <div><label class="lbl">النوع<i> *</i></label><div class="field"><select name="type" required><option value="1">نوع 1</option><option value="2">نوع 2</option></select></div></div>
+        <div><label class="lbl">الفرع<i> *</i></label><div class="field"><select name="branchId" required><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div>
+    </div>
+    
+    <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
+</form></div></div>
+}

@@ -1,0 +1,25 @@
+@model UserInput
+@{ int? id = ViewBag.Id; var edit = id.HasValue; ViewData["Title"] = edit ? "تعديل مستخدم" : "إضافة مستخدم"; ViewData["Nav"] = "users";
+   var branches = (List<NamedItem>)ViewBag.Branches; var whs = (List<NamedItem>)ViewBag.Warehouses; var ms = ViewData.ModelState; }
+<div class="ph"><div><div class="crumb"><a href="/Users">المستخدمين</a> / @ViewData["Title"]</div><h1>@ViewData["Title"]</h1></div></div>
+<form class="card formcard" method="post" novalidate>
+    @Html.AntiForgeryToken()
+    @if (ms.ErrorOf("") is string ge) { <div class="alert er">@Ui.Icon("alert", 18)<span>@ge</span></div> }
+    <div class="fg2">
+        <div><label class="lbl" for="Name">الاسم<i> *</i></label><div class="@ms.Cls("Name")"><input id="Name" name="Name" value="@Model.Name" maxlength="150" required placeholder="الاسم الكامل" /></div>@ms.Err("Name")</div>
+        <div><label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label><div class="@ms.Cls("PhoneNumber")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" maxlength="11" required placeholder="07XXXXXXXXX" dir="ltr" /></div>@ms.Err("PhoneNumber")</div>
+        <div><label class="lbl" for="Password">كلمة المرور @if (!edit) {<i>*</i>}</label><div class="@ms.Cls("Password")"><input id="Password" name="Password" type="password" minlength="6" autocomplete="new-password" placeholder="@(edit ? "اتركها فارغة إذا ما تريد تغييرها" : "6 أحرف على الأقل")" /></div>@ms.Err("Password")</div>
+        <div><label class="lbl" for="ConfirmPassword">تأكيد كلمة المرور @if (!edit) {<i>*</i>}</label><div class="@ms.Cls("ConfirmPassword")"><input id="ConfirmPassword" name="ConfirmPassword" type="password" autocomplete="new-password" placeholder="أعد كتابة كلمة المرور" /></div>@ms.Err("ConfirmPassword")</div>
+        <div><label class="lbl">الفروع<i> *</i></label>
+            <details class="msel @(ms.ErrorOf("BranchIds") != null ? "err" : "")" data-kind="branches"><summary><span data-ph="اختر الفروع"></span>@Ui.Icon("chevd", 16)</summary><div class="opts">
+                @foreach (var b in branches) { <label><input type="checkbox" name="BranchIds" value="@b.Id" data-name="@b.Name" checked="@Model.BranchIds.Contains(b.Id)" /> @b.Name</label> }
+                @if (branches.Count == 0) { <p class="muted">لا توجد فروع</p> }
+            </div></details>@ms.Err("BranchIds")</div>
+        <div><label class="lbl">المخازن<i> *</i></label>
+            <details class="msel @(ms.ErrorOf("WarehouseIds") != null ? "err" : "")" data-kind="warehouses"><summary><span data-ph="اختر المخازن"></span>@Ui.Icon("chevd", 16)</summary><div class="opts">
+                @foreach (var w in whs) { <label data-parent="@w.ParentId"><input type="checkbox" name="WarehouseIds" value="@w.Id" data-name="@w.Name" checked="@Model.WarehouseIds.Contains(w.Id)" /> @w.Name</label> }
+                <p class="muted" data-no-wh>اختر فرع أولاً لعرض مخازنه</p>
+            </div></details>@ms.Err("WarehouseIds")</div>
+    </div>
+    <div class="mf" style="margin-top:24px"><button class="btn p" type="submit">@Ui.Icon("check", 16) حفظ</button><a class="btn" href="/Users">إلغاء</a></div>
+</form>

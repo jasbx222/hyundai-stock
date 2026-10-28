@@ -1,0 +1,50 @@
+@model PagedResult<AdminRow>
+@{ ViewData["Title"] = "المشرفين"; ViewData["Nav"] = "admins"; var branches = (List<NamedItem>)ViewBag.Branches; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
+<div class="ph">
+    <div><h1>المشرفين</h1><p>حسابات لوحة التحكم وصلاحياتها</p></div>
+    <div class="toolbar"><a class="btn p" href="/Admins/Create">@Ui.Icon("plus", 16) إضافة مشرف</a></div>
+</div>
+<div class="card">
+    <div class="ch">@await Html.PartialAsync("_Search", "ابحث بالاسم أو رقم الهاتف")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا يوجد مشرفين", "ما في نتائج مطابقة.", "shield")) }
+    else {
+    <table>
+        <thead><tr><th style="width:70px">الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الدور</th><th>الفرع</th><th>الحالة</th><th>تاريخ الإنشاء</th><th style="width:90px">الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var a in Model.Items) {
+            var self = a.Id == s.Id;
+            <tr><td class="idx mono">@Ui.Idx(a.Id)</td>
+                <td><div class="who"><div class="av">@Ui.Initial(a.Name)</div><b>@a.Name</b></div></td>
+                <td class="mono" dir="ltr" style="text-align:right">@a.PhoneNumber</td>
+                <td>@Ui.Badge(Labels.Role(a.Role), a.Role == AdminRole.MainAdmin ? "pr" : a.Role == AdminRole.SuperAdmin ? "in" : "ne")</td>
+                <td>@(a.BranchName ?? "—")</td><td>@Ui.Active(a.IsActive)</td><td class="num">@Ui.Date(a.CreatedAt)</td>
+                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
+                    <a href="#" data-remote="/Admins/Details/@a.Id">@Ui.Icon("eye", 16) عرض التفاصيل</a>
+                    @if (!self && a.Role != AdminRole.MainAdmin) {
+                        <a href="#" data-modal="#reset-m" data-v-id="@a.Id" data-sub="@a.Name">@Ui.Icon("key", 16) تغيير كلمة المرور</a>
+                        @if (a.Role == AdminRole.Admin) { <a href="#" data-modal="#assign-m" data-v-id="@a.Id" data-v-branchId="@(a.BranchId?.ToString() ?? "")" data-sub="@a.Name">@Ui.Icon("branch", 16) تعيين فرع</a> }
+                        if (a.IsActive) {
+                            <a href="#" class="dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف" data-text="راح يتم تعطيل حساب «@a.Name» ويتم تسجيل خروجه فوراً." data-ok="تعطيل">@Ui.Icon("power", 16) تعطيل</a>
+                        } else {
+                            <a href="#" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="check" data-title="تفعيل المشرف" data-text="راح يتم تفعيل حساب «@a.Name»." data-ok="تفعيل">@Ui.Icon("check", 16) تفعيل</a>
+                        }
+                    }
+                </div></div></td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>
+<div class="ov" id="reset-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Admins/ResetPassword">
+    @Html.AntiForgeryToken()<input type="hidden" name="id" />
+    <div class="mh"><div class="mic pr">@Ui.Icon("key", 20)</div><div><h3>تغيير كلمة المرور</h3><p data-sub-slot></p></div></div>
+    <div class="fg"><div><label class="lbl">كلمة المرور الجديدة<i> *</i></label><div class="field"><input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="6 أحرف على الأقل" /></div></div></div>
+    <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
+</form></div></div>
+<div class="ov" id="assign-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Admins/AssignBranch">
+    @Html.AntiForgeryToken()<input type="hidden" name="id" />
+    <div class="mh"><div class="mic pr">@Ui.Icon("branch", 20)</div><div><h3>تعيين فرع</h3><p data-sub-slot></p></div></div>
+    <div class="fg"><div><label class="lbl">الفرع<i> *</i></label><div class="field"><select name="branchId" required><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div></div>
+    <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
+</form></div></div>

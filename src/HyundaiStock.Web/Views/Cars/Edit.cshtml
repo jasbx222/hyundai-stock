@@ -1,0 +1,17 @@
+@model ScannedVin
+@{ ViewData["Title"] = "تعديل مركبة"; ViewData["Nav"] = "cars"; var whs = (List<NamedItem>)ViewBag.Warehouses; var ms = ViewData.ModelState;
+   string vin = ViewBag.Vin as string ?? Model.Vin; int wid = ViewBag.WarehouseId as int? ?? Model.WarehouseId; }
+<div class="ph"><div><div class="crumb"><a href="/Cars">المركبات</a> / تعديل</div><h1>تعديل مركبة</h1><p class="mono" dir="ltr" style="text-align:right">@Model.Vin</p></div></div>
+<form class="card formcard" method="post" novalidate>
+    @Html.AntiForgeryToken()
+    @if (ms.ErrorOf("") is string ge) { <div class="alert er">@Ui.Icon("alert", 18)<span>@ge</span></div> }
+    <div class="fg2">
+        <div><label class="lbl" for="vin">رقم VIN<i> *</i></label><div class="@ms.Cls("vin")"><input id="vin" name="vin" value="@vin" class="mono" dir="ltr" maxlength="17" minlength="17" required style="text-transform:uppercase" /></div>@ms.Err("vin")<span class="hint">17 حرف ورقم، بدون I و O و Q</span></div>
+        <div><label class="lbl" for="warehouseId">المخزن<i> *</i></label><div class="field"><select id="warehouseId" name="warehouseId" required>@foreach (var w in whs) { <option value="@w.Id" selected="@(w.Id == wid)">@w.Name</option> }</select></div>@ms.Err("warehouseId")</div>
+    </div>
+    <div class="kv" style="margin-top:20px">
+        <div><span>المستخدم</span><b>@Model.User?.Name</b></div><div><span>الفرع</span><b>@Model.Branch?.Name</b></div>
+        <div><span>الجلسة</span><b class="num">@Model.Session?.Year</b></div><div><span>تاريخ المسح</span><b class="num">@Ui.DT(Model.CreatedAt)</b></div>
+    </div>
+    <div class="mf" style="margin-top:24px"><button class="btn p" type="submit">@Ui.Icon("check", 16) حفظ</button><a class="btn" href="/Cars">إلغاء</a></div>
+</form>

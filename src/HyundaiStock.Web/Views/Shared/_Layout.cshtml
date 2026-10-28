@@ -1,0 +1,62 @@
+@{
+    var s = Context.Items[AdminScopeFilter.Key] as AdminScope;
+    string active = ViewData["Nav"] as string ?? "";
+    string title = ViewData["Title"] as string ?? "";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(string.IsNullOrEmpty(title) ? "جرد هيونداي" : title + " · جرد هيونداي")</title>
+    <link rel="icon" href="~/img/favicon.png" />
+    <link rel="stylesheet" href="~/css/design.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+</head>
+<body>
+@if (s == null)
+{
+    @RenderBody()
+}
+else
+{
+    var sys = new List<(string key, string icon, string text, string url)> { ("home", "home", "لوحة التحكم", "/") };
+    if (Menu.Users(s)) sys.Add(("users", "users", "المستخدمين", "/Users"));
+    if (Menu.Admins(s)) sys.Add(("admins", "shield", "المشرفين", "/Admins"));
+    sys.Add(("branches", "branch", "الفروع", "/Branches"));
+    sys.Add(("warehouses", "box", "المخازن", "/Warehouses"));
+    var inv = new List<(string key, string icon, string text, string url)> {
+        ("requests", "edit", "طلبات التعديل", "/Requests"), ("parts", "part", "قطع الغيار", "/Parts"), ("cars", "car", "المركبات", "/Cars") };
+    if (Menu.VinRequests(s)) inv.Add(("vinrequests", "vin", "طلبات تصحيح VIN", "/VinRequests"));
+    if (Menu.Sessions(s)) inv.Add(("sessions", "session", "جلسات الجرد", "/Sessions"));
+    <div class="app">
+        <aside class="side">
+            <div class="deco">@Html.Raw(IconSet.Deco)</div>
+            <a class="brand" href="/"><div class="lg"><img src="~/img/hy_emblem_white.png" alt="Hyundai" style="width:100%;height:100%;object-fit:contain" /></div><div><b>جرد هيونداي</b><span>هيونداي موتورز العراق</span></div></a>
+            <div class="grp">إدارة النظام</div>
+            @foreach (var n in sys) { <a class="nav @(n.key == active ? "on" : "")" href="@n.url">@Ui.Icon(n.icon)<span>@n.text</span></a> }
+            <div class="grp">المخزون</div>
+            @foreach (var n in inv) { <a class="nav @(n.key == active ? "on" : "")" href="@n.url">@Ui.Icon(n.icon)<span>@n.text</span></a> }
+            <div class="me">
+                <div class="av">@Ui.Initial(s.Name)</div>
+                <div class="t"><b>@s.Name</b><span>@Labels.Role(s.Role)</span></div>
+                <form method="post" action="/Account/Logout">@Html.AntiForgeryToken()<button type="submit" title="تسجيل الخروج" aria-label="تسجيل الخروج">@Ui.Icon("logout", 18)</button></form>
+            </div>
+        </aside>
+        <main class="main" style="display:flex;flex-direction:column">
+            <div class="page">
+                @await Html.PartialAsync("_Flash")
+                @RenderBody()
+            </div>
+            <div class="sysfoot"><span dir="ltr" style="unicode-bidi:isolate">© @Ui.Local(DateTime.UtcNow).Year. Hyundai Motors Iraq.</span></div>
+        </main>
+    </div>
+    @await Html.PartialAsync("_ConfirmModal")
+    <div class="ov" id="remote" role="dialog" aria-modal="true"></div>
+}
+<template id="ic-check">@Ui.Icon("check", 20)</template><template id="ic-x">@Ui.Icon("x", 20)</template><template id="ic-power">@Ui.Icon("power", 20)</template><template id="ic-trash">@Ui.Icon("trash", 20)</template><template id="ic-key">@Ui.Icon("key", 20)</template><template id="ic-branch">@Ui.Icon("branch", 20)</template><template id="ic-session">@Ui.Icon("session", 20)</template><template id="ic-vin">@Ui.Icon("vin", 20)</template><template id="ic-refresh">@Ui.Icon("refresh", 20)</template><template id="ic-edit">@Ui.Icon("edit", 20)</template>
+<form id="af" class="sr">@Html.AntiForgeryToken()</form>
+<script src="~/js/app.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,38 @@
+@model PagedResult<QtyRow>
+@{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
+<div class="ph">
+    <div><h1>طلبات التعديل</h1><p>طلبات تصحيح كميات قطع الغيار ومراحل الموافقة عليها</p></div>
+    <div class="toolbar"><a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) طلب تعديل جديد</a></div>
+</div>
+<div class="card">
+    <div class="ch">@await Html.PartialAsync("_Search", "ابحث برقم القطعة أو الوصف أو السبب")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات تعديل", "الطلبات اللي تنضاف راح تظهر هنا.", "edit")) }
+    else {
+    <table class="compact">
+        <thead><tr><th style="width:60px">الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية القديمة</th><th>الكمية الجديدة</th><th>السبب</th><th>طلب بواسطة</th><th>المرحلة</th><th>الحالة</th><th>التاريخ</th><th style="width:80px">الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Items) {
+            var pending = r.Status == RequestStatus.Pending;
+            <tr><td class="idx mono">@Ui.Idx(r.Id)</td>
+                <td class="mono">@if (r.InventoryPartId.HasValue) {<a href="/Parts/Details/@r.InventoryPartId">@r.PartNumber</a>} else {@r.PartNumber}</td>
+                <td class="clip" title="@r.PartDescription">@r.PartDescription</td><td class="num">@(r.OldQuantity?.ToString() ?? "—")</td><td class="num"><b>@r.NewQuantity</b></td>
+                <td class="clip" title="@r.Reason">@r.Reason</td><td>@r.RequestedBy</td>
+                <td>@(pending ? Labels.Level(r.Level) : "—")</td><td>@Ui.Qty(r.Status, r.Level)</td><td class="num">@Ui.Date(r.CreatedAt)</td>
+                <td>@if (pending) {
+                    <div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
+                    @if (r.Level == ApprovalLevel.None) {
+                        <a href="/Requests/Edit/@r.Id">@Ui.Icon("edit", 16) تعديل</a>
+                        <a href="#" data-confirm data-action="/Requests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="قبول الطلب" data-text="راح ينتقل الطلب لمرحلة القبول النهائي." data-ok="قبول">@Ui.Icon("check", 16) قبول</a>
+                    }
+                    @if (r.Level == ApprovalLevel.First && s.IsSuper) {
+                        <a href="#" data-confirm data-action="/Requests/FinalApprove" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="القبول النهائي" data-text="راح تتحدث الكمية المعدودة للقطعة @r.PartNumber إلى @r.NewQuantity." data-ok="قبول نهائي">@Ui.Icon("check", 16) قبول نهائي</a>
+                    }
+                    <a href="#" class="dz" data-confirm data-action="/Requests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="رفض الطلب" data-text="راح يتم رفض طلب تعديل القطعة @r.PartNumber." data-ok="رفض">@Ui.Icon("x", 16) رفض</a>
+                    </div></div>
+                } else { <span class="muted">—</span> }</td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

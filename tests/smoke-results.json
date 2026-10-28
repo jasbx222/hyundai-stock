@@ -1,0 +1,607 @@
+[
+ {
+  "name": "login wrong password rejected",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "login phone validation",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "main admin login",
+  "ok": true,
+  "info": "302"
+ },
+ {
+  "name": "anon redirected to login",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "create branch",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة الفرع')"
+ },
+ {
+  "name": "duplicate branch rejected",
+  "ok": true,
+  "info": "('er', 'يوجد فرع بنفس الاسم')"
+ },
+ {
+  "name": "empty branch rejected",
+  "ok": true,
+  "info": "('er', 'اسم الفرع لازم يكون حرفين على الأقل')"
+ },
+ {
+  "name": "branches listed",
+  "ok": true,
+  "info": "{'فرع بغداد': 1, 'فرع البصرة': 2}"
+ },
+ {
+  "name": "delete empty branch",
+  "ok": true,
+  "info": "('ok', 'تم حذف الفرع')"
+ },
+ {
+  "name": "create warehouse مخزن بغداد الرئيسي",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة المخزن')"
+ },
+ {
+  "name": "create warehouse مخزن بغداد المركبات",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة المخزن')"
+ },
+ {
+  "name": "create warehouse مخزن البصرة",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة المخزن')"
+ },
+ {
+  "name": "delete branch with warehouses blocked",
+  "ok": true,
+  "info": "('er', 'ما يمكن حذف الفرع لأن بيه مخازن')"
+ },
+ {
+  "name": "warehouse filter by branch",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "warehouse search",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "create admin (role 2)",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة المشرف')"
+ },
+ {
+  "name": "create super admin",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "admin validation (phone/password)",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "admins list",
+  "ok": true,
+  "info": "['1', '2', '3']"
+ },
+ {
+  "name": "admin details partial",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "create user",
+  "ok": true,
+  "info": "('ok', 'تمت إضافة المستخدم')"
+ },
+ {
+  "name": "create 2nd user",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "user validation (dup phone/mismatch/branch)",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "warehouse outside branch rejected",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "users list",
+  "ok": true,
+  "info": "['1', '2']"
+ },
+ {
+  "name": "user edit form",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "user details partial",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "start session with xlsx",
+  "ok": true,
+  "info": "('ok', 'تم بدء جلسة الجرد')"
+ },
+ {
+  "name": "second in-progress session blocked",
+  "ok": true,
+  "info": "('er', 'توجد جلسة جرد قيد التنفيذ، أنهِها أولاً')"
+ },
+ {
+  "name": "non-excel file rejected",
+  "ok": true,
+  "info": "('er', 'الملف لازم يكون .xlsx أو .xls')"
+ },
+ {
+  "name": "download session file",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "download template",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API login wrong → 401",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API login",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"accessToken\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6Iti52YTZiiDYrdiz2YYiLCJ0eXAiOiJhcHAiLCJqdGkiOiI3NDBiODZkNzQ0NzY0ZTU4YjU4ZTUzMTk2NDU0Y"
+ },
+ {
+  "name": "API 401 without token",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API me",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"id\":1,\"name\":\"علي حسن\",\"phoneNumber\":\"07733333333\",\"warehouses\":[{\"id\":1,\"name\":\"مخزن بغداد الرئيسي\",\"type\":\"نوع 1\",\"branchId\":1,\"branchName\":\"فرع بغداد\"},{\"id\""
+ },
+ {
+  "name": "API current session",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"id\":1,\"year\":2026,\"name\":\"جلسة جرد 2026\",\"status\":\"قيد التنفيذ\",\"startedAt\":\"2026-10-28T10:24:22.4205878\"},\"errors\":null}"
+ },
+ {
+  "name": "API parts paged",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":1,\"partNumber\":\"58101-D3A01\",\"description\":\"قطعة تجريبية 1\",\"systemLocation\":\"A-01-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":null,\"countedLocation\":null,\"countedAt\":null,\"countedByMe\":false},{\"id\":2,\"partNumber\":\""
+ },
+ {
+  "name": "API parts scoped to user warehouses (no Basra parts)",
+  "ok": true,
+  "info": "18"
+ },
+ {
+  "name": "API parts search",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"count"
+ },
+ {
+  "name": "API part by id",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API part 404",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API submit count",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":7,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T10:24:23.3475364\",\"countedByMe\":tru"
+ },
+ {
+  "name": "API count validation",
+  "ok": true,
+  "info": "{\"success\":false,\"message\":\"الكمية مطلوبة وما تكون سالبة\",\"data\":null,\"errors\":null}"
+ },
+ {
+  "name": "API count new part (not in file)",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم حفظ العد\",\"data\":{\"id\":24,\"partNumber\":\"NEW-PART-1\",\"description\":\"قطعة جديدة غير موجودة\",\"systemLocation\":null,\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":2,\"countedLocation\":\"Z-1\",\"countedAt\":\"2026-10-28T10:24:23.3950892\",\"countedByMe\":true}"
+ },
+ {
+  "name": "API VIN scan",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم تسجيل المركبة\",\"data\":{\"id\":1,\"vin\":\"KMHD341CBMU100001\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.3152,\"longitude\":44.3661,\"createdAt\":\"2026-10-28T10:24:23.4109244Z\",\"isExpected\":true},\"errors\":null}"
+ },
+ {
+  "name": "API duplicate VIN rejected",
+  "ok": true,
+  "info": "409"
+ },
+ {
+  "name": "API VIN format validation",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API VIN scan requires GPS",
+  "ok": true,
+  "info": "400"
+ },
+ {
+  "name": "API VIN foreign warehouse rejected",
+  "ok": true,
+  "info": "403"
+ },
+ {
+  "name": "API my VINs",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":5,\"vin\":\"KMHD341CBMU100005\",\"warehouseId\":2,\"warehouseName\":\"مخزن بغداد المركبات\",\"latitude\":33.31,\"longitude\":44.36,\"createdAt\":\"2026-10-28T10:24"
+ },
+ {
+  "name": "API VIN correction",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":1,\"currentVin\":\"KMHD341CBMU100001\",\"newVin\":\"KMHD341CBMU199999\",\"reason\":\"خطأ بالمسح\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T10:24:23.4961286Z\",\"approvedAt\":null},\"errors\":null}"
+ },
+ {
+  "name": "API VIN correction #2",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم إرسال طلب التصحيح\",\"data\":{\"id\":2,\"currentVin\":\"KMHD341CBMU100005\",\"newVin\":\"KMHD341CBMU188888\",\"reason\":\"تجربة رفض\",\"status\":\"قيد الانتظار\",\"createdAt\":\"2026-10-28T10:24"
+ },
+ {
+  "name": "API my VIN corrections",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API history parts",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"type\":\"part\",\"id\":24,\"reference\":\"NEW-PART-1\",\"detail\":\"2\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"at\":\"2026-10-28T10:24:23.3950892\"},{\""
+ },
+ {
+  "name": "API history vins",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API history all",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "swagger json",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "parts list paged 10",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "parts search",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "parts page 2",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "part details",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "part info partial",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "recount form partial",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "quantity form partial",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "recount other w/o user rejected",
+  "ok": true,
+  "info": "('er', 'المستخدم غير مرتبط بمخزن القطعة أو معطّل')"
+ },
+ {
+  "name": "recount same user",
+  "ok": true,
+  "info": "('ok', 'تم إرسال طلب إعادة العد')"
+ },
+ {
+  "name": "API my recounts",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":null,\"data\":{\"items\":[{\"id\":1,\"partId\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseName\":\"مخزن بغداد الرئيسي\",\"requestedB"
+ },
+ {
+  "name": "API submit recount",
+  "ok": true,
+  "info": "{\"success\":true,\"message\":\"تم حفظ إعادة العد\",\"data\":{\"id\":5,\"partNumber\":\"58101-D3A05\",\"description\":\"قطعة تجريبية 5\",\"systemLocation\":\"A-05-01\",\"warehouseId\":1,\"warehouseName\":\"مخزن بغداد الرئيسي\",\"countedQuantity\":9,\"countedLocation\":\"A-05-02\",\"countedAt\":\"2026-10-28T10:24:23.838951\",\"countedByMe"
+ },
+ {
+  "name": "API recount twice rejected",
+  "ok": true,
+  "info": "409"
+ },
+ {
+  "name": "quantity update request",
+  "ok": true,
+  "info": "('ok', 'تم إرسال طلب تحديث الكمية')"
+ },
+ {
+  "name": "manual request create",
+  "ok": true,
+  "info": "('ok', 'تم إرسال طلب التعديل')"
+ },
+ {
+  "name": "request validation",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "requests list",
+  "ok": true,
+  "info": "[1, 2]"
+ },
+ {
+  "name": "request edit form",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "request first approve",
+  "ok": true,
+  "info": "('ok', 'تم قبول الطلب')"
+ },
+ {
+  "name": "double first approve blocked",
+  "ok": true,
+  "info": "('er', 'الطلب مو بانتظار القبول الأول')"
+ },
+ {
+  "name": "request final approve",
+  "ok": true,
+  "info": "('ok', 'تم القبول النهائي وتحديث الكمية')"
+ },
+ {
+  "name": "request reject",
+  "ok": true,
+  "info": "('ok', 'تم رفض الطلب')"
+ },
+ {
+  "name": "change log written after final approve",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "cars list",
+  "ok": true,
+  "info": "5"
+ },
+ {
+  "name": "cars search",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "car edit form",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "car edit validation",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "export /Exports/Parts?kind=all",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Parts?kind=counted",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Parts?kind=uncounted",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Cars",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Cars?all=true",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Cars?BranchId=1",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Vins",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Vins?missing=true",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Branches",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Warehouses",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "export /Exports/Warehouses?branchId=1",
+  "ok": true,
+  "info": "200"
+ },
+ {
+  "name": "counted export rows",
+  "ok": true,
+  "info": "7"
+ },
+ {
+  "name": "missing VIN export rows",
+  "ok": true,
+  "info": "8"
+ },
+ {
+  "name": "role-2 admin login",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 menu hides admins/sessions",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 blocked from /Admins",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 blocked from /Sessions",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 branches scoped",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 sees no Basra parts",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "VIN requests list",
+  "ok": true,
+  "info": "['2', '1']"
+ },
+ {
+  "name": "VIN request approve",
+  "ok": true,
+  "info": "('ok', 'تمت الموافقة على تصحيح VIN')"
+ },
+ {
+  "name": "VIN request reject",
+  "ok": true,
+  "info": "('ok', 'تم رفض طلب تصحيح VIN')"
+ },
+ {
+  "name": "VIN correction applied",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 approve unknown request err",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "role-2 final approve forbidden",
+  "ok": true,
+  "info": "('er', 'القبول النهائي للسوبر أدمن فقط')"
+ },
+ {
+  "name": "deactivate user",
+  "ok": true,
+  "info": "('ok', 'تم تعطيل المستخدم')"
+ },
+ {
+  "name": "inactive user API login refused",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "activate user",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "reset admin password",
+  "ok": true,
+  "info": "('ok', 'تم تغيير كلمة المرور')"
+ },
+ {
+  "name": "assign branch",
+  "ok": true,
+  "info": "('ok', 'تم تعيين الفرع')"
+ },
+ {
+  "name": "deactivate admin",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "deactivated admin session killed",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "404 page",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "API 404 json",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "security headers",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "csrf enforced",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "name": "home welcome",
+  "ok": true,
+  "info": ""
+ }
+]

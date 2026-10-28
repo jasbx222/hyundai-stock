@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3442E5E8-4E55-4411-BEDC-2842A56E01FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HyundaiStock.Domain", "src\HyundaiStock.Domain\HyundaiStock.Domain.csproj", "{8F15C6C3-12F4-462A-A037-C4206C153A90}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HyundaiStock.Infrastructure", "src\HyundaiStock.Infrastructure\HyundaiStock.Infrastructure.csproj", "{719B8EA0-53EC-4527-927D-2606FC5745A6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HyundaiStock.Web", "src\HyundaiStock.Web\HyundaiStock.Web.csproj", "{1853CB30-8C10-43F6-BDE9-FEFA135ACA96}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8F15C6C3-12F4-462A-A037-C4206C153A90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F15C6C3-12F4-462A-A037-C4206C153A90}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F15C6C3-12F4-462A-A037-C4206C153A90}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F15C6C3-12F4-462A-A037-C4206C153A90}.Release|Any CPU.Build.0 = Release|Any CPU
+		{719B8EA0-53EC-4527-927D-2606FC5745A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{719B8EA0-53EC-4527-927D-2606FC5745A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{719B8EA0-53EC-4527-927D-2606FC5745A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{719B8EA0-53EC-4527-927D-2606FC5745A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1853CB30-8C10-43F6-BDE9-FEFA135ACA96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1853CB30-8C10-43F6-BDE9-FEFA135ACA96}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1853CB30-8C10-43F6-BDE9-FEFA135ACA96}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1853CB30-8C10-43F6-BDE9-FEFA135ACA96}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8F15C6C3-12F4-462A-A037-C4206C153A90} = {3442E5E8-4E55-4411-BEDC-2842A56E01FC}
+		{719B8EA0-53EC-4527-927D-2606FC5745A6} = {3442E5E8-4E55-4411-BEDC-2842A56E01FC}
+		{1853CB30-8C10-43F6-BDE9-FEFA135ACA96} = {3442E5E8-4E55-4411-BEDC-2842A56E01FC}
+	EndGlobalSection
+EndGlobal

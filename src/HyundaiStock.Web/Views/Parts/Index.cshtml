@@ -1,0 +1,35 @@
+@model PagedResult<PartRow>
+@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"sessionId={session.Id}" : ""; }
+<div class="ph">
+    <div><h1>قطع الغيار</h1><p>@if (session != null) {<span>جلسة جرد <b class="num">@session.Year</b> · @Ui.Session(session.Status)</span>} else {<span>لا توجد جلسة جرد بعد</span>}</p></div>
+    <div class="toolbar">
+        <div class="dd"><button class="btn" data-dd>@Ui.Icon("export", 16) تصدير Excel @Ui.Icon("chevd", 14)</button><div class="menu">
+            <a href="/Exports/Parts?kind=all&@sq">@Ui.Icon("sheet", 16) كل القطع</a>
+            <a href="/Exports/Parts?kind=counted&@sq">@Ui.Icon("check", 16) القطع المعدودة</a>
+            <a href="/Exports/Parts?kind=uncounted&@sq">@Ui.Icon("clock", 16) القطع غير المعدودة</a>
+        </div></div>
+    </div>
+</div>
+<div class="card">
+    <div class="ch">@await Html.PartialAsync("_Search", "ابحث برقم القطعة أو الوصف")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد قطع", session == null ? "ابدأ جلسة جرد ورفع ملف Excel حتى تظهر القطع." : "ما في نتائج مطابقة للبحث.", "part")) }
+    else {
+    <table class="compact">
+        <thead><tr><th style="width:60px">الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th><th>كمية النظام</th><th>الفرق</th><th>الفرع</th><th>المخزن</th><th>المستخدم</th><th style="width:80px">الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var p in Model.Items) {
+            <tr><td class="idx mono">@Ui.Idx(p.Id)</td><td class="mono"><a href="/Parts/Details/@p.Id">@p.PartNumber</a></td><td class="clip" title="@p.Description">@p.Description</td>
+                <td class="num"><b>@(p.CountedQuantity?.ToString() ?? "—")</b></td><td class="num">@p.SystemQuantity</td><td>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</td>
+                <td>@(p.BranchName ?? "—")</td><td>@(p.WarehouseName ?? "—")</td><td>@(p.UserName ?? "—")</td>
+                <td><div class="dd"><button class="ib" data-dd aria-label="الإجراءات">@Ui.Icon("more", 18)</button><div class="menu">
+                    <a href="#" data-remote="/Parts/Info/@p.Id">@Ui.Icon("info", 16) معلومات القطعة</a>
+                    <a href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16) عرض التفاصيل</a>
+                    <a href="#" data-remote="/Parts/RecountForm/@p.Id">@Ui.Icon("refresh", 16) طلب إعادة العد</a>
+                    <a href="#" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تحديث الكمية</a>
+                </div></div></td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

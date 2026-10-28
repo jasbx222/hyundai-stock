@@ -1,0 +1,11 @@
+<div class="ov" id="confirm" role="dialog" aria-modal="true" aria-labelledby="cf-t">
+    <div class="modal">
+        <form method="post" id="cf-form">
+            @Html.AntiForgeryToken()
+            <div class="mh"><div class="mic ok" id="cf-ic"></div><div><h3 id="cf-t"></h3><p id="cf-p"></p></div></div>
+            <div id="cf-extra"></div>
+            
+            <div class="mf"><button type="submit" class="btn okb" id="cf-ok"></button><button type="button" class="btn" data-close>إلغاء</button></div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,24 @@
+@model HyundaiStock.Web.Controllers.LoginVm
+@{ ViewData["Title"] = "تسجيل الدخول"; }
+<div class="login">
+    <form class="card" method="post" action="/Account/Login" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+        <div class="brandl"><img src="~/img/hy_emblem_navy.png" alt="Hyundai" /><div><b style="display:block;font-size:15px">جرد هيونداي</b><span class="muted" style="font-size:12px">هيونداي موتورز العراق</span></div></div>
+        <h2>تسجيل الدخول</h2>
+        @if (ViewData.ModelState[""]?.Errors.Count > 0) { <div class="alert er" style="margin-bottom:16px">@Ui.Icon("alert", 18)<span>@ViewData.ModelState[""]!.Errors[0].ErrorMessage</span></div> }
+        <div class="fg">
+            <div>
+                <label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label>
+                <div class="field @(ViewData.ModelState["PhoneNumber"]?.Errors.Count > 0 ? "err" : "")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" autocomplete="username" placeholder="أدخل رقم الهاتف" required autofocus /></div>
+                <span class="hint e" asp-validation-for="PhoneNumber"></span>
+            </div>
+            <div>
+                <label class="lbl" for="Password">كلمة المرور<i> *</i></label>
+                <div class="field @(ViewData.ModelState["Password"]?.Errors.Count > 0 ? "err" : "")"><input id="Password" name="Password" type="password" autocomplete="current-password" placeholder="أدخل كلمة المرور" required /></div>
+                <span class="hint e" asp-validation-for="Password"></span>
+            </div>
+            <button class="btn p lg" type="submit" style="width:100%;justify-content:center;margin-top:8px">تسجيل الدخول</button>
+        </div>
+    </form>
+</div>

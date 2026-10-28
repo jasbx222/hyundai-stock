@@ -1,0 +1,40 @@
+@model PagedResult<VinRow>
+@{ ViewData["Title"] = "المركبات"; ViewData["Nav"] = "cars"; var branches = (List<NamedItem>)ViewBag.Branches; var users = (List<NamedItem>)ViewBag.Users; var admins = (List<NamedItem>)ViewBag.Admins; }
+<div class="ph">
+    <div><h1>المركبات</h1><p>أرقام VIN الممسوحة من تطبيق الجرد</p></div>
+    <div class="toolbar">
+        <div class="dd"><button class="btn" data-dd>@Ui.Icon("export", 16) تصدير Excel @Ui.Icon("chevd", 14)</button><div class="menu">
+            <a href="#" data-modal="#export-m">@Ui.Icon("filter", 16) المركبات الممسوحة (مع فلترة)</a>
+            <a href="/Exports/Cars?all=true">@Ui.Icon("sheet", 16) كل المركبات الممسوحة</a>
+            <a href="/Exports/Vins">@Ui.Icon("vin", 16) أرقام VIN المتوقعة</a>
+            <a href="/Exports/Vins?missing=true">@Ui.Icon("alert", 16) المركبات غير الممسوحة</a>
+        </div></div>
+    </div>
+</div>
+<div class="card">
+    <div class="ch">@await Html.PartialAsync("_Search", "ابحث برقم VIN أو المستخدم")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد مركبات", "المركبات اللي تنمسح من التطبيق راح تظهر هنا.", "car")) }
+    else {
+    <table class="compact">
+        <thead><tr><th style="width:60px">الرقم</th><th>رقم VIN</th><th>الجلسة</th><th>المستخدم</th><th>المخزن</th><th>الفرع</th><th>الموقع</th><th>تاريخ المسح</th><th style="width:80px">الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var v in Model.Items) {
+            <tr><td class="idx mono">@Ui.Idx(v.Id)</td><td class="mono" dir="ltr" style="text-align:right"><b>@v.Vin</b></td><td class="num">@v.SessionYear</td><td>@v.UserName</td><td>@v.WarehouseName</td><td>@v.BranchName</td>
+                <td>@if (v.Latitude.HasValue) { <a class="gps" target="_blank" rel="noopener" href="https://www.google.com/maps?q=@v.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),@v.Longitude!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)">@Ui.Icon("pin", 14) الخريطة</a> } else { <span class="muted">—</span> }</td>
+                <td class="num">@Ui.DT(v.CreatedAt)</td>
+                <td><a class="ib" href="/Cars/Edit/@v.Id" title="تعديل" aria-label="تعديل">@Ui.Icon("edit", 18)</a></td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>
+<div class="ov" id="export-m" role="dialog" aria-modal="true"><div class="modal"><form method="get" action="/Exports/Cars">
+    <div class="mh"><div class="mic pr">@Ui.Icon("export", 20)</div><div><h3>تصدير المركبات الممسوحة</h3><p>اختر الفلاتر (اختياري)</p></div></div>
+    <div class="fg2">
+        <div><label class="lbl">الفرع</label><div class="field"><select name="BranchId"><option value="">الكل</option>@foreach (var b in branches) { <option value="@b.Id">@b.Name</option> }</select></div></div>
+        <div><label class="lbl">المستخدم</label><div class="field"><select name="UserId"><option value="">الكل</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div></div>
+        <div><label class="lbl">المشرف</label><div class="field"><select name="AdminId"><option value="">الكل</option>@foreach (var a in admins) { <option value="@a.Id">@a.Name</option> }</select></div></div>
+    </div>
+    <div class="mf"><button class="btn p" type="submit" onclick="setTimeout(function(){document.querySelector('#export-m').classList.remove('show')},300)">تصدير</button><button type="button" class="btn" data-close>إلغاء</button></div>
+</form></div></div>
