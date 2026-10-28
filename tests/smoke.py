@@ -110,6 +110,18 @@ r = api.get(B + "/api/v1/vin-corrections", headers=H); check("API my VIN correct
 r = api.get(B + "/api/v1/history?type=part", headers=H); check("API history parts", r.status_code == 200 and r.json()["data"]["totalCount"] >= 6, r.text[:200])
 r = api.get(B + "/api/v1/history?type=vin", headers=H); check("API history vins", r.status_code == 200 and r.json()["data"]["totalCount"] == 5)
 r = api.get(B + "/api/v1/history", headers=H); check("API history all", r.status_code == 200)
+r = api.get(B + "/api/v1/history?search=100001", headers=H); check("API history search", r.status_code == 200 and r.json()["data"]["totalCount"] >= 1, r.text[:200])
+r = api.get(B + "/api/v1/parts?mine=true&pageSize=50", headers=H); mine = r.json()["data"]; check("API parts mine", r.status_code == 200 and mine["totalCount"] >= 1 and all(x["countedByMe"] for x in mine["items"]), r.text[:200])
+mp = mine["items"][0]["id"]
+r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 99, "reason": "تجربة من التطبيق"}, headers=H); check("API qty request", r.status_code == 201 and r.json()["data"]["newQuantity"] == 99, r.text[:200]); app_qid = r.json()["data"]["id"] if r.status_code == 201 else -1
+r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 98, "reason": "مكرر"}, headers=H); check("API qty request duplicate → 409", r.status_code == 409)
+r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 5}, headers=H); check("API qty request needs reason", r.status_code == 400)
+r = api.get(B + "/api/v1/qty-requests", headers=H); check("API my qty requests", r.status_code == 200 and r.json()["data"]["totalCount"] >= 1)
+check("dashboard shows app qty request", "تجربة من التطبيق" in s.get(B + "/Requests").text)
+r = api.post(B + "/api/v1/me/password", json={"currentPassword": "wrong", "newPassword": "NewPass#2026"}, headers=H); check("API change password wrong current", r.status_code == 400)
+r = api.post(B + "/api/v1/me/password", json={"currentPassword": "User#2026x", "newPassword": "NewPass#2026"}, headers=H); check("API change password", r.status_code == 200)
+r = api.post(B + "/api/v1/auth/login", json={"phoneNumber": "07733333333", "password": "NewPass#2026"}); check("API login with new password", r.status_code == 200)
+api.post(B + "/api/v1/me/password", json={"currentPassword": "NewPass#2026", "newPassword": "User#2026x"}, headers=H)
 r = requests.get(B + "/swagger/v1/swagger.json"); check("swagger json", r.status_code == 200 and "/api/v1/auth/login" in r.text)
 
 # --- dashboard inventory
@@ -117,7 +129,7 @@ html = s.get(B + "/Parts").text; check("parts list paged 10", html.count("/Parts
 check("parts search", "D3A05" in s.get(B + "/Parts?search=D3A05").text)
 check("parts page 2", s.get(B + "/Parts?page=2").status_code == 200)
 r = s.get(B + f"/Parts/Details/{pid}"); check("part details", r.status_code == 200 and "سجل التغييرات" in r.text)
-check("part info partial", "سعر" in s.get(B + f"/Parts/Info/{pid}").text or "السعر" in s.get(B + f"/Parts/Info/{pid}").text)
+r = s.get(B + f"/Parts/Info/{pid}"); check("part info partial (no price)", r.status_code == 200 and "السعر" not in r.text)
 check("recount form partial", "طلب إعادة العد" in s.get(B + f"/Parts/RecountForm/{pid}").text)
 check("quantity form partial", "تحديث الكمية" in s.get(B + f"/Parts/QuantityForm/{pid}").text)
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "other", "userId": uids[0] if False else ""}, ref="/Parts"); check("recount other w/o user rejected", flash(r)[0] == "er", flash(r))
@@ -129,7 +141,7 @@ r = api.post(B + f"/api/v1/recounts/{rid}/submit", headers=H, json={"quantity": 
 r = post(s, f"/Parts/Quantity/{pid}", {"newQuantity": 12, "reason": "تصحيح بعد المراجعة"}, ref="/Parts"); check("quantity update request", flash(r)[0] == "ok", flash(r))
 r = post(s, "/Requests/Create", {"PartNumber": "58101-D3A03", "NewQuantity": 5, "Reason": "طلب يدوي"}, ref="/Requests/Create"); check("manual request create", "تم إرسال طلب التعديل" in r.text, flash(r))
 r = post(s, "/Requests/Create", {"PartNumber": "NOPE", "NewQuantity": "", "Reason": ""}, ref="/Requests/Create"); check("request validation", "hint e" in r.text)
-rq = s.get(B + "/Requests").text; qids = sorted(set(int(x) for x in re.findall(r'/Requests/Edit/(\d+)', rq))); check("requests list", len(qids) == 2, qids)
+rq = s.get(B + "/Requests").text; qids = sorted(set(int(x) for x in re.findall(r'/Requests/Edit/(\d+)', rq)) - {app_qid}); check("requests list", len(qids) == 2, qids)
 check("request edit form", s.get(B + f"/Requests/Edit/{qids[0]}").status_code == 200)
 r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("request first approve", flash(r)[0] == "ok", flash(r))
 r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("double first approve blocked", flash(r)[0] == "er", flash(r))

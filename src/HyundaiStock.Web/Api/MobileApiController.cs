@@ -56,9 +56,9 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
 
     /// <summary>قطع الغيار بالجلسة الحالية ضمن مستودعات المستخدم، مع بحث وترقيم.</summary>
     [HttpGet("parts")]
-    public async Task<IActionResult> Parts([FromQuery] string? search, [FromQuery] int? warehouseId, [FromQuery] bool? counted, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    public async Task<IActionResult> Parts([FromQuery] string? search, [FromQuery] int? warehouseId, [FromQuery] bool? counted, [FromQuery] bool? mine, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var r = await svc.PartsAsync(UserId, new PageQuery(page, pageSize, search), warehouseId, counted);
+        var r = await svc.PartsAsync(UserId, new PageQuery(page, pageSize, search), warehouseId, counted, mine == true);
         return r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error)) : Ok(ApiResponse.Ok(PageDto<MobilePart>.From(r.Data!)));
     }
 
@@ -96,6 +96,23 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     /// <summary>إرسال نتيجة إعادة العد.</summary>
     [HttpPost("recounts/{id:int}/submit")]
     public async Task<IActionResult> SubmitRecount(int id, [FromBody] RecountInput input) => From(await svc.SubmitRecountAsync(UserId, id, input), "تم حفظ إعادة العد");
+
+    /// <summary>إرسال طلب تعديل كمية قطعة (يروح للإدارة للموافقة).</summary>
+    [HttpPost("qty-requests")]
+    public async Task<IActionResult> QtyRequest([FromBody] QtyRequestInput input) => From(await svc.QtyRequestAsync(UserId, input), "تم إرسال الطلب");
+
+    /// <summary>طلبات تعديل الكمية الخاصة بالمستخدم.</summary>
+    [HttpGet("qty-requests")]
+    public async Task<IActionResult> MyQtyRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        => Ok(ApiResponse.Ok(PageDto<MobileQtyRequest>.From(await svc.MyQtyRequestsAsync(UserId, new PageQuery(page, pageSize)))));
+
+    /// <summary>تغيير كلمة مرور المستخدم.</summary>
+    [HttpPost("me/password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordInput input)
+    {
+        var r = await svc.ChangePasswordAsync(UserId, input);
+        return r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error)) : Ok(ApiResponse.Ok(null, "تم تغيير كلمة المرور"));
+    }
 
     /// <summary>سجل المستخدم بالجلسة الحالية (type = part | vin | فارغ للكل).</summary>
     [HttpGet("history")]

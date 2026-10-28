@@ -62,7 +62,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions)
         var part = await Scoped(s).Include(x => x.Branch).Include(x => x.Warehouse).Include(x => x.CountedByUser).Include(x => x.Session).FirstOrDefaultAsync(x => x.Id == id);
         if (part == null) return null;
         var corr = await db.QuantityCorrections.AsNoTracking().Where(x => x.InventoryPartId == id).OrderByDescending(x => x.CreatedAt)
-            .Select(x => new QtyRow(x.Id, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedByAdmin!.Name, x.ApprovalLevel, x.Status, x.CreatedAt, x.InventoryPartId)).ToListAsync();
+            .Select(x => new QtyRow(x.Id, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedByAdmin != null ? x.RequestedByAdmin.Name : x.RequestedByUser != null ? x.RequestedByUser.Name + " (التطبيق)" : "", x.ApprovalLevel, x.Status, x.CreatedAt, x.InventoryPartId)).ToListAsync();
         var rec = await db.RecountRequests.AsNoTracking().Where(x => x.InventoryPartId == id).OrderByDescending(x => x.CreatedAt)
             .Select(x => new RecountRow(x.Id, x.AssignedUser!.Name, x.RequestedByAdmin!.Name, x.Status, x.ResultQuantity, x.CreatedAt, x.CompletedAt)).ToListAsync();
         var logs = await db.PartChangeLogs.AsNoTracking().Where(x => x.InventoryPartId == id).OrderByDescending(x => x.CreatedAt)
@@ -104,8 +104,8 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     public Task<PagedResult<QtyRow>> ListAsync(PageQuery p, AdminScope s)
     {
         var q = Scoped(s);
-        if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.PartDescription.Contains(t) || x.RequestedByAdmin!.Name.Contains(t));
-        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new QtyRow(x.Id, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedByAdmin!.Name, x.ApprovalLevel, x.Status, x.CreatedAt, x.InventoryPartId));
+        if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.PartDescription.Contains(t) || (x.RequestedByAdmin != null && x.RequestedByAdmin.Name.Contains(t)) || (x.RequestedByUser != null && x.RequestedByUser.Name.Contains(t)));
+        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new QtyRow(x.Id, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedByAdmin != null ? x.RequestedByAdmin.Name : x.RequestedByUser != null ? x.RequestedByUser.Name + " (التطبيق)" : "", x.ApprovalLevel, x.Status, x.CreatedAt, x.InventoryPartId));
         return Task.FromResult(Paging.Build(rows, p));
     }
 

@@ -106,6 +106,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
             e.HasOne(x => x.InventoryPart).WithMany().HasForeignKey(x => x.InventoryPartId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.RequestedByAdmin).WithMany().HasForeignKey(x => x.RequestedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<RecountRequest>(e =>
         {

@@ -2,7 +2,6 @@
 <div class="modal">
     <div class="mh"><div class="mic pr">@Ui.Icon("part", 20)</div><div><h3 class="mono">@Model.PartNumber</h3><p>@Model.Description</p></div><button class="ib" data-close style="margin-inline-start:auto" aria-label="إغلاق">@Ui.Icon("x", 18)</button></div>
     <div class="kv">
-        <div><span>السعر</span><b class="num">@Model.Price.ToString("N0") د.ع</b></div>
         <div><span>كمية النظام</span><b class="num">@Model.SystemQuantity</b></div>
         <div><span>الكمية المعدودة</span><b class="num">@(Model.CountedQuantity?.ToString() ?? "—")</b></div>
         <div><span>الفرق</span><b>@Ui.Diff(Model.CountedQuantity, Model.SystemQuantity)</b></div>

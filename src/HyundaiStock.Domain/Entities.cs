@@ -160,8 +160,12 @@ public class QuantityCorrectionRequest : Entity
     public int NewQuantity { get; set; }
     public string Reason { get; set; } = "";
     public int? BranchId { get; set; }
-    public int RequestedByAdminId { get; set; }
+    /// <summary>Set when an admin created the request from the dashboard.</summary>
+    public int? RequestedByAdminId { get; set; }
     public Admin? RequestedByAdmin { get; set; }
+    /// <summary>Set when a counter created the request from the mobile app.</summary>
+    public int? RequestedByUserId { get; set; }
+    public AppUser? RequestedByUser { get; set; }
     public ApprovalLevel ApprovalLevel { get; set; } = ApprovalLevel.None;
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
     public int? FirstApprovedByAdminId { get; set; }
