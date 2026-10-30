@@ -40,11 +40,11 @@ public static class Validators
 {
     private static readonly Regex Phone = new(@"^07[5-8][0-9]{8}$", RegexOptions.Compiled);
     public static bool IsIraqiPhone(string? v) => v != null && Phone.IsMatch(v.Trim());
-    public const string PhoneError = "رقم الهاتف لازم يكون 11 رقم ويبدأ بـ 075 أو 076 أو 077 أو 078";
+    public const string PhoneError = "يجب أن يتكون رقم الهاتف من 11 رقمًا وأن يبدأ بـ 075 أو 076 أو 077 أو 078";
     public static string NormalizeVin(string? v) => (v ?? "").Trim().ToUpperInvariant();
     private static readonly Regex VinRx = new(@"^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
     public static bool IsVin(string? v) => v != null && VinRx.IsMatch(NormalizeVin(v));
-    public const string VinError = "رقم VIN لازم يكون 17 حرف ورقم (بدون I و O و Q)";
+    public const string VinError = "يجب أن يتكون رقم VIN من 17 حرفًا ورقمًا (بدون I و O و Q)";
 }
 
 public static class Paging

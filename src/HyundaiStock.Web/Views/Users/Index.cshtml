@@ -6,7 +6,7 @@
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف مستخدم حتى يكدر يسجل دخول بتطبيق الجرد." : "جرّب اسم أو رقم هاتف ثاني.", "users")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف مستخدمًا ليتمكن من تسجيل الدخول إلى تطبيق الجرد." : "جرّب اسمًا أو رقم هاتف آخر.", "users")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الفروع</th><th>المستودعات</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
@@ -25,9 +25,9 @@
                     <a class="btn sm g" title="تصدير قطع الغيار" aria-label="تصدير قطع الغيار" href="/Exports/Parts?kind=counted&UserId=@u.Id">@Ui.Icon("part", 16)</a>
                     <span class="sep"></span>
                     @if (u.IsActive) {
-                        <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم؟" data-text="@u.Name ما يكدر يدخل للتطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم؟" data-text="@u.Name لن يتمكن من الدخول إلى التطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                     } else {
-                        <button type="button" class="btn sm en" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المستخدم؟" data-text="@u.Name يكدر يدخل مرة ثانية" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
+                        <button type="button" class="btn sm en" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المستخدم؟" data-text="@u.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                     }
                 </div></td></tr>
         }

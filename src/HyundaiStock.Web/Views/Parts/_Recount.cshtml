@@ -4,10 +4,10 @@
     @Html.AntiForgeryToken()<input type="hidden" name="returnUrl" />
     <div class="mh"><div class="mic pr">@Ui.Icon("refresh", 20)</div><div><h3>طلب إعادة عد</h3><p><span class="mono">@Model.PartNumber</span> · @Model.Description</p></div></div>
     <div class="mb" style="display:grid;gap:10px">
-        <label class="opt"><input type="radio" name="mode" value="same" @(same ? "checked" : "disabled") /> <span>نفس المستخدم (@(Model.CountedByUser?.Name ?? "ما انعدّت بعد"))</span></label>
+        <label class="opt"><input type="radio" name="mode" value="same" @(same ? "checked" : "disabled") /> <span>نفس المستخدم (@(Model.CountedByUser?.Name ?? "لم تُعدّ بعد"))</span></label>
         <label class="opt"><input type="radio" name="mode" value="other" @(same ? "" : "checked") /> <span>مستخدم آخر</span></label>
         <div id="other-user" style="display:@(same ? "none" : "block")"><label class="lbl">المستخدم<i> *</i></label><div class="field"><select name="userId"><option value="">اختر المستخدم</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div>
-            @if (users.Count == 0) { <span class="hint">ما في مستخدمين نشطين مرتبطين بمخزن هذي القطعة.</span> }</div>
+            @if (users.Count == 0) { <span class="hint">لا يوجد مستخدمون نشطون مرتبطون بمخزن هذه القطعة.</span> }</div>
     </div>
     <div class="mf"><button class="btn p" type="submit">إرسال</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div>

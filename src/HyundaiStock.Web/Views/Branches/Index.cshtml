@@ -6,7 +6,7 @@
 </div>
 <div class="card" style="overflow:visible">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف أول فرع لبدء إدارة المخازن." : "جرّب اسم فرع ثاني.", "branch")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف أول فرع لبدء إدارة المخازن." : "جرّب اسم فرع آخر.", "branch")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>رقم الفرع</th><th>اسم الفرع</th><th>الإجراءات</th></tr></thead>
@@ -22,7 +22,7 @@
                 </div></div>
                 @if (manage) {
                     <button type="button" class="btn sm g" title="تعديل" aria-label="تعديل" data-modal="#branch-m" data-title="تعديل الفرع" data-v-id="@b.Id" data-v-name="@b.Name" data-v-number="@b.Number" data-form-action="/Branches/Save">@Ui.Icon("edit", 16)</button>
-                    <button type="button" class="btn sm g" title="حذف" aria-label="حذف" data-confirm data-action="/Branches/Delete" data-hidden='{"id":"@b.Id"}' data-kind="d" data-icon="trash" data-title="حذف الفرع؟" data-text="حذف فرع «@b.Name» نهائي. ما يمكن حذف فرع عنده مخازن أو بيانات مرتبطة." data-ok="حذف">@Ui.Icon("trash", 16)</button>
+                    <button type="button" class="btn sm g" title="حذف" aria-label="حذف" data-confirm data-action="/Branches/Delete" data-hidden='{"id":"@b.Id"}' data-kind="d" data-icon="trash" data-title="حذف الفرع؟" data-text="حذف فرع «@b.Name» نهائي. لا يمكن حذف فرع لديه مخازن أو بيانات مرتبطة." data-ok="حذف">@Ui.Icon("trash", 16)</button>
                 }
             </div></td></tr>
         }
@@ -36,7 +36,7 @@
     @Html.AntiForgeryToken()<input type="hidden" name="id" />
     <div class="mh"><div class="mic pr">@Ui.Icon("branch", 20)</div><div><h3 data-title-slot>إضافة فرع</h3></div></div>
     <div class="mb"><div><label class="lbl">اسم الفرع<i> *</i></label><div class="field"><input name="name" required minlength="2" maxlength="150" placeholder="أدخل اسم الفرع" /></div><div class="hint">حرفين على الأقل</div></div>
-        <div><label class="lbl">رقم الفرع (BranchNo.) *</label><div class="field"><input name="number" type="number" required min="1" max="9999" inputmode="numeric" placeholder="مثال: 2" /></div><div class="hint">نفس رقم الفرع بملفات الإكسل</div></div></div>
+        <div><label class="lbl">رقم الفرع (BranchNo.) *</label><div class="field"><input name="number" type="number" required min="1" max="9999" inputmode="numeric" placeholder="مثال: 2" /></div><div class="hint">رقم الفرع نفسه المستخدم في ملفات Excel</div></div></div>
     
     <div class="mf"><button class="btn p" type="submit">حفظ</button><button type="button" class="btn" data-close>إلغاء</button></div>
 </form></div></div>

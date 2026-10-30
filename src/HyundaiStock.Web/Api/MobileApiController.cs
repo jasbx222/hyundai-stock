@@ -51,7 +51,7 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     public async Task<IActionResult> CurrentSession()
     {
         var s = await svc.CurrentSessionAsync();
-        return Ok(ApiResponse.Ok(s, s == null ? "ماكو جلسة جرد قيد التنفيذ" : null));
+        return Ok(ApiResponse.Ok(s, s == null ? "لا توجد جلسة جرد قيد التنفيذ" : null));
     }
 
     /// <summary>قطع الغيار بالجلسة الحالية ضمن مستودعات المستخدم، مع بحث وترقيم. code = مطابقة رقم القطعة بعد التطبيع (بدون مسافات/شرطات).</summary>
@@ -74,7 +74,7 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     [HttpPost("vins/scan")]
     public async Task<IActionResult> Scan([FromBody] ScanInput input) => From(await svc.ScanVinAsync(UserId, input), "تم تسجيل المركبة");
 
-    /// <summary>المركبات اللي مسحها المستخدم بالجلسة الحالية.</summary>
+    /// <summary>المركبات التي مسحها المستخدم في الجلسة الحالية.</summary>
     [HttpGet("vins")]
     public async Task<IActionResult> MyVins([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         => Ok(ApiResponse.Ok(PageDto<MobileVin>.From(await svc.MyVinsAsync(UserId, new PageQuery(page, pageSize, search)))));
@@ -97,7 +97,7 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     [HttpPost("recounts/{id:int}/submit")]
     public async Task<IActionResult> SubmitRecount(int id, [FromBody] RecountInput input) => From(await svc.SubmitRecountAsync(UserId, id, input), "تم حفظ إعادة العد");
 
-    /// <summary>إرسال طلب تعديل كمية قطعة (يروح للإدارة للموافقة).</summary>
+    /// <summary>إرسال طلب تعديل كمية قطعة (يُرسل إلى الإدارة للموافقة).</summary>
     [HttpPost("qty-requests")]
     public async Task<IActionResult> QtyRequest([FromBody] QtyRequestInput input) => From(await svc.QtyRequestAsync(UserId, input), "تم إرسال الطلب");
 
@@ -118,7 +118,7 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     [HttpGet("history")]
     public async Task<IActionResult> History([FromQuery] string? type, [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        if (type is not (null or "" or "part" or "vin")) return BadRequest(ApiResponse.Fail("type لازم يكون part أو vin"));
+        if (type is not (null or "" or "part" or "vin")) return BadRequest(ApiResponse.Fail("يجب أن تكون قيمة type إما part أو vin"));
         return Ok(ApiResponse.Ok(PageDto<HistoryItem>.From(await svc.HistoryAsync(UserId, new PageQuery(page, pageSize, search), string.IsNullOrEmpty(type) ? null : type))));
     }
 }

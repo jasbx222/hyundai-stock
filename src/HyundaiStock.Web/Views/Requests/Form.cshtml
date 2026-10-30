@@ -6,7 +6,7 @@
     @if (ms.ErrorOf("") is string ge) { <div class="alert er" style="margin-bottom:18px">@Ui.Icon("alert", 18)<span>@ge</span></div> }
     <div class="fg2">
         <div><label class="lbl" for="PartNumber">رقم القطعة<i> *</i></label><div class="@ms.Cls("PartNumber")"><input id="PartNumber" name="PartNumber" value="@Model.PartNumber" class="mono" dir="ltr" style="text-align:right" maxlength="60" required placeholder="58101-D3A00" /></div>@ms.Err("PartNumber")</div>
-        <div><label class="lbl" for="PartDescription">وصف القطعة<i> *</i></label><div class="@ms.Cls("PartDescription")"><input id="PartDescription" name="PartDescription" value="@Model.PartDescription" maxlength="300" placeholder="يتعبأ تلقائياً من الجلسة" /></div>@ms.Err("PartDescription")</div>
+        <div><label class="lbl" for="PartDescription">وصف القطعة<i> *</i></label><div class="@ms.Cls("PartDescription")"><input id="PartDescription" name="PartDescription" value="@Model.PartDescription" maxlength="300" placeholder="يُملأ تلقائيًا من الجلسة" /></div>@ms.Err("PartDescription")</div>
         <div><label class="lbl" for="OldQuantity">الكمية القديمة<i> *</i></label><div class="@ms.Cls("OldQuantity")"><input id="OldQuantity" name="OldQuantity" value="@Model.OldQuantity" type="number" min="0" class="num" placeholder="من الكمية المعدودة" /></div>@ms.Err("OldQuantity")</div>
         <div><label class="lbl" for="NewQuantity">الكمية الجديدة<i> *</i></label><div class="@ms.Cls("NewQuantity")"><input id="NewQuantity" name="NewQuantity" value="@Model.NewQuantity" type="number" min="0" class="num" required placeholder="0" /></div>@ms.Err("NewQuantity")</div>
     </div>

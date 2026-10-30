@@ -6,7 +6,7 @@
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم الهاتف")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد نتائج", "ما في مشرفين مطابقين.", "shield")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد نتائج", "لا يوجد مشرفون مطابقون.", "shield")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الدور</th><th>الفرع</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
@@ -30,9 +30,9 @@
                     @if (!self && a.Role != AdminRole.MainAdmin) {
                         <span class="sep"></span>
                         if (a.IsActive) {
-                            <button type="button" class="btn sm dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف؟" data-text="حساب @a.Name راح يتعطل ويطلع من الجلسة فوراً" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
+                            <button type="button" class="btn sm dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف؟" data-text="سيتم تعطيل حساب @a.Name وإخراجه من الجلسة فورًا" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                         } else {
-                            <button type="button" class="btn sm en" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المشرف؟" data-text="@a.Name يكدر يدخل مرة ثانية" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
+                            <button type="button" class="btn sm en" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المشرف؟" data-text="@a.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                         }
                     }
                 </div></td></tr>
