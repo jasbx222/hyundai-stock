@@ -101,7 +101,7 @@ public sealed class ExcelImportService
         }
         catch (Exception)
         {
-            res.Errors.Add("الملف مو ملف Excel صالح (.xlsx أو .xls)");
+            res.Errors.Add("الملف ليس ملف Excel صالحًا (.xlsx أو .xls)");
             return res;
         }
         var brByNo = branches.Where(x => x.Number != null).ToDictionary(x => x.Number!.Value);
@@ -133,7 +133,7 @@ public sealed class ExcelImportService
                     if (wt.Length > 0)
                     {
                         if (!TryInt(row[cWh], out var wn)) { res.Errors.Add($"{name} سطر {r + 1}: رقم المخزن غير صالح «{wt}»"); continue; }
-                        if (!whByNo.TryGetValue(wn, out w)) { res.Errors.Add($"{name} سطر {r + 1}: المخزن رقم {wn} غير موجود بالنظام"); continue; }
+                        if (!whByNo.TryGetValue(wn, out w)) { res.Errors.Add($"{name} سطر {r + 1}: المخزن رقم {wn} غير موجود في النظام"); continue; }
                     }
                     res.Vins.Add(new ExpectedVin { Vin = vin, WarehouseId = w?.Id, BranchId = w?.BranchId });
                 }
@@ -142,7 +142,7 @@ public sealed class ExcelImportService
             {
                 any = true;
                 int cDesc = Find(h, Desc), cQty = Find(h, Qty), cLoc = Find(h, Loc), cBr = Find(h, BranchNo);
-                if (cSerial < 0 || cQty < 0 || cBr < 0) { res.Errors.Add($"ورقة {name}: لازم أعمدة «Serial» و«Quantity» و«BranchNo.»"); continue; }
+                if (cSerial < 0 || cQty < 0 || cBr < 0) { res.Errors.Add($"ورقة {name}: يجب توفر الأعمدة «Serial» و«Quantity» و«BranchNo.»"); continue; }
                 for (int r = 1; r < rows.Count; r++)
                 {
                     var row = rows[r]; var pn = Text(row[cSerial]);
@@ -152,14 +152,14 @@ public sealed class ExcelImportService
                     if (Text(row[cQty]).Length > 0 && !TryInt(row[cQty], out q)) { res.Errors.Add($"{name} سطر {r + 1}: الكمية غير صالحة"); continue; }
                     if (q < 0) { res.Errors.Add($"{name} سطر {r + 1}: الكمية سالبة"); continue; }
                     if (!TryInt(row[cBr], out var bn)) { res.Errors.Add($"{name} سطر {r + 1}: رقم الفرع (BranchNo.) غير صالح"); continue; }
-                    if (!brByNo.TryGetValue(bn, out var br)) { res.Errors.Add($"{name} سطر {r + 1}: الفرع رقم {bn} غير موجود بالنظام"); continue; }
+                    if (!brByNo.TryGetValue(bn, out var br)) { res.Errors.Add($"{name} سطر {r + 1}: الفرع رقم {bn} غير موجود في النظام"); continue; }
                     var loc = cLoc >= 0 ? Text(row[cLoc]) : "";
                     res.Parts.Add(new InventoryPart { PartNumber = pn, Description = cDesc >= 0 ? Cut(Text(row[cDesc]), 400) : "", SystemQuantity = q,
                         SystemLocation = loc.Length > 0 ? Cut(loc, 64) : null, BranchId = br.Id });
                 }
             }
         }
-        if (!any) res.Errors.Add("الملف لازم يحتوي ورقة «Parts» (Quantity, Description, Location, Serial, BranchNo.) أو ورقة «Vins» (VIN, WarehouseNo.)");
+        if (!any) res.Errors.Add("يجب أن يحتوي الملف على ورقة «Parts» (Quantity, Description, Location, Serial, BranchNo.) أو ورقة «Vins» (VIN, WarehouseNo.)");
         else if (res.Errors.Count == 0 && res.Parts.Count == 0 && res.Vins.Count == 0) res.Errors.Add("الملف فارغ");
         return res;
     }
@@ -191,7 +191,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
         if (!s.IsSuper) return OpResult.Fail("بدء الجلسة للسوبر أدمن فقط");
         if (year < 2000 || year > 2100) return OpResult.Fail("السنة غير صالحة");
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        if (ext is not (".xlsx" or ".xls")) return OpResult.Fail("الملف لازم يكون .xlsx أو .xls");
+        if (ext is not (".xlsx" or ".xls")) return OpResult.Fail("يجب أن يكون الملف بصيغة .xlsx أو .xls");
         if (length <= 0) return OpResult.Fail("الملف فارغ");
         if (length > opt.Value.MaxUploadBytes) return OpResult.Fail("حجم الملف أكبر من المسموح");
         if (await db.Sessions.AnyAsync(x => x.Status == SessionStatus.InProgress)) return OpResult.Fail("توجد جلسة جرد قيد التنفيذ، أنهِها أولاً");
@@ -203,7 +203,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
         var whs = await db.Warehouses.AsNoTracking().ToListAsync();
         var brs = await db.Branches.AsNoTracking().ToListAsync();
         var res = importer.Read(ms, whs, brs);
-        if (res.Errors.Count > 0) return OpResult.Fail(string.Join("\n", res.Errors.Take(15)) + (res.Errors.Count > 15 ? $"\n… و{res.Errors.Count - 15} أخطاء ثانية" : ""));
+        if (res.Errors.Count > 0) return OpResult.Fail(string.Join("\n", res.Errors.Take(15)) + (res.Errors.Count > 15 ? $"\n… و{res.Errors.Count - 15} أخطاء أخرى" : ""));
 
         var stored = $"{Guid.NewGuid():N}{ext}";
         await File.WriteAllBytesAsync(Path.Combine(Dir, stored), ms.ToArray());

@@ -11,7 +11,7 @@
         <div><span>الكمية المحسوبة</span><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></div>
         <div><span>الفرق</span><b>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</b></div>
         <div><span>الحالة</span><b>@Ui.Match(p.CountedQuantity, p.SystemQuantity)</b></div>
-        <div><span>الموقع بالمخزون</span><b class="mono">@(p.SystemLocation ?? "—")</b></div>
+        <div><span>الموقع في المخزن</span><b class="mono">@(p.SystemLocation ?? "—")</b></div>
         <div><span>الموقع المحسوب</span><b class="mono">@(p.CountedLocation ?? "—")</b></div>
         <div><span>الفرع</span><b>@(p.Branch?.Name ?? "—")</b></div>
         <div><span>المستخدم</span><b>@(p.CountedByUser?.Name ?? "—")</b></div>
@@ -26,13 +26,13 @@
         <a href="?tab=logs" data-tab="logs" class="@(tab == "logs" ? "on" : "")" role="tab">سجل التغييرات</a>
     </div>
     <div class="tabpane @(tab == "corrections" ? "on" : "")" id="corrections">
-        @if (Model.Corrections.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "طلبات تعديل الكمية لهذي القطعة تظهر هنا.", "edit")) }
+        @if (Model.Corrections.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "تظهر هنا طلبات تعديل الكمية لهذه القطعة.", "edit")) }
         else { <table><thead><tr><th>الرقم</th><th>طلب من قبل</th><th>الكمية الجديدة</th><th>مستوى الموافقة</th><th>الحالة</th><th>تاريخ الطلب</th><th>وقت الطلب</th></tr></thead><tbody>
             @foreach (var r in Model.Corrections) { <tr title="@r.Reason"><td><span class="idx">#@r.Id.ToString("0000")</span></td><td>@Ui.Who(r.RequestedBy)</td><td><b class="num">@r.NewQuantity</b></td><td>@Ui.Step(r.Status, r.Level)</td><td>@Ui.Qty(r.Status, r.Level)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Clock(r.CreatedAt)</td></tr> }
         </tbody></table> }
     </div>
     <div class="tabpane @(tab == "recounts" ? "on" : "")" id="recounts">
-        @if (Model.Recounts.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "طلبات إعادة العد لهذي القطعة تظهر هنا.", "refresh")) }
+        @if (Model.Recounts.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "تظهر هنا طلبات إعادة العد لهذه القطعة.", "refresh")) }
         else { <table><thead><tr><th>الرقم</th><th>المستخدم</th><th>طلب بواسطة</th><th>الحالة</th><th>النتيجة</th><th>تاريخ الطلب</th><th>تاريخ الإكمال</th></tr></thead><tbody>
             @foreach (var r in Model.Recounts) { <tr><td><span class="idx">@Ui.Idx(r.Id)</span></td><td>@Ui.Who(r.UserName)</td><td>@Ui.Who(r.RequestedBy)</td><td>@Ui.Recount(r.Status)</td><td class="num">@(r.ResultQuantity?.ToString() ?? "—")</td><td>@Ui.When(r.CreatedAt)</td><td>@Ui.When(r.CompletedAt)</td></tr> }
         </tbody></table> }

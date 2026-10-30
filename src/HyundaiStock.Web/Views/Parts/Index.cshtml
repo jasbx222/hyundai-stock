@@ -9,7 +9,7 @@
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم القطعة")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(session == null || string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", session == null ? "ابدأ جلسة جرد ورفع ملف Excel حتى تظهر القطع." : "جرّب رقم قطعة ثاني.", "part")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(session == null || string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", session == null ? "ابدأ جلسة جرد وارفع ملف Excel لتظهر القطع." : "جرّب رقم قطعة آخر.", "part")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th><th>الكمية في النظام</th><th>الفرق</th><th>الفرع</th><th>المستخدم</th><th>الإجراءات</th></tr></thead>

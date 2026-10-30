@@ -52,7 +52,7 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
         else if (await db.Admins.AnyAsync(x => x.PhoneNumber == phone)) err["PhoneNumber"] = "رقم الهاتف مستخدم لمشرف آخر";
         if (string.IsNullOrEmpty(i.Password) || i.Password.Length < 6) err["Password"] = "كلمة المرور 6 أحرف على الأقل";
         var role = s.IsMain ? i.Role : AdminRole.Admin;
-        if (role == AdminRole.MainAdmin) err["Role"] = "ما يمكن إنشاء مسؤول رئيسي ثاني";
+        if (role == AdminRole.MainAdmin) err["Role"] = "لا يمكن إنشاء مسؤول رئيسي آخر";
         if (i.BranchId is int bid) { if (!await db.Branches.AnyAsync(x => x.Id == bid)) err["BranchId"] = "الفرع غير موجود"; }
         else if (role == AdminRole.Admin) err["BranchId"] = "اختر الفرع (الأدمن مرتبط بفرع)";
         if (err.Count > 0) return err;
@@ -65,9 +65,9 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
     {
         var a = await db.Admins.FindAsync(id);
         if (a == null) return (null, "المشرف غير موجود");
-        if (a.Role == AdminRole.MainAdmin) return (null, "ما يمكن تعديل المسؤول الرئيسي من هنا");
-        if (!s.IsMain && a.Role != AdminRole.Admin) return (null, "ما عندك صلاحية على هذا الحساب");
-        if (a.Id == s.Id) return (null, "ما يمكن تعديل حسابك من هنا");
+        if (a.Role == AdminRole.MainAdmin) return (null, "لا يمكن تعديل المسؤول الرئيسي من هنا");
+        if (!s.IsMain && a.Role != AdminRole.Admin) return (null, "ليست لديك صلاحية على هذا الحساب");
+        if (a.Id == s.Id) return (null, "لا يمكن تعديل حسابك من هنا");
         return (a, null);
     }
 
