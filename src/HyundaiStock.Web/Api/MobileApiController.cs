@@ -74,6 +74,10 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     [HttpPost("vins/scan")]
     public async Task<IActionResult> Scan([FromBody] ScanInput input) => From(await svc.ScanVinAsync(UserId, input), "تم تسجيل المركبة");
 
+    /// <summary>نوع المركبة لرقم VIN (من ملف الجلسة) قبل تسجيلها.</summary>
+    [HttpGet("vins/lookup")]
+    public async Task<IActionResult> LookupVin([FromQuery] string? vin) => From(await svc.LookupVinAsync(vin));
+
     /// <summary>المركبات التي مسحها المستخدم في الجلسة الحالية.</summary>
     [HttpGet("vins")]
     public async Task<IActionResult> MyVins([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
