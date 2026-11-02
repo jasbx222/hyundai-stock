@@ -3,7 +3,7 @@
    var branches = (List<NamedItem>)ViewBag.Branches; int? bid = ViewBag.BranchId; }
 <div class="ph">
     <div><h1>المخازن</h1></div>
-    <div class="acts">@if (manage) { <button class="btn p" data-modal="#wh-m" data-title="إضافة مخزن" data-v-id="" data-v-name="" data-v-number="" data-v-branchId="@(bid?.ToString() ?? "")" data-form-action="/Warehouses/Save">@Ui.Icon("plus", 16) إضافة مخزن</button> }</div>
+    <div class="acts">@if (manage) { <button class="btn p" data-modal="#wh-m" title="إضافة مخزن" data-title="إضافة مخزن" data-v-id="" data-v-name="" data-v-number="" data-v-branchId="@(bid?.ToString() ?? "")" data-form-action="/Warehouses/Save">@Ui.Icon("plus", 16) إضافة مخزن</button> }</div>
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">

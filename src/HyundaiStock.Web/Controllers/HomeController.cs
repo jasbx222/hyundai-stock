@@ -1,12 +1,14 @@
+using HyundaiStock.Infrastructure.Data;
+using HyundaiStock.Infrastructure.Services;
 using HyundaiStock.Web.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
-public sealed class HomeController : DashboardController
+public sealed class HomeController(AppDbContext db, SessionLookup sessions) : DashboardController
 {
-    public IActionResult Index() => View();
+    public async Task<IActionResult> Index() => View(await HomeStats.BuildAsync(db, sessions, Scope));
 
     [AllowAnonymous]
     public IActionResult NotFoundPage() { Response.StatusCode = 404; return View("~/Views/Shared/NotFound.cshtml"); }
