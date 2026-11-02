@@ -33,13 +33,13 @@
 </div>
 <div class="ov" id="start-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Sessions/Start" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
-    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel بقطع الغيار وأرقام VIN</p></div></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام VIN</p></div></div>
     <div class="mb">
         <label class="drop">
-            <input name="file" type="file" accept=".xlsx,.xls" />
+            <input name="file" type="file" accept=".xlsx,.xls" multiple />
             @Ui.Icon("upload", 28)
-            <b>اسحب الملف هنا أو اختره</b>
-            <span class="hint">ملف Excel بصيغة نظام هيونداي: ورقة Parts وورقة Vins</span>
+            <b>اسحب الملفات هنا أو اخترها</b>
+            <span class="hint">قالب الجرد (ورقة Parts وورقة Vins)، أو تقارير النظام كما هي: «القطع الموجودة» لكل فرع وتقرير المركبات</span>
             <span class="fn mono" dir="ltr"></span>
         </label>
         <div class="hint" style="margin-top:10px"><a href="/Sessions/Template">تحميل القالب</a></div>

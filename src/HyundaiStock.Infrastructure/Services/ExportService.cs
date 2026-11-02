@@ -215,7 +215,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
             }
         }
         Sheet("Parts", ExcelImportService.PartsHeaders, new[] { 10.0, 43.33, 19.11, 22.55, 10.0 }, new object?[] { 4, "فلتر زيت", "A-01-02", "0263001080", 2 });
-        Sheet("Vins", ExcelImportService.VinsHeaders, new[] { 25.33, 13.33 }, new object?[] { "TMAJB81D4TJ653724", 2 });
+        Sheet("Vins", ExcelImportService.VinsHeaders, new[] { 25.33, 13.33, 30.0 }, new object?[] { "TMAJB81D4TJ653724", 2, "Tucson" });
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
