@@ -22,7 +22,7 @@
                     <a class="btn sm g" href="/Exports/Vins?missing=true&sessionId=@x.Id" title="تصدير VINs غير موجودة" aria-label="تصدير VINs غير موجودة">@Ui.Icon("alert", 16)</a>
                     @if (live) {
                         <span class="sep"></span>
-                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
                     }
                 </div></td></tr>
         }

@@ -3,13 +3,13 @@
 <div class="ph">
     <div><h1>المركبات</h1></div>
     <div class="acts">
-        <div class="dd"><button type="button" class="btn" data-dd aria-haspopup="menu">@Ui.Icon("export", 16) تصدير</button><div class="menu">
+        <div class="dd"><button type="button" class="btn" data-dd aria-haspopup="menu" title="تصدير المركبات إلى ملف Excel حسب الفرع أو المسؤول أو المستخدم">@Ui.Icon("export", 16) تصدير</button><div class="menu">
             <a href="/Exports/Cars?all=true">@Ui.Icon("sheet", 16) الكل</a>
             <a href="#" data-modal="#exp-branch">@Ui.Icon("branch", 16) للفرع</a>
             <a href="#" data-modal="#exp-admin">@Ui.Icon("shield", 16) للمسؤول</a>
             <a href="#" data-modal="#exp-user">@Ui.Icon("user", 16) للمستخدم</a>
         </div></div>
-        <a class="btn p" href="/Exports/Cars">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
+        <a class="btn p" href="/Exports/Cars" title="تحميل ملف Excel بكل مركبات آخر جلسة">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
     </div>
 </div>
 <div class="card" style="overflow:hidden">

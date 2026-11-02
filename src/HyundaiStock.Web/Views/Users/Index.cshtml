@@ -25,9 +25,9 @@
                     <a class="btn sm g" title="تصدير قطع الغيار" aria-label="تصدير قطع الغيار" href="/Exports/Parts?kind=counted&UserId=@u.Id">@Ui.Icon("part", 16)</a>
                     <span class="sep"></span>
                     @if (u.IsActive) {
-                        <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المستخدم؟" data-text="@u.Name لن يتمكن من الدخول إلى التطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"false"}' data-kind="d" data-icon="power" title="تعطيل المستخدم؟" data-title="تعطيل المستخدم؟" data-text="@u.Name لن يتمكن من الدخول إلى التطبيق" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                     } else {
-                        <button type="button" class="btn sm en" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المستخدم؟" data-text="@u.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
+                        <button type="button" class="btn sm en" data-confirm data-action="/Users/SetActive" data-hidden='{"id":"@u.Id","active":"true"}' data-kind="ok" data-icon="power" title="تفعيل المستخدم؟" data-title="تفعيل المستخدم؟" data-text="@u.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                     }
                 </div></td></tr>
         }
