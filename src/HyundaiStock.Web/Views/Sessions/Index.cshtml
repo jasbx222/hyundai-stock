@@ -22,7 +22,7 @@
                     <a class="btn sm g" href="/Exports/Vins?missing=true&sessionId=@x.Id" title="تصدير VINs غير موجودة" aria-label="تصدير VINs غير موجودة">@Ui.Icon("alert", 16)</a>
                     @if (live) {
                         <span class="sep"></span>
-                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
                     }
                 </div></td></tr>
         }
@@ -33,13 +33,13 @@
 </div>
 <div class="ov" id="start-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Sessions/Start" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
-    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel بقطع الغيار وأرقام VIN</p></div></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام VIN</p></div></div>
     <div class="mb">
         <label class="drop">
-            <input name="file" type="file" accept=".xlsx,.xls" />
+            <input name="file" type="file" accept=".xlsx,.xls" multiple />
             @Ui.Icon("upload", 28)
-            <b>اسحب الملف هنا أو اختره</b>
-            <span class="hint">ملف Excel بصيغة نظام هيونداي: ورقة Parts وورقة Vins</span>
+            <b>اسحب الملفات هنا أو اخترها</b>
+            <span class="hint">قالب الجرد (ورقة Parts وورقة Vins)، أو تقارير النظام كما هي: «القطع الموجودة» لكل فرع وتقرير المركبات</span>
             <span class="fn mono" dir="ltr"></span>
         </label>
         <div class="hint" style="margin-top:10px"><a href="/Sessions/Template">تحميل القالب</a></div>
