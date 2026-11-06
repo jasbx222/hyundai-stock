@@ -147,6 +147,7 @@ public sealed class SessionsController(SessionService svc) : DashboardController
     [RequestSizeLimit(25 * 1024 * 1024)]
     public async Task<IActionResult> Start(int? year, List<IFormFile>? file)
     {
+        if (!ModelState.IsValid) return Done(OpResult.Fail("السنة غير صالحة، أدخل سنة بين 2000 و2100"), "");
         var picked = (file ?? new()).Where(f => f.Length > 0).ToList();
         if (picked.Count == 0) return Done(OpResult.Fail("اختر ملف Excel"), "");
         var streams = picked.Select(f => f.OpenReadStream()).ToList();
