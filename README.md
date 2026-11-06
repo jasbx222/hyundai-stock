@@ -37,16 +37,26 @@ Storage__UploadsPath=D:\HyundaiStock\uploads
 التطبيق يطبّق المايكريشن تلقائياً عند التشغيل، أو شغّل `db/initial-sqlserver.sql` يدوياً. متوافق مع SQL Server 2014 (Compatibility level 120، بدون JSON/OPENJSON).
 
 ### ملف جلسة الجرد (Excel)
-- ورقة القطع: `رقم القطعة | الوصف | السعر | الكمية | الموقع | المخزن`
-- ورقة المركبات: `VIN | الموديل | المخزن`
-- اسم المخزن لازم يطابق اسمه بالنظام. القالب: صفحة جلسات الجرد ← «تحميل القالب».
+- ورقة `Parts`: `Quantity | Description | Location | Serial | BranchNo.`
+- ورقة `Vins`: `VIN | WarehouseNo. | VehicleType`
+- استخدم أرقام الفرع والمخزن من اللوحة، مو ids. القالب من صفحة جلسات الجرد ← «تحميل القالب».
 - جلسة وحدة قيد التنفيذ، وجلسة وحدة لكل سنة.
+
+### بيانات وتجربة شاملة
+- [سيناريو اللوحة والتطبيق باللهجة العراقية](docs/TEST-SCENARIO.ar.md): أوامر وندوز، الحسابات، النتائج المتوقعة والحالات السلبية.
+- [باركودات وستيكرات قابلة للطباعة](docs/test-barcodes.html): تشتغل بدون إنترنت.
+- [تفاصيل HTTPS والاعتمادية وحدود التحقق](docs/LIVE-READINESS.md).
+- بيانات التجربة اختيارية: `Seed__Demo=true` حصراً في `Development`، وكلمة سر الحسابات الجديدة من `Seed__DemoPassword` (افتراضياً `Test1234`). لا تغيّر حسابات أو بيانات موجودة.
 
 ### الاختبارات
 ```bash
-python3 tests/smoke.py     # 131 فحص للصفحات والـ API والتصدير والصلاحيات (على قاعدة فارغة)
-python3 tests/screens.py   # لقطات 1440px إلى screens/
+dotnet build HyundaiStock.sln -c Release
+dotnet test HyundaiStock.sln -c Release
+# Smoke HTTP: على سيرفر محلي منفصل وقاعدة فارغة مخصصة للاختبار فقط.
+# يحتاج requests وopenpyxl؛ لا تشغله على بيانات الشغل أو مع Demo seed.
+BASE=http://127.0.0.1:5080 HYUNDAI_SMOKE_ADMIN_PHONE=<test-admin-phone> HYUNDAI_SMOKE_ADMIN_PASSWORD=<test-admin-password> python3 tests/smoke.py
 ```
+الـ smoke ينشئ ويعدّل ويحذف بيانات اختبار، ويشغّل 150 فحص للصفحات والـ API والتصدير والصلاحيات. `SMOKE_RESULTS` يحدد مسار تقرير JSON اختياري. اختبارات .NET تستخدم قواعد مؤقتة مستقلة؛ فحص الكاميرا وOCR وأذونات الهاتف يدوي حسب السيناريو.
 
 ## English
 

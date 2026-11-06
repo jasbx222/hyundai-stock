@@ -10,3 +10,4 @@ screens/*.tmp
 *.db-shm
 *.db-wal
 TestResults/
+__pycache__/
