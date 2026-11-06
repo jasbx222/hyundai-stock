@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="720" viewBox="0 0 360 720" role="img" aria-label="تصحيح VIN">
+  <rect width="360" height="720" rx="36" fill="#0B1B2B"/>
+  <rect x="10" y="10" width="340" height="700" rx="28" fill="#F4F7FB"/>
+  <rect x="130" y="22" width="100" height="10" rx="5" fill="#0B1B2B"/>
+  <rect x="10" y="48" width="340" height="64" fill="#002C5F"/>
+  <text x="180" y="88" text-anchor="middle" fill="#fff" font-family="Arial" font-size="20" font-weight="700">تصحيح VIN</text>
+  
+  <rect x="30" y="150" width="300" height="100" rx="14" fill="#fff" stroke="#E5E7EB"/>
+  <text x="310" y="185" text-anchor="end" fill="#111" font-family="Arial" font-size="13">من: KMHCT41D0NU000001</text>
+  <text x="310" y="215" text-anchor="end" fill="#002C5F" font-family="Arial" font-size="13" font-weight="700">إلى: KMHCT41D0NU000099</text>
+  <rect x="30" y="280" width="300" height="70" rx="14" fill="#ECFDF5" stroke="#059669"/>
+  <text x="180" y="322" text-anchor="middle" fill="#047857" font-family="Arial" font-size="18" font-weight="700">موافق عليه</text>
+  <text x="180" y="400" text-anchor="middle" fill="#6B7280" font-family="Arial" font-size="13">أدمن الفرع وافق ← رجع للتطبيق</text>
+
+  <rect x="120" y="680" width="120" height="8" rx="4" fill="#002C5F" opacity=".35"/>
+</svg>
