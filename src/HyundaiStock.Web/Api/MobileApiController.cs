@@ -94,8 +94,8 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
 
     /// <summary>مهام إعادة العد المسندة للمستخدم (قيد الانتظار).</summary>
     [HttpGet("recounts")]
-    public async Task<IActionResult> Recounts([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
-        => Ok(ApiResponse.Ok(PageDto<MobileRecount>.From(await svc.RecountsAsync(UserId, new PageQuery(page, pageSize)))));
+    public async Task<IActionResult> Recounts([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] bool includeCompleted = false)
+        => Ok(ApiResponse.Ok(PageDto<MobileRecount>.From(await svc.RecountsAsync(UserId, new PageQuery(page, pageSize), includeCompleted))));
 
     /// <summary>إرسال نتيجة إعادة العد.</summary>
     [HttpPost("recounts/{id:int}/submit")]
@@ -105,6 +105,9 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     [HttpPost("qty-requests")]
     public async Task<IActionResult> QtyRequest([FromBody] QtyRequestInput input) => From(await svc.QtyRequestAsync(UserId, input), "تم إرسال الطلب");
 
+    [HttpPut("qty-requests/{id:int}")]
+    public async Task<IActionResult> EditQtyRequest(int id, [FromBody] QtyRequestInput input) => From(await svc.EditQtyRequestAsync(UserId, id, input), "تم تعديل الطلب");
+
     /// <summary>طلبات تعديل الكمية الخاصة بالمستخدم.</summary>
     [HttpGet("qty-requests")]
     public async Task<IActionResult> MyQtyRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
@@ -113,6 +116,9 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     /// <summary>إرسال طلب إضافة قطعة غير موجودة في جلسة الجرد. لا يُنشئ قطعة قبل الموافقة النهائية.</summary>
     [HttpPost("new-part-requests")]
     public async Task<IActionResult> CreateNewPart([FromBody] NewPartInput input) => From(await newParts.CreateAsync(UserId, input), "تم إرسال طلب الإضافة");
+
+    [HttpPut("new-part-requests/{id:int}")]
+    public async Task<IActionResult> ResubmitNewPart(int id, [FromBody] NewPartInput input) => From(await newParts.ResubmitAsync(UserId, id, input), "تم تعديل الطلب وإعادة إرساله");
 
     /// <summary>طلبات إضافة القطعة الخاصة بالمستخدم الحالي فقط.</summary>
     [HttpGet("new-part-requests")]

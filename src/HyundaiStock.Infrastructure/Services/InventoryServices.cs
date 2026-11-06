@@ -126,10 +126,30 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     {
         var err = new Dictionary<string, string>();
         var pn = i.PartNumber?.Trim(); var desc = i.PartDescription?.Trim(); var reason = i.Reason?.Trim();
+        QuantityCorrectionRequest? existing = null;
+        if (id is int editId)
+        {
+            existing = await db.QuantityCorrections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == editId);
+            if (existing == null || !InScope(s, existing.BranchId, existing.WarehouseId)) { err[""] = "الطلب غير موجود"; return err; }
+            if (existing.Status != RequestStatus.Pending || existing.ApprovalLevel != ApprovalLevel.None) { err[""] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return err; }
+            // Preserve the linked row when the same part number exists in multiple warehouses.
+            if (existing.InventoryPartId is int linked)
+            {
+                i.InventoryPartId = linked;
+                if (!string.IsNullOrEmpty(pn) && pn != existing.PartNumber) { err["PartNumber"] = "لا يمكن تغيير قطعة الطلب"; return err; }
+            }
+        }
+        IQueryable<InventoryPart> ScopedParts()
+        {
+            var q = db.InventoryParts.AsQueryable();
+            if (s.IsUnrestricted) return q;
+            if (s.Role == AdminRole.WarehouseManager) { var whs = s.Warehouses.ToList(); return q.Where(x => x.WarehouseId != null && whs.Contains(x.WarehouseId.Value)); }
+            var branches = s.Branches.ToList(); return q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
+        }
         InventoryPart? part = null;
         if (i.InventoryPartId is int pid)
         {
-            var pq = db.InventoryParts.AsQueryable(); if (s.ScopeBranch is int sb) pq = pq.Where(x => x.BranchId == sb);
+            var pq = ScopedParts();
             part = await pq.FirstOrDefaultAsync(x => x.Id == pid);
             if (part == null) err[""] = "القطعة غير موجودة";
             else { pn ??= part.PartNumber; desc ??= part.Description; i.OldQuantity ??= part.CountedQuantity ?? part.SystemQuantity; }
@@ -139,8 +159,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
             var cur0 = await sessions.CurrentAsync();
             if (cur0 != null)
             {
-                var pq0 = db.InventoryParts.Where(x => x.SessionId == cur0.Id && x.PartNumber == pn);
-                if (s.ScopeBranch is int sb0) pq0 = pq0.Where(x => x.BranchId == sb0);
+                var pq0 = ScopedParts().Where(x => x.SessionId == cur0.Id && x.PartNumber == pn);
                 part = await pq0.OrderBy(x => x.Id).FirstOrDefaultAsync();
                 if (part != null) { if (string.IsNullOrEmpty(desc)) desc = part.Description; i.OldQuantity ??= part.CountedQuantity ?? part.SystemQuantity; }
             }
@@ -157,8 +176,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
             var cur = await sessions.CurrentAsync();
             if (cur != null)
             {
-                var pq = db.InventoryParts.Where(x => x.SessionId == cur.Id && x.PartNumber == pn);
-                if (s.ScopeBranch is int sb) pq = pq.Where(x => x.BranchId == sb);
+                var pq = ScopedParts().Where(x => x.SessionId == cur.Id && x.PartNumber == pn);
                 part = await pq.OrderBy(x => x.Id).FirstOrDefaultAsync();
             }
         }
@@ -166,8 +184,8 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         QuantityCorrectionRequest? r;
         if (id is int rid)
         {
-            r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == rid);
-            if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) { err[""] = "الطلب غير موجود"; return err; }
+            r = existing;
+            if (r == null || !InScope(s, r.BranchId, r.WarehouseId)) { err[""] = "الطلب غير موجود"; return err; }
             if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { err[""] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return err; }
         }
         else
@@ -175,12 +193,22 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
             r = new QuantityCorrectionRequest { RequestedByAdminId = s.Id };
             db.QuantityCorrections.Add(r);
         }
+        if (part != null && !await db.Sessions.AnyAsync(x => x.Id == part.SessionId && x.Status == SessionStatus.InProgress)) { err[""] = "جلسة الجرد غير متاحة"; return err; }
         r.PartNumber = pn!; r.PartDescription = desc!; r.OldQuantity = i.OldQuantity; r.NewQuantity = i.NewQuantity!.Value; r.Reason = reason ?? "";
         r.InventoryPartId = part?.Id ?? r.InventoryPartId;
         r.BranchId = part?.BranchId ?? r.BranchId ?? s.BranchId;
         r.WarehouseId = part?.WarehouseId ?? r.WarehouseId;
         r.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        if (id is int updateId)
+        {
+            var changed = await db.QuantityCorrections.Where(x => x.Id == updateId && x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.PartNumber, r.PartNumber).SetProperty(x => x.PartDescription, r.PartDescription)
+                    .SetProperty(x => x.OldQuantity, r.OldQuantity).SetProperty(x => x.NewQuantity, r.NewQuantity).SetProperty(x => x.Reason, r.Reason)
+                    .SetProperty(x => x.InventoryPartId, r.InventoryPartId).SetProperty(x => x.BranchId, r.BranchId).SetProperty(x => x.WarehouseId, r.WarehouseId)
+                    .SetProperty(x => x.UpdatedAt, r.UpdatedAt));
+            if (changed != 1) err[""] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه";
+        }
+        else await db.SaveChangesAsync();
         return err;
     }
 
