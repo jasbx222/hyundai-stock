@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="720" viewBox="0 0 360 720" role="img" aria-label="إعادة إرسال إضافة">
+  <rect width="360" height="720" rx="36" fill="#0B1B2B"/>
+  <rect x="10" y="10" width="340" height="700" rx="28" fill="#F4F7FB"/>
+  <rect x="130" y="22" width="100" height="10" rx="5" fill="#0B1B2B"/>
+  <rect x="10" y="48" width="340" height="64" fill="#002C5F"/>
+  <text x="180" y="88" text-anchor="middle" fill="#fff" font-family="Arial" font-size="20" font-weight="700">إعادة إرسال إضافة</text>
+  
+  <rect x="30" y="140" width="300" height="110" rx="14" fill="#FFF7ED" stroke="#F59E0B" stroke-width="2"/>
+  <text x="180" y="185" text-anchor="middle" fill="#92400E" font-family="Arial" font-size="16" font-weight="700">رجع للموظف</text>
+  <text x="180" y="215" text-anchor="middle" fill="#78350F" font-family="Arial" font-size="13">الوصف ناقص</text>
+  <rect x="40" y="280" width="280" height="48" rx="12" fill="#fff" stroke="#002C5F"/>
+  <text x="300" y="310" text-anchor="end" fill="#002C5F" font-family="Arial" font-size="14">QA2630035506 · نفس الرقم</text>
+  <rect x="40" y="350" width="280" height="52" rx="14" fill="#002C5F"/>
+  <text x="180" y="383" text-anchor="middle" fill="#fff" font-family="Arial" font-size="17">تعديل وإعادة إرسال</text>
+
+  <rect x="120" y="680" width="120" height="8" rx="4" fill="#002C5F" opacity=".35"/>
+</svg>
