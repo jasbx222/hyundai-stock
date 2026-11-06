@@ -35,6 +35,7 @@ public sealed class SessionLookup(AppDbContext db)
 {
     public Task<StocktakingSession?> CurrentAsync() => db.Sessions.AsNoTracking().Where(x => x.Status == SessionStatus.InProgress).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync();
     public Task<StocktakingSession?> LatestAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync();
+    public Task<List<NamedItem>> OptionsAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).Select(x => new NamedItem(x.Id, x.Year.ToString(), null)).ToListAsync();
 }
 
 public sealed class PartService(AppDbContext db, SessionLookup sessions)
@@ -42,8 +43,10 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions)
     public IQueryable<InventoryPart> Scoped(AdminScope s)
     {
         var q = db.InventoryParts.AsNoTracking().AsQueryable();
-        if (s.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
-        return q;
+        if (s.IsUnrestricted) return q;
+        if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); return q.Where(x => x.WarehouseId != null && ids.Contains(x.WarehouseId.Value)); }
+        var branches = s.Branches.ToList();
+        return q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
     }
 
     public async Task<(PagedResult<PartRow> page, StocktakingSession? session)> ListAsync(PageQuery p, AdminScope s)
@@ -79,6 +82,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions)
     {
         var part = await Scoped(s).Include(x => x.Session).FirstOrDefaultAsync(x => x.Id == partId);
         if (part == null) return OpResult.Fail("القطعة غير موجودة");
+        if (s.Role is AdminRole.Accountant or AdminRole.SparePartsManager) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
         if (part.Session!.Status != SessionStatus.InProgress) return OpResult.Fail("جلسة الجرد منتهية");
         var target = userId ?? part.CountedByUserId;
         if (target == null) return OpResult.Fail("لم تُعدّ القطعة بعد، اختر مستخدمًا");
@@ -97,9 +101,13 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     private IQueryable<QuantityCorrectionRequest> Scoped(AdminScope s)
     {
         var q = db.QuantityCorrections.AsNoTracking().AsQueryable();
-        if (s.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
-        return q;
+        if (s.IsUnrestricted) return q;
+        if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); return q.Where(x => x.WarehouseId != null && ids.Contains(x.WarehouseId.Value)); }
+        var branches = s.Branches.ToList();
+        return q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
     }
+
+    private static bool InScope(AdminScope s, int? branchId, int? warehouseId) => s.AllowsInventory(warehouseId, branchId);
 
     public Task<PagedResult<QtyRow>> ListAsync(PageQuery p, AdminScope s)
     {
@@ -167,51 +175,78 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         r.PartNumber = pn!; r.PartDescription = desc!; r.OldQuantity = i.OldQuantity; r.NewQuantity = i.NewQuantity!.Value; r.Reason = reason ?? "";
         r.InventoryPartId = part?.Id ?? r.InventoryPartId;
         r.BranchId = part?.BranchId ?? r.BranchId ?? s.BranchId;
+        r.WarehouseId = part?.WarehouseId ?? r.WarehouseId;
         r.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return err;
     }
 
-    public async Task<OpResult> ApproveAsync(int id, AdminScope s)
+    public Task<OpResult> ApproveAsync(int id, AdminScope s) => FirstApproveAsync(id, s);
+
+    public async Task<OpResult> FirstApproveAsync(int id, AdminScope s)
     {
-        var r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == id);
-        if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) return OpResult.Fail("الطلب ليس بانتظار القبول الأول");
-        r.ApprovalLevel = ApprovalLevel.First; r.FirstApprovedByAdminId = s.Id; r.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        if (!s.CanFirstApproveQty) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var r = await db.QuantityCorrections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null || !InScope(s, r.BranchId, r.WarehouseId)) return OpResult.Fail("الطلب غير موجود");
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) return OpResult.Fail("الطلب ليس بانتظار مدير المخزن");
+        if (r.InventoryPartId is int pid && !await db.InventoryParts.AnyAsync(x => x.Id == pid && x.Session!.Status == SessionStatus.InProgress)) return OpResult.Fail("جلسة الجرد غير متاحة");
+        var now = DateTime.UtcNow;
+        var n = await db.QuantityCorrections.Where(x => x.Id == id && x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.ApprovalLevel, ApprovalLevel.First).SetProperty(x => x.FirstApprovedByAdminId, s.Id).SetProperty(x => x.FirstApprovedAt, now).SetProperty(x => x.UpdatedAt, now));
+        if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً"); }
+        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.FirstApproved, FromStatus = "PendingWarehouseApproval", ToStatus = "PendingAccountantApproval", ActorAdminId = s.Id, ActorRole = s.Role.ToString(), BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = r.InventoryPartId });
+        await db.SaveChangesAsync(); await tx.CommitAsync();
         return OpResult.Success();
     }
 
     public async Task<OpResult> FinalApproveAsync(int id, AdminScope s)
     {
-        if (!s.IsSuper) return OpResult.Fail("القبول النهائي للسوبر أدمن فقط");
-        var r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == id);
-        if (r == null) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.First) return OpResult.Fail("الطلب يحتاج القبول الأول قبل القبول النهائي");
-        using var tx = await db.Database.BeginTransactionAsync();
-        r.ApprovalLevel = ApprovalLevel.Final; r.Status = RequestStatus.Approved; r.FinalApprovedByAdminId = s.Id; r.UpdatedAt = DateTime.UtcNow;
+        if (!s.CanFinalApproveQty) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var r = await db.QuantityCorrections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null || !InScope(s, r.BranchId, r.WarehouseId)) return OpResult.Fail("الطلب غير موجود");
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.First) return OpResult.Fail("الطلب يحتاج موافقة مدير المخزن قبل القبول النهائي");
+        InventoryPart? part = null;
         if (r.InventoryPartId is int pid)
         {
-            var part = await db.InventoryParts.FindAsync(pid);
-            if (part != null)
-            {
-                db.PartChangeLogs.Add(new PartChangeLog { InventoryPartId = pid, Field = "الكمية المحسوبة", OldValue = part.CountedQuantity?.ToString(), NewValue = r.NewQuantity.ToString(), ChangedBy = s.Name, Source = $"طلب تصحيح #{r.Id}" });
-                part.CountedQuantity = r.NewQuantity;
-            }
+            part = await db.InventoryParts.Include(x => x.Session).FirstOrDefaultAsync(x => x.Id == pid);
+            if (part?.Session?.Status != SessionStatus.InProgress) return OpResult.Fail("جلسة الجرد غير متاحة");
+            if (!InScope(s, part!.BranchId, part.WarehouseId)) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
         }
-        await db.SaveChangesAsync();
-        await tx.CommitAsync();
+        var now = DateTime.UtcNow;
+        var n = await db.QuantityCorrections.Where(x => x.Id == id && x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.First)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.ApprovalLevel, ApprovalLevel.Final).SetProperty(x => x.Status, RequestStatus.Approved).SetProperty(x => x.FinalApprovedByAdminId, s.Id).SetProperty(x => x.FinalApprovedAt, now).SetProperty(x => x.UpdatedAt, now));
+        if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً"); }
+        if (part != null)
+        {
+            db.PartChangeLogs.Add(new PartChangeLog { InventoryPartId = part.Id, Field = "الكمية المحسوبة", OldValue = part.CountedQuantity?.ToString(), NewValue = r.NewQuantity.ToString(), ChangedBy = s.Name, Source = $"طلب تصحيح #{r.Id}" });
+            part.CountedQuantity = r.NewQuantity;
+        }
+        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.FinalApproved, FromStatus = "PendingAccountantApproval", ToStatus = "Approved", ActorAdminId = s.Id, ActorRole = s.Role.ToString(), BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = part?.Id ?? r.InventoryPartId });
+        try { await db.SaveChangesAsync(); await tx.CommitAsync(); }
+        catch (DbUpdateException) { await tx.RollbackAsync(); return OpResult.Fail("تعذر إتمام الموافقة"); }
         return OpResult.Success();
     }
 
-    public async Task<OpResult> RejectAsync(int id, AdminScope s)
+    public async Task<OpResult> RejectAsync(int id, string? reason, AdminScope s)
     {
-        var r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == id);
-        if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب ليس قيد الانتظار");
-        if (r.ApprovalLevel == ApprovalLevel.First && !s.IsSuper) return OpResult.Fail("الطلب بانتظار القبول النهائي من السوبر أدمن");
-        r.Status = RequestStatus.Rejected; r.RejectedByAdminId = s.Id; r.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        var why = reason?.Trim() ?? "";
+        if (why.Length == 0) return OpResult.Fail("سبب الرفض مطلوب");
+        if (why.Length > 1000) why = why[..1000];
+        if (Validators.HasMarkup(why)) return OpResult.Fail(Validators.MarkupError);
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var r = await db.QuantityCorrections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null || !InScope(s, r.BranchId, r.WarehouseId)) return OpResult.Fail("الطلب غير موجود");
+        if (r.Status != RequestStatus.Pending) return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً");
+        if (r.ApprovalLevel == ApprovalLevel.None && !s.CanFirstApproveQty) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
+        if (r.ApprovalLevel == ApprovalLevel.First && !s.CanFinalApproveQty) return OpResult.Fail("الطلب بانتظار القبول النهائي");
+        var now = DateTime.UtcNow;
+        var n = await db.QuantityCorrections.Where(x => x.Id == id && x.Status == RequestStatus.Pending && x.ApprovalLevel == r.ApprovalLevel)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, RequestStatus.Rejected).SetProperty(x => x.RejectedByAdminId, s.Id).SetProperty(x => x.RejectedAt, now).SetProperty(x => x.DecisionReason, why).SetProperty(x => x.UpdatedAt, now));
+        if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً"); }
+        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.Rejected, FromStatus = r.ApprovalLevel == ApprovalLevel.First ? "PendingAccountantApproval" : "PendingWarehouseApproval", ToStatus = "Rejected", ActorAdminId = s.Id, ActorRole = s.Role.ToString(), Reason = why, BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = r.InventoryPartId });
+        await db.SaveChangesAsync(); await tx.CommitAsync();
         return OpResult.Success();
     }
 }
@@ -221,8 +256,10 @@ public sealed class VinService(AppDbContext db)
     public IQueryable<ScannedVin> Scoped(AdminScope s)
     {
         var q = db.ScannedVins.AsNoTracking().AsQueryable();
-        if (s.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
-        return q;
+        if (s.IsUnrestricted) return q;
+        if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); return q.Where(x => ids.Contains(x.WarehouseId)); }
+        var branches = s.Branches.ToList();
+        return q.Where(x => branches.Contains(x.BranchId));
     }
 
     public Task<PagedResult<VinRow>> ListAsync(PageQuery p, AdminScope s)
@@ -257,8 +294,10 @@ public sealed class VinRequestService(AppDbContext db)
     private IQueryable<VinCorrectionRequest> Scoped(AdminScope s)
     {
         var q = db.VinCorrections.AsNoTracking().AsQueryable();
-        if (s.ScopeBranch is int b) q = q.Where(x => x.ScannedVin!.BranchId == b);
-        return q;
+        if (s.IsUnrestricted) return q;
+        if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); return q.Where(x => ids.Contains(x.ScannedVin!.WarehouseId)); }
+        var branches = s.Branches.ToList();
+        return q.Where(x => branches.Contains(x.ScannedVin!.BranchId));
     }
 
     public Task<PagedResult<VinReqRow>> ListAsync(PageQuery p, AdminScope s)
@@ -272,8 +311,9 @@ public sealed class VinRequestService(AppDbContext db)
 
     public async Task<OpResult> DecideAsync(int id, bool approve, AdminScope s)
     {
+        if (s.Role is not (AdminRole.Admin or AdminRole.WarehouseManager)) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
         var r = await db.VinCorrections.Include(x => x.ScannedVin).FirstOrDefaultAsync(x => x.Id == id);
-        if (r == null || (s.ScopeBranch is int b && r.ScannedVin!.BranchId != b)) return OpResult.Fail("الطلب غير موجود");
+        if (r == null || !s.AllowsInventory(r.ScannedVin!.WarehouseId, r.ScannedVin.BranchId)) return OpResult.Fail("الطلب غير موجود");
         if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب ليس قيد الانتظار");
         if (approve && await db.ScannedVins.AnyAsync(x => x.SessionId == r.ScannedVin!.SessionId && x.Vin == r.NewVin && x.Id != r.ScannedVinId))
             return OpResult.Fail("رقم VIN الجديد مسجل لمركبة أخرى في الجلسة نفسها");

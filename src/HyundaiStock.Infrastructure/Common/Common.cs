@@ -27,13 +27,44 @@ public sealed record OpResult(bool Ok, string? Error = null, int? Id = null)
     public static OpResult Fail(string error) => new(false, error);
 }
 
-/// <summary>The signed-in dashboard account and its data scope.</summary>
-public sealed record AdminScope(int Id, string Name, AdminRole Role, int? BranchId)
+/// <summary>The signed-in dashboard account and its data scope. Assignment lists come from the database, never from the client.</summary>
+public sealed record AdminScope(int Id, string Name, AdminRole Role, int? BranchId, IReadOnlyList<int>? AssignedWarehouses = null, IReadOnlyList<int>? AssignedBranches = null)
 {
     public bool IsSuper => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin;
     public bool IsMain => Role == AdminRole.MainAdmin;
-    /// <summary>Branch filter: null means all branches.</summary>
+    public bool IsUnrestricted => IsSuper;
+    /// <summary>Branch filter: null means all branches. Roles without a single branch keep -1 so older queries do not open every branch.</summary>
     public int? ScopeBranch => IsSuper ? null : (BranchId ?? -1);
+    public IReadOnlyList<int> Warehouses => AssignedWarehouses ?? Array.Empty<int>();
+    public IReadOnlyList<int> Branches => Role switch
+    {
+        AdminRole.Accountant => AssignedBranches ?? Array.Empty<int>(),
+        AdminRole.Admin or AdminRole.SparePartsManager => BranchId is int b ? new[] { b } : Array.Empty<int>(),
+        _ => Array.Empty<int>()
+    };
+
+    public bool CanFirstApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager;
+    public bool CanFinalApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    public bool CanReviewNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager;
+    public bool CanFinalApproveNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+
+    public bool AllowsBranch(int? branchId)
+    {
+        if (IsUnrestricted) return true;
+        if (Role == AdminRole.WarehouseManager) return false;
+        return branchId is int b && Branches.Contains(b);
+    }
+
+    public bool AllowsWarehouse(int? warehouseId) =>
+        Role == AdminRole.WarehouseManager && warehouseId is int w && Warehouses.Contains(w);
+
+    /// <summary>Warehouse managers are limited to assigned warehouses. Other restricted roles are limited to their branches.</summary>
+    public bool AllowsInventory(int? warehouseId, int? branchId)
+    {
+        if (IsUnrestricted) return true;
+        if (Role == AdminRole.WarehouseManager) return AllowsWarehouse(warehouseId);
+        return AllowsBranch(branchId);
+    }
 }
 
 public static class Validators
@@ -45,6 +76,16 @@ public static class Validators
     private static readonly Regex VinRx = new(@"^[A-HJ-NPR-Z0-9]{17}$", RegexOptions.Compiled);
     public static bool IsVin(string? v) => v != null && VinRx.IsMatch(NormalizeVin(v));
     public const string VinError = "يجب أن يتكون رقم VIN من 17 حرفًا ورقمًا (بدون I و O و Q)";
+    public static bool HasMarkup(string? v) => !string.IsNullOrEmpty(v) && (v.Contains('<') || v.Contains('>'));
+    public const string MarkupError = "النص يحتوي على رموز غير مسموحة";
+    public static string? GpsError(double? lat, double? lng)
+    {
+        if (lat is null || lng is null || double.IsNaN(lat.Value) || double.IsNaN(lng.Value) || double.IsInfinity(lat.Value) || double.IsInfinity(lng.Value))
+            return "تعذر تحديد موقعك، يرجى المحاولة مرة أخرى";
+        if (lat is < -90 or > 90 || lng is < -180 or > 180 || (lat == 0 && lng == 0))
+            return "تعذر تحديد موقعك، يرجى المحاولة مرة أخرى";
+        return null;
+    }
 }
 
 public static class Paging

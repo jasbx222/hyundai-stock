@@ -20,14 +20,14 @@ public sealed class AdminScopeFilter(AppDbContext db) : IAsyncActionFilter
         if (http.User.Identity?.IsAuthenticated == true && http.User.Identity.AuthenticationType == CookieAuthenticationDefaults.AuthenticationScheme
             && int.TryParse(http.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
         {
-            var a = await db.Admins.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+            var a = await db.Admins.AsNoTracking().Include(x => x.Branches).Include(x => x.Warehouses).FirstOrDefaultAsync(x => x.Id == id);
             if (a == null || !a.IsActive)
             {
                 await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 ctx.Result = new RedirectToActionResult("Login", "Account", null);
                 return;
             }
-            http.Items[Key] = new AdminScope(a.Id, a.Name, a.Role, a.BranchId);
+            http.Items[Key] = new AdminScope(a.Id, a.Name, a.Role, a.BranchId, a.Warehouses.Select(x => x.WarehouseId).ToList(), a.Branches.Select(x => x.BranchId).ToList());
         }
         await next();
     }
@@ -42,7 +42,8 @@ public sealed class RolesAttribute(params AdminRole[] roles) : Attribute, IAsync
     {
         if (ctx.HttpContext.Items[AdminScopeFilter.Key] is not AdminScope s || !roles.Contains(s.Role))
         {
-            ctx.Result = new RedirectToActionResult("Index", "Home", null);
+            ctx.HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+            ctx.Result = new ViewResult { ViewName = "~/Views/Shared/Forbidden.cshtml", StatusCode = StatusCodes.Status403Forbidden };
             return;
         }
         await next();
@@ -54,8 +55,16 @@ public static class Menu
     public static bool Users(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
     public static bool Admins(AdminScope s) => s.IsSuper;
     public static bool Sessions(AdminScope s) => s.IsSuper;
-    public static bool VinRequests(AdminScope s) => s.Role == AdminRole.Admin;
+    public static bool VinRequests(AdminScope s) => s.Role is AdminRole.Admin or AdminRole.WarehouseManager;
     public static bool ManageOrg(AdminScope s) => s.IsSuper;
+    public static bool Org(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
+    public static bool Parts(AdminScope s) => s.Role != AdminRole.SparePartsManager;
+    public static bool Requests(AdminScope s) => s.Role != AdminRole.SparePartsManager;
+    public static bool Cars(AdminScope s) => s.Role != AdminRole.SparePartsManager;
+    public static bool NewParts(AdminScope s) => s.CanReviewNewPart || s.CanFinalApproveNewPart;
+    public static bool Finance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    public static bool PartActions(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager;
+    public static bool LegacyExport(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
 }
 
 public static class ClaimsBuilder

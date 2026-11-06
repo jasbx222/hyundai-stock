@@ -1,0 +1,48 @@
+@model PagedResult<ExportService.FinanceRow>
+@{
+    ViewData["Title"] = "فروقات المخزون المالية";
+    ViewData["Nav"] = "finance";
+    var f = (FinanceFilter)ViewBag.Filter;
+    var branches = (List<NamedItem>)ViewBag.Branches;
+    var warehouses = (List<NamedItem>)ViewBag.Warehouses;
+    var sessions = (List<NamedItem>)ViewBag.Sessions;
+    string q = $"sessionId={f.SessionId}&branchId={f.BranchId}&warehouseId={f.WarehouseId}&partNumber={Uri.EscapeDataString(f.PartNumber ?? "")}&description={Uri.EscapeDataString(f.Description ?? "")}&difference={f.Difference}&sort={f.Sort}";
+}
+<div class="ph"><div><h1>فروقات المخزون المالية</h1></div><div class="acts"><a class="btn p" href="/Finance/Export?@q">@Ui.Icon("export", 16) تصدير</a></div></div>
+<form class="card" method="get" style="padding:16px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+    <label>الجلسة<select name="sessionId"><option value="">الأحدث</option>@foreach (var x in sessions) { <option value="@x.Id" selected="@(f.SessionId == x.Id)">@x.Name</option> }</select></label>
+    <label>الفرع<select name="branchId"><option value="">الكل</option>@foreach (var x in branches) { <option value="@x.Id" selected="@(f.BranchId == x.Id)">@x.Name</option> }</select></label>
+    <label>المخزن<select name="warehouseId"><option value="">الكل</option>@foreach (var x in warehouses) { <option value="@x.Id" selected="@(f.WarehouseId == x.Id)">@x.Name</option> }</select></label>
+    <label>رقم القطعة<input name="partNumber" value="@f.PartNumber" /></label>
+    <label>الوصف<input name="description" value="@f.Description" /></label>
+    <label>الفرق<select name="difference">
+        <option value="">الكل</option>
+        <option value="shortage" selected="@(f.Difference == "shortage")">نقص</option>
+        <option value="surplus" selected="@(f.Difference == "surplus")">زيادة</option>
+        <option value="match" selected="@(f.Difference == "match")">متطابق</option>
+        <option value="uncounted" selected="@(f.Difference == "uncounted")">غير معدود</option>
+        <option value="diff" selected="@(f.Difference == "diff")">يوجد فرق</option>
+    </select></label>
+    <label>الترتيب<select name="sort">
+        <option value="part" selected="@(f.Sort == "part")">رقم القطعة</option>
+        <option value="difference" selected="@(f.Sort == "difference")">الفرق</option>
+        <option value="value" selected="@(f.Sort == "value")">القيمة</option>
+    </select></label>
+    <button class="btn" type="submit">تصفية</button>
+</form>
+<div class="card" style="overflow:hidden">
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "لا توجد قطع مطابقة للتصفية.", "part")) }
+    else {
+    <table>
+        <thead><tr><th>رقم القطعة</th><th>الوصف</th><th>النظام</th><th>المعدود</th><th>الفرق</th><th>السعر</th><th>القيمة</th><th>الفرع</th><th>المخزن</th><th>الجلسة</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Items) {
+            <tr><td class="mono">@r.PartNumber</td><td class="clip">@r.Description</td><td class="num">@r.SystemQuantity</td><td class="num">@(r.CountedQuantity?.ToString() ?? "—")</td>
+                <td>@Ui.Diff(r.CountedQuantity, r.SystemQuantity)</td><td class="num" dir="ltr">@r.Price.ToString("0.00")</td>
+                <td class="num" dir="ltr">@(r.FinancialDifference?.ToString("0.00") ?? "—")</td><td>@(r.Branch ?? "—")</td><td>@(r.Warehouse ?? "—")</td><td>@r.Year</td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

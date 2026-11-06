@@ -1,0 +1,43 @@
+@model PagedResult<NewPartRow>
+@{ ViewData["Title"] = "طلبات إضافة قطعة للجرد"; ViewData["Nav"] = "newparts"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
+<div class="ph"><div><h1>طلبات إضافة قطعة للجرد</h1></div></div>
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">
+        @await Html.PartialAsync("_Search", "بحث برقم القطعة")
+        <form method="get" style="display:flex;gap:8px">
+            <input type="hidden" name="search" value="@Context.Request.Query["search"]" />
+            <select name="status" onchange="this.form.submit()">
+                <option value="">كل الحالات</option>
+                @foreach (NewPartRequestStatus st in Enum.GetValues(typeof(NewPartRequestStatus))) {
+                    <option value="@st" selected="@(Context.Request.Query["status"] == st.ToString())">@Labels.NewPart(st)</option>
+                }
+            </select>
+        </form>
+    </div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ستظهر هنا طلبات إضافة القطع.", "plus")) }
+    else {
+    <table>
+        <thead><tr><th>المرجع</th><th>القطعة</th><th>الكمية</th><th>الفرع</th><th>المخزن</th><th>الموظف</th><th>الجلسة</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Items) {
+            <tr><td><span class="idx">@r.Reference</span></td><td><span class="mono">@r.PartNumber</span><div class="muted">@r.Description</div></td>
+                <td class="num">@r.Quantity</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionYear</td>
+                <td>@Ui.Badge(Labels.NewPart(r.Status), r.Status == NewPartRequestStatus.Approved ? "ok" : r.Status is NewPartRequestStatus.Cancelled or NewPartRequestStatus.SessionClosed ? "mu" : r.Status == NewPartRequestStatus.ReturnedToEmployee ? "er" : "wa")</td>
+                <td>@Ui.Day(r.CreatedAt)</td>
+                <td><div class="ra">
+                    <a class="btn sm g" href="/NewParts/Details/@r.Id">@Ui.Icon("eye", 16)</a>
+                    @if (r.Status == NewPartRequestStatus.PendingSparePartsManager && s.CanReviewNewPart) {
+                        <button type="button" class="btn sm okb" data-confirm data-action="/NewParts/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="موافقة مدير قطع الغيار؟" data-text="@r.PartNumber · @r.Quantity" data-ok="موافقة">@Ui.Icon("check", 16)</button>
+                        <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/NewParts/Return" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="إرجاع للموظف؟" data-text="السبب إلزامي" data-ok="إرجاع">@Ui.Icon("x", 16)</button>
+                    }
+                    @if (r.Status == NewPartRequestStatus.PendingAccountant && s.CanFinalApproveNewPart) {
+                        <button type="button" class="btn sm p" data-confirm data-action="/NewParts/FinalApprove" data-hidden='{"id":"@r.Id"}' data-kind="p" data-icon="check" data-title="التثبيت النهائي؟" data-text="ستُضاف القطعة بكمية نظام 0 وسعر 0" data-ok="تثبيت">@Ui.Icon("check", 16)</button>
+                        <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/NewParts/Return" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="إرجاع للموظف؟" data-text="السبب إلزامي" data-ok="إرجاع">@Ui.Icon("x", 16)</button>
+                    }
+                </div></td></tr>
+        }
+        </tbody>
+    </table>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

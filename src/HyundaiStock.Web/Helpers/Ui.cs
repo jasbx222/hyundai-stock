@@ -39,7 +39,7 @@ public static class Ui
     {
         RequestStatus.Approved => Badge("مقبول", "ok"),
         RequestStatus.Rejected => Badge("مرفوض", "er"),
-        _ => Badge("قيد الانتظار", "wa")
+        _ => Badge(l == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", "wa")
     };
     public static IHtmlContent Vin(RequestStatus s) => Badge(Labels.Vin(s), s == RequestStatus.Approved ? "ok" : s == RequestStatus.Rejected ? "er" : "wa");
     public static IHtmlContent Session(SessionStatus s) => Badge(Labels.Session(s), s == SessionStatus.Completed ? "ok" : "wa");
