@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="720" viewBox="0 0 360 720" role="img" aria-label="تعديل طلب كمية">
+  <rect width="360" height="720" rx="36" fill="#0B1B2B"/>
+  <rect x="10" y="10" width="340" height="700" rx="28" fill="#F4F7FB"/>
+  <rect x="130" y="22" width="100" height="10" rx="5" fill="#0B1B2B"/>
+  <rect x="10" y="48" width="340" height="64" fill="#002C5F"/>
+  <text x="180" y="88" text-anchor="middle" fill="#fff" font-family="Arial" font-size="20" font-weight="700">تعديل طلب كمية</text>
+  
+  <rect x="30" y="140" width="300" height="100" rx="14" fill="#fff" stroke="#E5E7EB"/>
+  <text x="310" y="175" text-anchor="end" fill="#002C5F" font-family="Arial" font-size="16" font-weight="700">58101D3A01</text>
+  <text x="310" y="205" text-anchor="end" fill="#B45309" font-family="Arial" font-size="14">بانتظار مدير المخزن · يمكن التعديل</text>
+  <rect x="40" y="270" width="280" height="50" rx="12" fill="#fff" stroke="#002C5F" stroke-width="2"/>
+  <text x="180" y="302" text-anchor="middle" fill="#002C5F" font-family="Arial" font-size="20" font-weight="700">11</text>
+  <rect x="40" y="340" width="280" height="50" rx="12" fill="#fff" stroke="#002C5F" stroke-width="2"/>
+  <text x="300" y="372" text-anchor="end" fill="#667" font-family="Arial" font-size="14">كارتون إضافي بعد المطابقة</text>
+  <rect x="40" y="420" width="280" height="52" rx="14" fill="#00AAD2"/>
+  <text x="180" y="453" text-anchor="middle" fill="#fff" font-family="Arial" font-size="18">حفظ التعديل</text>
+
+  <rect x="120" y="680" width="120" height="8" rx="4" fill="#002C5F" opacity=".35"/>
+</svg>

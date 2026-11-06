@@ -1,17 +1,10 @@
 # سيناريو اختبار تفاعلي — جرد هيونداي
 
-صفحة HTML/CSS/JS بدون إنترنت لتتبع سيناريو الاختبار من الألف للياء.
+Offline HTML/CSS/JS · باكند `90346901` (PR #6) · APK **1.0.1**.
 
-## التشغيل على ويندوز
+## التشغيل
+1. باكند على `http://127.0.0.1:5169` مع `Seed__Demo=true`.
+2. من هذا المجلد: `start-scenario.cmd` أو `python -m http.server 5180`
+3. افتح `http://127.0.0.1:5180/`
 
-1. شغّل الباكند على `http://127.0.0.1:5169` مع `Seed__Demo=true`.
-2. من هذا المجلد انقر `start-scenario.cmd` أو نفّذ:
-
-```bat
-cd /d "C:\Users\Acer 5\hyundai-scenario-site"
-python -m http.server 5180
-```
-
-3. افتح `http://127.0.0.1:5180/`.
-
-التقدّم ينحفظ في المتصفح. تصدير النتائج من زر «تصدير JSON».
+APK: https://drive.google.com/file/d/1CffYrVSnupHc6ooHegkmbqVE7DynkAH0/view?usp=drivesdk
