@@ -35,6 +35,8 @@ public sealed class ImportResult
 ///       The branch is matched by name against the branches in the system.
 ///    Vehicle stock report: header row with Engine No. | VIN | Model | Type (Specs) | … | Status | Branch | …
 ///       Vehicle type = Model + Type (Specs); the branch is matched by name when possible.
+/// 3) Exported inventory: Part Number | Description | Location In Stock | System Quantity | Branch.
+///    Branch is resolved per row by registered name or numeric code; counted/export-only columns are ignored.
 /// The header row is searched for within the first rows of each sheet, so title blocks above it are skipped.
 /// </summary>
 public sealed class ExcelImportService
@@ -47,12 +49,12 @@ public sealed class ExcelImportService
     private const int HeaderScanRows = 40;
     private static readonly string[] Serial = { "serial", "partnumber", "partno", "iرمزالقطعة", "رمزالقطعة", "رقمالقطعة" };
     private static readonly string[] Desc = { "description", "الوصف" };
-    private static readonly string[] Qty = { "quantity", "qty", "systemquantity", "كالموجودة", "الكميةالموجودة", "الكمية" };
-    private static readonly string[] Loc = { "location", "locationinstock", "الموقع" };
-    private static readonly string[] BranchNo = { "branchno", "branchnumber" };
-    private static readonly string[] BranchName = { "branch", "الفرع" };
+    private static readonly string[] Qty = { "quantity", "qty", "systemquantity", "كالموجودة", "الكميةالموجودة", "الكمية", "الكميةالنظامية", "كميةالنظام" };
+    private static readonly string[] Loc = { "location", "locationinstock", "الموقع", "موقعالمخزون", "الموقعفيالمخزن" };
+    private static readonly string[] BranchNo = { "branchno", "branchnumber", "رقمالفرع", "رمزالفرع" };
+    private static readonly string[] BranchName = { "branch", "الفرع", "اسمالفرع" };
     private static readonly string[] VinH = { "vin", "رقمالشاصي", "الشاصي" };
-    private static readonly string[] WhNo = { "warehouseno", "warehousenumber", "warehouse" };
+    private static readonly string[] WhNo = { "warehouseno", "warehousenumber", "warehouse", "رقمالمخزن", "رقمالمستودع", "المخزن", "المستودع" };
     private static readonly string[] TypeH = { "vehicletype", "type", "نوعالمركبة", "نوعالسيارة", "model" };
     private static readonly string[] ModelH = { "model" };
     private static readonly string[] SpecsH = { "typespecs" };
@@ -88,7 +90,12 @@ public sealed class ExcelImportService
             case double d when d == Math.Floor(d) && d is >= int.MinValue and <= int.MaxValue: v = (int)d; return true;
             case int i: v = i; return true;
             default:
-                var t = Text(o);
+                var t = new string(Text(o).Select(c => c switch
+                {
+                    >= '\u0660' and <= '\u0669' => (char)('0' + c - '\u0660'),
+                    >= '\u06f0' and <= '\u06f9' => (char)('0' + c - '\u06f0'),
+                    _ => c
+                }).ToArray());
                 if (int.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out v)) return true;
                 return double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var dd) && dd == Math.Floor(dd) && dd is >= int.MinValue and <= int.MaxValue && (v = (int)dd) == dd;
         }
@@ -187,17 +194,17 @@ public sealed class ExcelImportService
                 else
                 {
                     any = true;
-                    int cDesc = Find(h, Desc), cQty = Find(h, Qty), cLoc = Find(h, Loc), cBr = Find(h, BranchNo);
+                    int cDesc = Find(h, Desc), cQty = Find(h, Qty), cLoc = Find(h, Loc), cBr = Find(h, BranchNo), cBrName = Find(h, BranchName);
                     if (cQty < 0) { res.Errors.Add($"ورقة {name}: عمود الكمية («Quantity» أو «ك.الموجودة») مفقود"); continue; }
                     // Raw report: no BranchNo. column, the branch name is in the title block («الفرع فرع النجف»).
                     Branch? sheetBranch = null;
-                    if (cBr < 0)
+                    if (cBr < 0 && cBrName < 0)
                     {
                         string? title = null;
                         for (int r = 0; r < hr && title == null; r++)
                             foreach (var c in rows[r])
                                 if (Text(c) is var t && t.StartsWith("الفرع") && t.Length > 5) { title = t[5..].Trim(); break; }
-                        if (title == null) { res.Errors.Add($"ورقة {name}: لا يوجد عمود «BranchNo.» ولا اسم الفرع في عنوان التقرير"); continue; }
+                        if (title == null) { res.Errors.Add($"ورقة {name}: لا يوجد عمود «BranchNo.» أو «Branch» ولا اسم الفرع في عنوان التقرير"); continue; }
                         if (!brByName.TryGetValue(BranchKey(title), out sheetBranch))
                         { res.Errors.Add($"ورقة {name}: الفرع «{title}» غير موجود في النظام، أضفه من صفحة الفروع بنفس الاسم"); continue; }
                     }
@@ -207,17 +214,27 @@ public sealed class ExcelImportService
                         if (row.All(x => Text(x).Length == 0)) continue;
                         if (Key(row[cSerial]) == Key(h[cSerial])) continue; // header repeated on each printed page
                         // Raw report page footers («صفحة 1 من 14») and totals row («المجموع» / «العدد الكلي للقطع»).
-                        if (cBr < 0 && (pn.Length == 0 || row.Any(x => Text(x) is var t && (t == "المجموع" || t.StartsWith("العدد الكلي") || t.StartsWith("صفحة "))))) continue;
+                        if (cBr < 0 && cBrName < 0 && (pn.Length == 0 || row.Any(x => Text(x) is var t && (t == "المجموع" || t.StartsWith("العدد الكلي") || t.StartsWith("صفحة "))))) continue;
                         if (pn.Length == 0 || pn.Length > 64) { res.Errors.Add($"{name} سطر {r + 1}: رقم القطعة غير صالح"); continue; }
                         int q = 0;
                         if (Text(row[cQty]).Length > 0 && !TryInt(row[cQty], out q)) { res.Errors.Add($"{name} سطر {r + 1}: الكمية غير صالحة"); continue; }
                         if (q < 0) { res.Errors.Add($"{name} سطر {r + 1}: الكمية سالبة"); continue; }
                         var br = sheetBranch;
-                        if (br == null)
+                        if (cBr >= 0 && Text(row[cBr]).Length > 0)
                         {
                             if (!TryInt(row[cBr], out var bn)) { res.Errors.Add($"{name} سطر {r + 1}: رقم الفرع (BranchNo.) غير صالح"); continue; }
                             if (!brByNo.TryGetValue(bn, out br)) { res.Errors.Add($"{name} سطر {r + 1}: الفرع رقم {bn} غير موجود في النظام"); continue; }
                         }
+                        if (cBrName >= 0 && Text(row[cBrName]) is { Length: > 0 } branchValue)
+                        {
+                            Branch? namedBranch;
+                            if (TryInt(row[cBrName], out var bn)) brByNo.TryGetValue(bn, out namedBranch);
+                            else brByName.TryGetValue(BranchKey(branchValue), out namedBranch);
+                            if (namedBranch == null) { res.Errors.Add($"{name} سطر {r + 1}: الفرع «{branchValue}» غير موجود في النظام، أضفه من صفحة الفروع أولاً"); continue; }
+                            if (br != null && br.Id != namedBranch.Id) { res.Errors.Add($"{name} سطر {r + 1}: رقم الفرع لا يطابق اسم الفرع"); continue; }
+                            br = namedBranch;
+                        }
+                        if (br == null) { res.Errors.Add($"{name} سطر {r + 1}: الفرع مطلوب (BranchNo. أو Branch)"); continue; }
                         var loc = cLoc >= 0 ? Text(row[cLoc]) : "";
                         res.Parts.Add(new InventoryPart { PartNumber = pn, Description = cDesc >= 0 ? Cut(Text(row[cDesc]), 400) : "", SystemQuantity = q,
                             SystemLocation = loc.Length > 0 ? Cut(loc, 64) : null, BranchId = br.Id });
@@ -226,7 +243,7 @@ public sealed class ExcelImportService
             }
         }
         if (!any && res.Errors.Count == 0) res.Errors.Add("لم يُعثر على بيانات: ارفع قالب الجرد (ورقة Parts وورقة Vins) أو تقارير النظام (القطع الموجودة / المركبات)");
-        else if (res.Errors.Count == 0 && res.Parts.Count == 0 && res.Vins.Count == 0) res.Errors.Add("الملف فارغ");
+        else if (res.Errors.Count == 0 && res.Parts.Count == 0 && res.Vins.Count == 0) res.Errors.Add("الملف فارغ: يحتوي عناوين الأعمدة فقط، أضف صفوف قطع الغيار أو أرقام VIN");
         return res;
     }
 }
@@ -269,7 +286,8 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
         }
         if (files.Sum(x => x.length) > opt.Value.MaxUploadBytes) return OpResult.Fail("حجم الملفات أكبر من المسموح");
         if (await db.Sessions.AnyAsync(x => x.Status == SessionStatus.InProgress)) return OpResult.Fail("توجد جلسة جرد قيد التنفيذ، أنهِها أولاً");
-        if (await db.Sessions.AnyAsync(x => x.Year == year)) return OpResult.Fail($"توجد جلسة جرد لسنة {year}");
+        var existing = await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Year == year);
+        if (existing != null) return OpResult.Fail($"توجد جلسة جرد لسنة {year} ({Labels.Session(existing.Status)}). لا يمكن إنشاء أكثر من جلسة للسنة نفسها حتى لو كانت مكتملة");
 
         var buffers = new List<(string name, byte[] data)>();
         foreach (var (file, fileName, _) in files)
