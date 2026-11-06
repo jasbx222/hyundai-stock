@@ -27,11 +27,13 @@ public sealed class AccountController(AppDbContext db, IPasswordService pw) : Co
     [EnableRateLimiting("login")]
     public async Task<IActionResult> Login(LoginVm vm)
     {
-        var phone = vm.PhoneNumber?.Trim();
+        var phone = AccountPhones.Normalize(vm.PhoneNumber);
         if (string.IsNullOrEmpty(phone)) ModelState.AddModelError(nameof(vm.PhoneNumber), "رقم الهاتف مطلوب");
         if (string.IsNullOrEmpty(vm.Password)) ModelState.AddModelError(nameof(vm.Password), "كلمة المرور مطلوبة");
         if (!ModelState.IsValid) return View(vm);
-        var a = await db.Admins.AsNoTracking().FirstOrDefaultAsync(x => x.PhoneNumber == phone);
+        var candidates = await db.Admins.AsNoTracking().ToListAsync();
+        var matches = candidates.Where(x => AccountPhones.Normalize(x.PhoneNumber) == phone).ToList();
+        var a = matches.Count == 1 ? matches[0] : null;
         if (a == null || !pw.Verify(a.PasswordHash, vm.Password!))
         {
             ModelState.AddModelError("", "رقم الهاتف أو كلمة المرور غير صحيحة");
