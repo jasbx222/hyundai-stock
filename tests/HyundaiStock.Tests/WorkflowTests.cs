@@ -251,6 +251,81 @@ public sealed class WorkflowTests : IDisposable
         Assert.True(file.File!.Content.Length > 100);
     }
 
+    [Fact]
+    public async Task Returned_new_part_can_be_corrected_and_resubmitted_without_creating_a_second_request()
+    {
+        var id = (await _newParts.CreateAsync(_counter.Id, Input())).Data!.Id;
+        Assert.Equal(409, (await _newParts.ResubmitAsync(_counter.Id, id, Input())).Status);
+        Assert.True((await _newParts.ReturnAsync(id, "صحح الوصف", SpareScope())).Ok);
+        Assert.Equal(404, (await _newParts.ResubmitAsync(99999, id, Input())).Status);
+        Assert.Equal(400, (await _newParts.ResubmitAsync(_counter.Id, id, Input(quantity: 0))).Status);
+        var result = await _newParts.ResubmitAsync(_counter.Id, id, Input(partNumber: "FIXED-9", quantity: 7));
+        Assert.Null(result.Error);
+        Assert.Equal(id, result.Data!.Id);
+        Assert.Equal("PendingSparePartsManager", result.Data.StatusCode);
+        Assert.Equal(_warehouseRow.Id, result.Data.WarehouseId);
+        Assert.Null(result.Data.ReturnReason);
+        Assert.Equal(1, await _db.NewPartRequests.CountAsync());
+        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.True((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
+        Assert.Equal(7, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.PartNumber == "FIXED-9")).CountedQuantity);
+        Assert.Equal(409, (await _newParts.ResubmitAsync(_counter.Id, id, Input())).Status);
+    }
+
+    [Fact]
+    public async Task Counter_can_edit_own_quantity_request_only_before_first_approval()
+    {
+        var id = (await _mobile.QtyRequestAsync(_counter.Id, new QtyRequestInput { PartId = _part.Id, NewQuantity = 3, Reason = "خطأ" })).Data!.Id;
+        Assert.Equal(404, (await _mobile.EditQtyRequestAsync(99999, id, new QtyRequestInput { NewQuantity = 8, Reason = "تصحيح" })).Status);
+        Assert.Equal(400, (await _mobile.EditQtyRequestAsync(_counter.Id, id, new QtyRequestInput { NewQuantity = -1, Reason = "تصحيح" })).Status);
+        var result = await _mobile.EditQtyRequestAsync(_counter.Id, id, new QtyRequestInput { NewQuantity = 8, Reason = "تصحيح" });
+        Assert.Null(result.Error);
+        Assert.True(result.Data!.CanEdit);
+        Assert.Equal(8, result.Data.NewQuantity);
+        Assert.True((await _qty.ApproveAsync(id, WmScope())).Ok);
+        Assert.Equal(409, (await _mobile.EditQtyRequestAsync(_counter.Id, id, new QtyRequestInput { NewQuantity = 9, Reason = "متأخر" })).Status);
+        Assert.False((await _mobile.MyQtyRequestsAsync(_counter.Id, new PageQuery(1,10))).Items.Single().CanEdit);
+        Assert.True((await _qty.FinalApproveAsync(id, AccScope())).Ok);
+        Assert.Equal(8, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+    }
+
+    [Fact]
+    public async Task Warehouse_manager_edits_scoped_quantity_requests_without_retargeting_the_part()
+    {
+        var id = (await _mobile.QtyRequestAsync(_counter.Id, new QtyRequestInput { PartId = _part.Id, NewQuantity = 3, Reason = "خطأ" })).Data!.Id;
+        var err = await _qty.SaveAsync(id, new QtyInput { PartNumber = _part.PartNumber, PartDescription = _part.Description, NewQuantity = 7, Reason = "تعديل" }, WmScope());
+        Assert.Empty(err);
+        var saved = await _db.QuantityCorrections.AsNoTracking().SingleAsync(x => x.Id == id);
+        Assert.Equal(_part.Id, saved.InventoryPartId); Assert.Equal(7, saved.NewQuantity);
+        var denied = await _qty.SaveAsync(id, new QtyInput { PartNumber = _part.PartNumber, PartDescription = _part.Description, NewQuantity = 99 }, OtherAcc());
+        Assert.NotEmpty(denied);
+        Assert.True((await _qty.ApproveAsync(id, WmScope())).Ok);
+        Assert.NotEmpty(await _qty.SaveAsync(id, new QtyInput { PartNumber = _part.PartNumber, NewQuantity = 9 }, WmScope()));
+    }
+
+    [Fact]
+    public async Task Completed_recounts_remain_visible_when_mobile_requests_history()
+    {
+        _part.CountedByUserId = _counter.Id; await _db.SaveChangesAsync();
+        Assert.True((await _parts.RequestRecountAsync(_part.Id, _counter.Id, WmScope())).Ok);
+        var id = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items.Single().Id;
+        Assert.Null((await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3 })).Error);
+        Assert.Empty((await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items);
+        var completed = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10), true)).Items.Single();
+        Assert.Equal("مكتمل", completed.Status); Assert.Equal(5, completed.ResultQuantity); Assert.NotNull(completed.CompletedAt);
+    }
+
+    [Fact]
+    public async Task Warehouse_type_is_optional_and_existing_values_are_preserved()
+    {
+        var svc = new WarehouseService(_db);
+        Assert.True((await svc.SaveAsync(null, "مخزن جديد", null, _branch.Id, 99)).Ok);
+        Assert.Equal(WarehouseType.Type1, (await _db.Warehouses.AsNoTracking().SingleAsync(x => x.Number == 99)).Type);
+        _warehouseRow.Type = WarehouseType.Type2; await _db.SaveChangesAsync();
+        Assert.True((await svc.SaveAsync(_warehouseRow.Id, "مخزن معدل", null, _branch.Id, 1)).Ok);
+        Assert.Equal(WarehouseType.Type2, (await _db.Warehouses.AsNoTracking().SingleAsync(x => x.Id == _warehouseRow.Id)).Type);
+    }
+
     private NewPartInput Input(string partNumber = "ZZ-9", int? quantity = 3, int? branchId = null, int? warehouseId = null, double? latitude = 33.31, double? longitude = 44.36) => new()
     {
         PartNumber = partNumber, Description = "قطعة جديدة", BranchId = branchId ?? _branch.Id, WarehouseId = warehouseId ?? _warehouseRow.Id,
