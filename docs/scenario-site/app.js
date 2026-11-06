@@ -190,6 +190,55 @@
     { id: "close", title: "6. الفروقات وإنهاء الجلسة" }
   ];
 
+
+  const FLOWS = [
+    {
+      id: "f-newpart", title: "1) طلب إضافة قطعة للجرد", exists: true,
+      img: ["images/mobile/requests.svg", "images/dash/requests.png", "images/dash/parts.png"],
+      body: `من يسوي: أحمد بالتطبيق → مدير القطع 07790000004 يوافق → محاسب 07790000005 يثبّت.\nAPI: POST /api/v1/new-part-requests ثم لوحة /NewParts.\nقيم تجريبية: رمز QA2630035506، وصف «جلدة باب تجريبية / Door seal»، كمية 2، موقع QA-Z-01، مخزن 9011، GPS حقيقي.\nحالات التطبيق: بانتظار مدير قطع الغيار → بانتظار المالية → مثبت. قبل التثبيت ما تنخلق قطعة. بعد التثبيت بـ /Parts: نظام 0 ومعدودة 2 وسعر 0.\nإرجاع مع سبب → رجع للموظف؛ أحمد يلغي فقط بهالحالة. تكرار رمز مفتوح = 409.`
+    },
+    {
+      id: "f-spare", title: "2) طلبات قطع الغيار", exists: "partial",
+      img: ["images/dash/requests.png"],
+      body: `بالكود ماكو قائمة بهذا الاسم حرفياً. اللي يخص مدير قطع الغيار هو منيو «طلبات إضافة قطعة» /NewParts فقط.\nمدير القطع ما يشوف /Parts ولا /Requests.\nاختبر بـ 07790000004 وفلاتر الحالات وطلبات DEMO-NEW-1..4.\nإذا تقصدون شاشة ثانية غير /NewParts: غير موجود حالياً.`
+    },
+    {
+      id: "f-diff", title: "3) فروقات المخزون", exists: true,
+      img: ["images/dash/parts.png", "images/mobile/history.svg"],
+      body: `بعد POST /api/v1/counts تظهر الفروقات بـ /Parts وتفاصيل القطعة.\nمثال 58101D3A01: نظام 9 وعدّ 10 → فرق +1 × 85000 = 85000 د.ع.\nمجموع فروقات القطع الخمس بالوثيقة = 324,000 د.ع (مو إجمالي كل الجلسة).\nالفرق = CountedQuantity − SystemQuantity فقط بعد العد.`
+    },
+    {
+      id: "f-finance", title: "4) المالية", exists: true,
+      img: ["images/dash/home.png"],
+      body: `منيو «فروقات المخزون المالية» /Finance للأدوار: مسؤول/سوبر/محاسب.\nالقيمة المالية = (معدودة − نظام) × السعر.\nبعد عد 58101D3A01 بـ10: 85000؛ بعد قبول تعديل لـ11: 170000.\nتصدير Excel Financial-Variance. محاسب البصرة ما يشوف المنصور. مدير القطع بلا منيو مالية.`
+    },
+    {
+      id: "f-qty", title: "5) تعديل الكمية", exists: true,
+      img: ["images/dash/qty-request.png", "images/mobile/requests.svg", "images/dash/requests.png"],
+      body: `أحمد: POST /api/v1/qty-requests لـ58101D3A01 من 10 إلى 11 بسبب «كارتون إضافي بعد المطابقة».\nالحالات: بانتظار مدير المخزن → (موافقة مدير مخزن 07790000003) بانتظار المالية → (قبول نهائي محاسب) مقبول وتحديث CountedQuantity.\nمحاسب ما يقدر القبول الأول. إعادة قبول نهائي مزدوج ممنوعة؛ إذا SQLite مشغولة: «قاعدة البيانات مشغولة، حدّث حالة الطلب قبل إعادة المحاولة».`
+    },
+    {
+      id: "f-recount", title: "6) إعادة الجرد (إعادة العد)", exists: true,
+      img: ["images/dash/recount.png", "images/mobile/recount.svg"],
+      body: `من /Parts تفاصيل القطعة → طلب إعادة عد لأحمد. المحاسب ومدير القطع ممنوعين.\nأحمد: GET/POST /api/v1/recounts/{id}/submit بكمية وموقع وGPS.\nالنتيجة تمر عبر CountAsync؛ الحالة مكتمل. طلب مكرر Pending لنفس المستخدم يُرفض.`
+    },
+    {
+      id: "f-correct", title: "7) تصحيح البيانات", exists: "partial",
+      img: ["images/dash/vin-requests.png", "images/dash/cars.png"],
+      body: `ماكو شاشة واحدة باسم «تصحيح البيانات». الموجود:\nأ) تصحيح VIN: تطبيق POST /api/v1/vin-corrections + لوحة /VinRequests (أدمن فرع ومدير مخزن فقط؛ المحاسب لا).\nب) تعديل مركبة /Cars/Edit.\nج) سجل تغييرات القطعة في /Parts/Details (عرض).\nشاشة موحّدة لكل الحقول: غير موجود حالياً.`
+    },
+    {
+      id: "f-vin", title: "8) مسح VIN", exists: true,
+      img: ["images/mobile/scan-vin.svg", "images/dash/cars.png"],
+      body: `مخزن مركبات 9012. OCR نص تحت HYUNDAI مو باركود. GPS مطلوب.\nPOST /api/v1/vins/scan — يظهر بـ /Cars وسجلي.\nتكرار نفس VIN بالجلسة: 409 «رقم VIN ممسوح مسبقًا في هذه الجلسة».\nI/O/Q أو طول ≠17: 400.`
+    },
+    {
+      id: "f-gps", title: "9) رفض GPS", exists: true,
+      img: ["images/mobile/gps-reject.svg"],
+      body: `Validators.GpsError على العد ومسح VIN وإعادة العد وطلب إضافة قطعة.\n0,0 أو خارج المدى أو ناقص → 400 «تعذر تحديد موقعك، يرجى المحاولة مرة أخرى» بدون حفظ.\nاختبر بـ API على قاعدة التجربة بهوية أحمد.`
+    }
+  ];
+
   const ROLES = ["الكل", "مسؤول رئيسي", "موظف جرد", "أدمن فرع", "مدير مخزن", "مدير قطع", "محاسب", "سوبر أدمن"];
 
   function loadState() {
@@ -339,6 +388,32 @@
     </li>`;
   }
 
+
+  function renderFlows() {
+    const root = document.getElementById("flows-root");
+    const jumps = document.getElementById("flow-jumps");
+    if (!root || !jumps) return;
+    jumps.innerHTML = FLOWS.map(f => `<a class="chip" href="#${f.id}">${f.title.replace(/^\d+\)\s*/, "")}</a>`).join("");
+    root.innerHTML = FLOWS.map(f => {
+      const tag = f.exists === true ? '<span class="badge app">موجود بالكود</span>'
+        : f.exists === "partial" ? '<span class="badge neg">جزئي / توضيح اسم</span>'
+        : '<span class="badge neg">غير موجود حالياً</span>';
+      const imgs = (f.img || []).map(src => {
+        const isSvg = src.endsWith(".svg");
+        const media = isSvg ? `<object data="${src}" type="image/svg+xml"></object>` : `<img src="${src}" alt="" loading="lazy" data-full="${src}">`;
+        return `<figure>${media}</figure>`;
+      }).join("");
+      return `<article class="group" id="${f.id}" style="margin-top:18px">
+        <div class="step">
+          <div class="step-meta">${tag}</div>
+          <h4>${f.title}</h4>
+          <pre style="white-space:pre-wrap;font-family:inherit;margin:8px 0;background:#F8FBFF;border:1px solid #D9E8F7;border-radius:12px;padding:12px">${f.body.replace(/</g,"&lt;")}</pre>
+          <div class="media">${imgs}</div>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
   function renderFilters() {
     el.filters.innerHTML = ROLES.map(r =>
       `<button type="button" class="chip ${state.filter === r ? "active" : ""}" data-role="${r}">${r}</button>`
@@ -459,5 +534,6 @@
   renderAccounts("all");
   renderParts();
   renderSteps();
+  renderFlows();
   updateProgress();
 })();
