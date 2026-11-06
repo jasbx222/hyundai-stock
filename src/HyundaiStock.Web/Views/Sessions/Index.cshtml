@@ -35,11 +35,14 @@
     @Html.AntiForgeryToken()
     <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام VIN</p></div></div>
     <div class="mb">
+        <label class="lbl" for="session-year">سنة الجرد</label>
+        <div class="field"><input id="session-year" name="year" type="number" min="2000" max="2100" required value="@Ui.Local(DateTime.UtcNow).Year" dir="ltr" /></div>
+        <p class="hint">جلسة واحدة لكل سنة (2000–2100)، بما فيها الجلسات المكتملة. يجب إنهاء أي جلسة مفتوحة أولاً. السنة تؤخذ من هذا الحقل، وليس من ملف Excel.</p>
         <label class="drop">
             <input name="file" type="file" accept=".xlsx,.xls" multiple />
             @Ui.Icon("upload", 28)
             <b>اسحب الملفات هنا أو اخترها</b>
-            <span class="hint">قالب الجرد (ورقة Parts وورقة Vins)، أو تقارير النظام كما هي: «القطع الموجودة» لكل فرع وتقرير المركبات</span>
+            <span class="hint">قالب الجرد (Parts / Vins)، أو تقارير النظام والتصدير. يدعم BranchNo. برقم الفرع أو Branch باسمه. سجّل الفروع والمخازن قبل الاستيراد. ملفات العناوين فقط لا تحتوي بيانات.</span>
             <span class="fn mono" dir="ltr"></span>
         </label>
         <div class="hint" style="margin-top:10px"><a href="/Sessions/Template">تحميل القالب</a></div>
