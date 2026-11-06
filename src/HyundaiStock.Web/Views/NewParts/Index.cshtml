@@ -4,14 +4,14 @@
 <div class="card" style="overflow:hidden">
     <div class="toolbar">
         @await Html.PartialAsync("_Search", "بحث برقم القطعة")
-        <form method="get" style="display:flex;gap:8px">
+        <form method="get">
             <input type="hidden" name="search" value="@Context.Request.Query["search"]" />
-            <select name="status" onchange="this.form.submit()">
+            <label class="sel"><select name="status" onchange="this.form.submit()" aria-label="الحالة">
                 <option value="">كل الحالات</option>
                 @foreach (NewPartRequestStatus st in Enum.GetValues(typeof(NewPartRequestStatus))) {
                     <option value="@st" selected="@(Context.Request.Query["status"] == st.ToString())">@Labels.NewPart(st)</option>
                 }
-            </select>
+            </select>@Ui.Icon("chev", 14)</label>
         </form>
     </div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ستظهر هنا طلبات إضافة القطع.", "plus")) }
