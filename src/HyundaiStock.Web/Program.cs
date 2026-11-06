@@ -7,6 +7,8 @@ using HyundaiStock.Web.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -21,7 +23,13 @@ var cs = cfg.GetConnectionString("Default");
 if (string.IsNullOrWhiteSpace(cs)) throw new InvalidOperationException("ConnectionStrings:Default is not configured (use appsettings.Development.json, user-secrets or the ConnectionStrings__Default env var).");
 builder.Services.AddDbContext<AppDbContext>(o =>
 {
-    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase)) o.UseSqlite(cs);
+    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        var sqlite = new SqliteConnectionStringBuilder(cs);
+        // Do not let a busy local database consume the relay's entire request budget.
+        if (!sqlite.ShouldSerialize("Default Timeout")) sqlite.DefaultTimeout = 5;
+        o.UseSqlite(sqlite.ToString());
+    }
     else o.UseSqlServer(cs, s => s.UseCompatibilityLevel(120).MigrationsAssembly(typeof(AppDbContext).Assembly.FullName).EnableRetryOnFailure(3));
 });
 
@@ -46,6 +54,14 @@ builder.Services.AddScoped<MobileService>();
 builder.Services.AddScoped<NewPartRequestService>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AdminScopeFilter>();
+
+// Only scheme forwarding is needed: the relay already preserves Host. Never trust
+// arbitrary internet proxies or X-Forwarded-Host. Kestrel must remain loopback-only.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+});
 
 // ---------- Auth: cookie for the dashboard, JWT bearer for the mobile API
 var jwt = cfg.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
@@ -123,6 +139,23 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+app.UseForwardedHeaders();
+// Optional fallback for older relays without X-Forwarded-Proto. Match both the
+// configured public host and the loopback transport; direct localhost stays HTTP.
+var publicOrigin = cfg["ReverseProxy:PublicOrigin"];
+if (!string.IsNullOrWhiteSpace(publicOrigin))
+{
+    if (!Uri.TryCreate(publicOrigin, UriKind.Absolute, out var origin) || origin.Scheme != "https" ||
+        origin.AbsolutePath != "/" || !string.IsNullOrEmpty(origin.UserInfo) || !string.IsNullOrEmpty(origin.Query) || !string.IsNullOrEmpty(origin.Fragment))
+        throw new InvalidOperationException("ReverseProxy:PublicOrigin must be an HTTPS origin without a path or credentials.");
+    app.Use(async (ctx, next) =>
+    {
+        if (ctx.Connection.RemoteIpAddress is { } ip && System.Net.IPAddress.IsLoopback(ip) &&
+            string.Equals(ctx.Request.Host.Value, origin.Authority, StringComparison.OrdinalIgnoreCase))
+            ctx.Request.Scheme = "https";
+        await next();
+    });
+}
 
 // ---------- Database init + seed
 using (var scope = app.Services.CreateScope())
@@ -140,6 +173,8 @@ using (var scope = app.Services.CreateScope())
     }
     await DbSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordService>(),
         cfg.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions(), log);
+    await DemoSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordService>(),
+        cfg.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions(), app.Environment, log);
 }
 
 app.UseExceptionHandler(e => e.Run(async ctx =>

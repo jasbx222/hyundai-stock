@@ -8,6 +8,8 @@ namespace HyundaiStock.Infrastructure.Data;
 
 public sealed class SeedOptions
 {
+    public bool Demo { get; set; }
+    public string DemoPassword { get; set; } = "Test1234";
     public string? MainAdminName { get; set; }
     public string? MainAdminPhone { get; set; }
     public string? MainAdminPassword { get; set; }
