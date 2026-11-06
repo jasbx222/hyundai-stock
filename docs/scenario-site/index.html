@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>سيناريو اختبار جرد هيونداي</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <div>
+        <p class="eyebrow">جرد هيونداي · تجربة مثل الشغل الحقيقي</p>
+        <h1>سيناريو الاختبار من الألف للياء</h1>
+      </div>
+      <div class="progress" aria-live="polite">
+        <span id="progress-label">0 من 0</span>
+        <div class="bar" aria-hidden="true"><i id="progress-bar"></i></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn ghost" type="button" id="export-json">تصدير JSON</button>
+        <button class="btn ghost" type="button" id="print-page">طباعة</button>
+        <button class="btn ghost" type="button" id="reset-progress">مسح التقدّم</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2>كيف تستخدم الصفحة</h2>
+      <ol class="how">
+        <li>شغّل الباكند على <span class="mono">http://127.0.0.1:5169</span> ويّا الريلي، وافتح هالصفحة على <span class="mono">http://127.0.0.1:5180</span> (أو افتح index.html مباشرة).</li>
+        <li>فعّل البيانات التجريبية: <span class="mono">Seed__Demo=true</span> وباسورد <span class="mono">Test1234</span> ببيئة Development فقط.</li>
+        <li>علّم كل خطوة صح/خطأ واكتب ملاحظات. التقدّم ينحفظ بالمتصفح (localStorage).</li>
+        <li>على الموبايل افتح التطبيق. القطع = باركود Code128، رقم الشاصي = OCR نص تحت شعار HYUNDAI.</li>
+        <li>فعّل موقع الهاتف. الإحداثيات <span class="mono">0,0</span> تُرفض برسالة عربية وبدون حفظ.</li>
+      </ol>
+      <div class="stats" style="margin-top:14px">
+        <div class="stat"><b id="stat-done">0</b><span>منجزة</span></div>
+        <div class="stat"><b id="stat-pass">0</b><span>ناجح</span></div>
+        <div class="stat"><b id="stat-fail">0</b><span>فاشل</span></div>
+        <div class="stat"><b id="stat-left">0</b><span>متبقي</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>الحسابات التجريبية</h2>
+      <p class="muted">كلمة السر لكل الحسابات الجديدة: <b class="mono">Test1234</b>. الحسابات القديمة مثل 07711110001 تبقى بكلمات سرها. اضغط الرقم للنسخ.</p>
+      <div class="filters account-role-filter" id="account-filters">
+        <button type="button" class="chip active" data-akind="all">الكل</button>
+        <button type="button" class="chip" data-akind="admin">لوحة</button>
+        <button type="button" class="chip" data-akind="mobile">تطبيق</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>الدور</th><th>الاسم</th><th>الهاتف</th><th>وين يدخل</th><th>النطاق</th></tr>
+          </thead>
+          <tbody id="accounts-body"></tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:12px">أرقام مخازن تجريبية: المنصور <b class="mono">9011/9012</b> · الكرادة 9021/9022 · زيونة 9031/9032 · البصرة 9041/9042 · أربيل 9051/9052. رقم الفرع 901–905 (إذا الفرع موجود مسبقاً اقرأ رقمه من اللوحة).</p>
+    </section>
+
+    <section class="card">
+      <h2>قطع الجرد الخمسة</h2>
+      <p class="muted">امسحها من بطاقات <span class="mono">docs/test-barcodes.html</span>. مجموع فروقات هالخمسة فقط = <b>324,000 د.ع</b>.</p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>رقم القطعة</th><th>الموقع</th><th>كمية النظام</th><th>عدّ الهاتف</th><th>الفرق</th><th>سعر الوحدة</th></tr>
+          </thead>
+          <tbody id="parts-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>تصفية حسب الدور</h2>
+      <p class="muted">اعرض خطوات دور معيّن أو كل الأدوار.</p>
+      <div class="filters" id="role-filters"></div>
+    </section>
+
+    <section id="steps"></section>
+
+    <section class="card">
+      <h2>تذكير مهم</h2>
+      <ul class="how">
+        <li>نجاح اختبارات السيرفر ما يغني عن تجربة كاميرا وGPS على موبايل حقيقي.</li>
+        <li>لا تكتب مفاتيح حقيقية أو توكنات بالنتائج المصدّرة.</li>
+        <li>بعد الاختبار: <span class="mono">set Seed__Demo=</span> و<span class="mono">set Seed__DemoPassword=</span>. الداتا تبقى وماكو حذف تلقائي.</li>
+        <li>التحققات الجديدة: رفض GPS 0,0 · بقاء https بعد إعادة التوجيه · رسالة «قاعدة البيانات مشغولة» بدل انتظار طويل.</li>
+      </ul>
+    </section>
+  </main>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button type="button" class="close" id="lightbox-close">إغلاق</button>
+    <div id="lightbox-media"></div>
+  </div>
+  <p class="toast" id="toast" hidden role="status"></p>
+  <script src="app.js"></script>
+</body>
+</html>
