@@ -24,7 +24,7 @@ public sealed class NewPartInput
 public sealed record MobileNewPart(
     int Id, string Reference, string PartNumber, string Description, int Quantity, string Location,
     string BranchName, string WarehouseName, string Status, string StatusCode, string? ReturnReason,
-    DateTime CreatedAt, DateTime UpdatedAt, double Latitude, double Longitude, IReadOnlyList<MobileAudit> History);
+    DateTime CreatedAt, DateTime UpdatedAt, double Latitude, double Longitude, IReadOnlyList<MobileAudit> History, int BranchId = 0, int WarehouseId = 0);
 
 public sealed record MobileAudit(string Action, string Status, string? Reason, DateTime At);
 
@@ -74,8 +74,18 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         return new NewPartDetails(row with { Reference = ReferenceOf(row.Id) }, history);
     }
 
-    public async Task<MobileResult<MobileNewPart>> CreateAsync(int userId, NewPartInput i)
+    public Task<MobileResult<MobileNewPart>> CreateAsync(int userId, NewPartInput i) => SaveAsync(userId, i, null);
+
+    public Task<MobileResult<MobileNewPart>> ResubmitAsync(int userId, int id, NewPartInput i) => SaveAsync(userId, i, id);
+
+    private async Task<MobileResult<MobileNewPart>> SaveAsync(int userId, NewPartInput i, int? editId)
     {
+        var existing = editId is int eid
+            ? await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eid && x.RequestedByUserId == userId)
+            : null;
+        if (editId != null && existing == null) return new(null, "الطلب غير موجود", 404);
+        if (existing != null && existing.Status != NewPartRequestStatus.ReturnedToEmployee)
+            return new(null, "يمكن تعديل الطلب المعاد للموظف فقط", 409);
         var partNumber = i.PartNumber?.Trim() ?? "";
         var normalized = MobileService.NormalizePartCode(partNumber);
         var description = i.Description?.Trim() ?? "";
@@ -97,7 +107,8 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         if (!allowed) return new(null, "المستودع غير مرتبط بحسابك", 403);
 
         if (await PartInSession(session.Id, normalized, wid, wh.BranchId)) return new(null, PartExistsMessage, 409);
-        if (await ActiveExists(session.Id, wid, normalized)) return new(null, DuplicateMessage, 409);
+        if (existing != null && existing.SessionId != session.Id) return new(null, ClosedMessage, 409);
+        if (await ActiveExists(session.Id, wid, normalized, editId)) return new(null, DuplicateMessage, 409);
 
         var now = DateTime.UtcNow;
         await using var tx = await db.Database.BeginTransactionAsync();
@@ -107,13 +118,27 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
             Location = location, WarehouseId = wid, BranchId = wh.BranchId, SessionId = session.Id, RequestedByUserId = userId,
             Latitude = i.Latitude!.Value, Longitude = i.Longitude!.Value, Status = NewPartRequestStatus.PendingSparePartsManager, UpdatedAt = now
         };
-        db.NewPartRequests.Add(r);
-        try { await db.SaveChangesAsync(); }
-        catch (DbUpdateException ex) when (IsUnique(ex)) { await tx.RollbackAsync(); return new(null, DuplicateMessage, 409); }
-        db.WorkflowAudits.Add(Audit(r, null, NewPartRequestStatus.PendingSparePartsManager, AuditActions.Submitted, null, userId, "Counter", null));
+        try
+        {
+            if (existing == null) db.NewPartRequests.Add(r);
+            else
+            {
+                r.Id = existing.Id; r.CreatedAt = existing.CreatedAt;
+                var changed = await db.NewPartRequests.Where(x => x.Id == existing.Id && x.RequestedByUserId == userId && x.Status == NewPartRequestStatus.ReturnedToEmployee)
+                    .ExecuteUpdateAsync(u => u.SetProperty(x => x.PartNumber, r.PartNumber).SetProperty(x => x.NormalizedPartNumber, r.NormalizedPartNumber)
+                        .SetProperty(x => x.Description, r.Description).SetProperty(x => x.Quantity, r.Quantity).SetProperty(x => x.Location, r.Location)
+                        .SetProperty(x => x.WarehouseId, r.WarehouseId).SetProperty(x => x.BranchId, r.BranchId)
+                        .SetProperty(x => x.Latitude, r.Latitude).SetProperty(x => x.Longitude, r.Longitude)
+                        .SetProperty(x => x.Status, r.Status).SetProperty(x => x.UpdatedAt, now).SetProperty(x => x.ReturnReason, (string?)null));
+                if (changed != 1) return new(null, ProcessedMessage, 409);
+            }
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex) when ((ex is DbUpdateException || ex is System.Data.Common.DbException) && IsUnique(ex)) { await tx.RollbackAsync(); return new(null, DuplicateMessage, 409); }
+        db.WorkflowAudits.Add(Audit(r, existing?.Status, NewPartRequestStatus.PendingSparePartsManager, existing == null ? AuditActions.Submitted : "Resubmitted", null, userId, "Counter", null));
         await db.SaveChangesAsync();
         await tx.CommitAsync();
-        return new(await ToMobile(r.Id, userId), null, 201);
+        return new(await ToMobile(r.Id, userId), null, existing == null ? 201 : 200);
     }
 
     public async Task<PagedResult<MobileNewPart>> MineAsync(int userId, PageQuery p)
@@ -245,8 +270,8 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
             && x.PartNumber.Replace(" ", "").Replace("-", "").Replace(".", "").ToUpper() == normalized
             && (x.WarehouseId == warehouseId || (x.WarehouseId == null && x.BranchId == branchId)));
 
-    private Task<bool> ActiveExists(int sessionId, int warehouseId, string normalized) =>
-        db.NewPartRequests.AnyAsync(x => x.SessionId == sessionId && x.WarehouseId == warehouseId && x.NormalizedPartNumber == normalized
+    private Task<bool> ActiveExists(int sessionId, int warehouseId, string normalized, int? excludeId = null) =>
+        db.NewPartRequests.AnyAsync(x => x.SessionId == sessionId && x.WarehouseId == warehouseId && x.NormalizedPartNumber == normalized && (excludeId == null || x.Id != excludeId)
             && (x.Status == NewPartRequestStatus.PendingSparePartsManager || x.Status == NewPartRequestStatus.PendingAccountant || x.Status == NewPartRequestStatus.ReturnedToEmployee));
 
     private async Task<MobileNewPart?> ToMobile(int id, int userId)
@@ -257,12 +282,13 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
             .Select(a => new MobileAudit(ActionLabel(a.Action), a.ToStatus, a.Reason, a.CreatedAt)).ToListAsync();
         var shown = history.Select(h => h with { Status = StatusLabel(h.Status) }).ToList();
         return new MobileNewPart(x.Id, ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name,
-            Labels.NewPart(x.Status), x.Status.ToString(), x.ReturnReason, x.CreatedAt, x.UpdatedAt, x.Latitude, x.Longitude, shown);
+            Labels.NewPart(x.Status), x.Status.ToString(), x.ReturnReason, x.CreatedAt, x.UpdatedAt, x.Latitude, x.Longitude, shown, x.BranchId, x.WarehouseId);
     }
 
     private static string ActionLabel(string action) => action switch
     {
         AuditActions.Submitted => "تم الإرسال",
+        "Resubmitted" => "تم التعديل وإعادة الإرسال",
         AuditActions.FirstApproved => "موافقة مدير قطع الغيار",
         AuditActions.Returned => "تم الإرجاع",
         AuditActions.FinalApproved => "تثبيت المالية",
@@ -281,7 +307,7 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         Reason = reason, SessionId = r.SessionId, WarehouseId = r.WarehouseId, BranchId = r.BranchId, InventoryPartId = partId ?? r.InventoryPartId
     };
 
-    private static bool IsUnique(DbUpdateException ex)
+    private static bool IsUnique(Exception ex)
     {
         var m = ex.InnerException?.Message ?? ex.Message;
         return m.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) || m.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
