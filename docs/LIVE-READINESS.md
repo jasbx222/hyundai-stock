@@ -29,3 +29,5 @@ See `TEST-SCENARIO.ar.md` for startup commands, isolated-database option, accoun
 The dashboard selects a live session before the newest historical session so it stays aligned with the mobile current-session lookup even when historical fixtures are imported later.
 
 Automated coverage uses .NET 8, SQLite, MVC cookie/antiforgery authentication, JWT API requests, workflow services, concurrent approvals and seed safety. Real Android camera/OCR/zoom/location permissions, APK UI, external relay behavior after deployment, and SQL Server runtime are not covered by those tests. No production data or running deployment is modified by the repository change.
+
+The legacy HTTP smoke harness is now portable (explicit test-admin environment variables, no private credential-file lookup, configurable output path) and aligned with current import headers, missing-part workflow and dashboard markup. Run it only against a disposable empty database. It performs 150 assertions across imports, forms, JWT, recounts, corrections, exports and access controls.

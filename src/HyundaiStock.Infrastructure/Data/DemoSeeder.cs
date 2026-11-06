@@ -110,8 +110,11 @@ public static class DemoSeeder
         for (var cycle = 0; cycle < 3; cycle++)
         {
             var active = cycle == 2 && !existingLive;
-            var started = active ? now.AddDays(-2) : now.AddDays(-60 + cycle * 20);
-            var session = new StocktakingSession { Year = started.Year, StartedByAdminId = main.Id, StartedAt = started, CreatedAt = started,
+            var year = now.Year - 2 + cycle;
+            while (await db.Sessions.AnyAsync(x => x.Year == year)) year++;
+            if (year > 2100) throw new InvalidOperationException("No free demo session year is available.");
+            var started = active ? now.AddDays(-2) : now.AddYears(Math.Min(0, year - now.Year)).AddDays(-60 + cycle * 20);
+            var session = new StocktakingSession { Year = year, StartedByAdminId = main.Id, StartedAt = started, CreatedAt = started,
                 EndedAt = active ? null : started.AddDays(3), EndedByAdminId = active ? null : main.Id,
                 Status = active ? SessionStatus.InProgress : SessionStatus.Completed,
                 FileName = $"جرد تجريبي - {cycle + 1}.xlsx", StoredFileName = cycle == 2 ? Marker : $"{Marker}-history-{cycle}" };
