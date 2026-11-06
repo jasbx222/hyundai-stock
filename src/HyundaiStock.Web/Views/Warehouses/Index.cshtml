@@ -13,7 +13,7 @@
             <label class="sel"><select name="branchId" onchange="this.form.submit()" aria-label="الفرع"><option value="">جميع الفروع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(bid == b.Id)">@b.Name</option> }</select>@Ui.Icon("chev", 14)</label>
         </form>
     </div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) && bid == null ? "لا توجد بيانات" : "لا توجد نتائج", "ما في مخازن مطابقة. أضف مخزن جديد أو غيّر الفلتر.", "box")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) && bid == null ? "لا توجد بيانات" : "لا توجد نتائج", "لا توجد مخازن مطابقة. أضف مخزنًا جديدًا أو غيّر الفلتر.", "box")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>رقم المخزن</th><th>اسم المخزن</th><th>النوع</th><th>الفرع</th><th>الإجراءات</th></tr></thead>

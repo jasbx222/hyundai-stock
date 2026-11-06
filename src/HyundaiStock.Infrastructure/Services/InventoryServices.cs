@@ -81,7 +81,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions)
         if (part == null) return OpResult.Fail("القطعة غير موجودة");
         if (part.Session!.Status != SessionStatus.InProgress) return OpResult.Fail("جلسة الجرد منتهية");
         var target = userId ?? part.CountedByUserId;
-        if (target == null) return OpResult.Fail("القطعة ما انعدت بعد، اختر مستخدم");
+        if (target == null) return OpResult.Fail("لم تُعدّ القطعة بعد، اختر مستخدمًا");
         var ok = await db.AppUsers.AnyAsync(u => u.Id == target && u.IsActive && u.Warehouses.Any(w => w.WarehouseId == part.WarehouseId));
         if (!ok) return OpResult.Fail("المستخدم غير مرتبط بمخزن القطعة أو معطّل");
         if (await db.RecountRequests.AnyAsync(x => x.InventoryPartId == partId && x.AssignedUserId == target && x.Status == RecountStatus.Pending))
@@ -137,8 +137,8 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         if (string.IsNullOrEmpty(pn)) err["PartNumber"] = "رقم القطعة مطلوب";
         if (string.IsNullOrEmpty(desc)) err["PartDescription"] = "وصف القطعة مطلوب";
         if (i.NewQuantity is null) err["NewQuantity"] = "الكمية الجديدة مطلوبة";
-        else if (i.NewQuantity < 0) err["NewQuantity"] = "الكمية ما تكون سالبة";
-        if (i.OldQuantity < 0) err["OldQuantity"] = "الكمية ما تكون سالبة";
+        else if (i.NewQuantity < 0) err["NewQuantity"] = "يجب ألا تكون الكمية سالبة";
+        if (i.OldQuantity < 0) err["OldQuantity"] = "يجب ألا تكون الكمية سالبة";
         if (err.Count > 0) return err;
 
         if (part == null)
@@ -157,7 +157,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         {
             r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == rid);
             if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) { err[""] = "الطلب غير موجود"; return err; }
-            if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { err[""] = "ما يمكن تعديل طلب بعد بدء الموافقة عليه"; return err; }
+            if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { err[""] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return err; }
         }
         else
         {
@@ -176,7 +176,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     {
         var r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) return OpResult.Fail("الطلب مو بانتظار القبول الأول");
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) return OpResult.Fail("الطلب ليس بانتظار القبول الأول");
         r.ApprovalLevel = ApprovalLevel.First; r.FirstApprovedByAdminId = s.Id; r.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return OpResult.Success();
@@ -208,7 +208,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     {
         var r = await db.QuantityCorrections.FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || (s.ScopeBranch is int sb && r.BranchId != sb)) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب مو قيد الانتظار");
+        if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب ليس قيد الانتظار");
         if (r.ApprovalLevel == ApprovalLevel.First && !s.IsSuper) return OpResult.Fail("الطلب بانتظار القبول النهائي من السوبر أدمن");
         r.Status = RequestStatus.Rejected; r.RejectedByAdminId = s.Id; r.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -244,7 +244,7 @@ public sealed class VinService(AppDbContext db)
         if (wh == null) err["WarehouseId"] = "اختر المستودع";
         var e = await db.ScannedVins.FirstOrDefaultAsync(x => x.Id == id && (s.ScopeBranch == null || x.BranchId == s.ScopeBranch));
         if (e == null) err[""] = "المركبة غير موجودة";
-        else if (await db.ScannedVins.AnyAsync(x => x.SessionId == e.SessionId && x.Vin == v && x.Id != id)) err["Vin"] = "رقم VIN مسجل بهذه الجلسة";
+        else if (await db.ScannedVins.AnyAsync(x => x.SessionId == e.SessionId && x.Vin == v && x.Id != id)) err["Vin"] = "رقم VIN مسجل في هذه الجلسة";
         if (err.Count > 0) return err;
         e!.Vin = v; e.WarehouseId = wh!.Id; e.BranchId = wh.BranchId;
         await db.SaveChangesAsync();
@@ -274,9 +274,9 @@ public sealed class VinRequestService(AppDbContext db)
     {
         var r = await db.VinCorrections.Include(x => x.ScannedVin).FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || (s.ScopeBranch is int b && r.ScannedVin!.BranchId != b)) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب مو قيد الانتظار");
+        if (r.Status != RequestStatus.Pending) return OpResult.Fail("الطلب ليس قيد الانتظار");
         if (approve && await db.ScannedVins.AnyAsync(x => x.SessionId == r.ScannedVin!.SessionId && x.Vin == r.NewVin && x.Id != r.ScannedVinId))
-            return OpResult.Fail("رقم VIN الجديد مسجل لمركبة ثانية بنفس الجلسة");
+            return OpResult.Fail("رقم VIN الجديد مسجل لمركبة أخرى في الجلسة نفسها");
         r.Status = approve ? RequestStatus.Approved : RequestStatus.Rejected;
         r.ApprovedByAdminId = s.Id; r.ApprovedAt = DateTime.UtcNow;
         if (approve) r.ScannedVin!.Vin = r.NewVin;

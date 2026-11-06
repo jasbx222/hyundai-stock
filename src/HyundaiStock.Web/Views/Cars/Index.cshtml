@@ -14,7 +14,7 @@
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "المركبات اللي تنمسح من التطبيق راح تظهر هنا.", "car")) }
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا المركبات التي تُمسح من التطبيق.", "car")) }
     else {
     <table>
         <thead><tr><th>الرقم</th><th>VIN</th><th>اسم الجلسة</th><th>المستخدم</th><th>المستودع</th><th>الفرع</th><th>الموقع</th><th>تاريخ الإضافة</th><th>الإجراءات</th></tr></thead>

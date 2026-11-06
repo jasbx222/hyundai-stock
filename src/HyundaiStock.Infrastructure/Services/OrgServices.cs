@@ -35,7 +35,7 @@ public sealed class BranchService(AppDbContext db)
         if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم الفرع غير صالح");
         if (number != null && await db.Branches.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail($"رقم الفرع {number} مستخدم لفرع آخر");
         name = name?.Trim();
-        if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم الفرع لازم يكون حرفين على الأقل");
+        if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم الفرع يجب أن يتكون من حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم الفرع طويل");
         if (await db.Branches.AnyAsync(x => x.Name == name && x.Id != (id ?? 0))) return OpResult.Fail("يوجد فرع بنفس الاسم");
         Branch? e;
@@ -50,11 +50,11 @@ public sealed class BranchService(AppDbContext db)
     {
         var e = await db.Branches.FindAsync(id);
         if (e == null) return OpResult.Fail("الفرع غير موجود");
-        if (await db.Warehouses.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("ما يمكن حذف الفرع لأن بيه مخازن");
-        if (await db.Admins.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("ما يمكن حذف الفرع لأن بيه مشرفين");
-        if (await db.AppUserBranches.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("ما يمكن حذف الفرع لأن بيه مستخدمين");
+        if (await db.Warehouses.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("لا يمكن حذف الفرع لوجود مخازن مرتبطة به");
+        if (await db.Admins.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("لا يمكن حذف الفرع لوجود مشرفين مرتبطين به");
+        if (await db.AppUserBranches.AnyAsync(x => x.BranchId == id)) return OpResult.Fail("لا يمكن حذف الفرع لوجود مستخدمين مرتبطين به");
         if (await db.InventoryParts.AnyAsync(x => x.BranchId == id) || await db.ScannedVins.AnyAsync(x => x.BranchId == id) || await db.ExpectedVins.AnyAsync(x => x.BranchId == id))
-            return OpResult.Fail("ما يمكن حذف الفرع لأن بيه بيانات جرد");
+            return OpResult.Fail("لا يمكن حذف الفرع لوجود بيانات جرد مرتبطة به");
         db.Branches.Remove(e);
         await db.SaveChangesAsync();
         return OpResult.Success();
@@ -88,16 +88,16 @@ public sealed class WarehouseService(AppDbContext db)
         if (number is int n && (n < 1 || n > 9999)) return OpResult.Fail("رقم المخزن غير صالح");
         if (number != null && await db.Warehouses.AnyAsync(x => x.Number == number && x.Id != (id ?? 0))) return OpResult.Fail($"رقم المخزن {number} مستخدم لمخزن آخر");
         name = name?.Trim();
-        if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم المخزن لازم يكون حرفين على الأقل");
+        if (string.IsNullOrEmpty(name) || name.Length < 2) return OpResult.Fail("اسم المخزن يجب أن يتكون من حرفين على الأقل");
         if (name.Length > 150) return OpResult.Fail("اسم المخزن طويل");
         if (type is not (1 or 2)) return OpResult.Fail("اختر نوع المخزن");
         if (!await db.Branches.AnyAsync(x => x.Id == branchId)) return OpResult.Fail("اختر الفرع");
-        if (await db.Warehouses.AnyAsync(x => x.BranchId == branchId && x.Name == name && x.Id != (id ?? 0))) return OpResult.Fail("يوجد مخزن بنفس الاسم بهذا الفرع");
+        if (await db.Warehouses.AnyAsync(x => x.BranchId == branchId && x.Name == name && x.Id != (id ?? 0))) return OpResult.Fail("يوجد مخزن بالاسم نفسه في هذا الفرع");
         Warehouse? e;
         if (id is int i) { e = await db.Warehouses.FindAsync(i); if (e == null) return OpResult.Fail("المخزن غير موجود"); }
         else { e = new Warehouse(); db.Warehouses.Add(e); }
         if (id != null && e.BranchId != branchId && (await db.InventoryParts.AnyAsync(x => x.WarehouseId == e.Id) || await db.ScannedVins.AnyAsync(x => x.WarehouseId == e.Id)))
-            return OpResult.Fail("ما يمكن تغيير فرع المخزن لأن بيه بيانات جرد");
+            return OpResult.Fail("لا يمكن تغيير فرع المخزن لوجود بيانات جرد مرتبطة به");
         e.Name = name; e.Type = (WarehouseType)type; e.BranchId = branchId; e.Number = number;
         await db.SaveChangesAsync();
         return OpResult.Success(e.Id);
@@ -107,9 +107,9 @@ public sealed class WarehouseService(AppDbContext db)
     {
         var e = await db.Warehouses.FindAsync(id);
         if (e == null) return OpResult.Fail("المخزن غير موجود");
-        if (await db.AppUserWarehouses.AnyAsync(x => x.WarehouseId == id)) return OpResult.Fail("ما يمكن حذف المخزن لأن بيه مستخدمين");
+        if (await db.AppUserWarehouses.AnyAsync(x => x.WarehouseId == id)) return OpResult.Fail("لا يمكن حذف المخزن لوجود مستخدمين مرتبطين به");
         if (await db.InventoryParts.AnyAsync(x => x.WarehouseId == id) || await db.ScannedVins.AnyAsync(x => x.WarehouseId == id) || await db.ExpectedVins.AnyAsync(x => x.WarehouseId == id))
-            return OpResult.Fail("ما يمكن حذف المخزن لأن بيه بيانات جرد");
+            return OpResult.Fail("لا يمكن حذف المخزن لوجود بيانات جرد مرتبطة به");
         db.Warehouses.Remove(e);
         await db.SaveChangesAsync();
         return OpResult.Success();

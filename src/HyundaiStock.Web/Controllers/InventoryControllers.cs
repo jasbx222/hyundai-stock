@@ -27,7 +27,7 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
     {
         var r = await svc.GetAsync(id, Scope);
         if (r == null) return NotFoundPage();
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "ما يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
         ViewBag.Id = id;
         return View("Form", new QtyInput { PartNumber = r.PartNumber, PartDescription = r.PartDescription, OldQuantity = r.OldQuantity, NewQuantity = r.NewQuantity, Reason = r.Reason });
     }
