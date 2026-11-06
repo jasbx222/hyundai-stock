@@ -107,19 +107,12 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return new(new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse?.Name, x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId), null);
     }
 
-    private static string? ValidGps(double? lat, double? lng)
-    {
-        if (lat is null || lng is null) return "الموقع (GPS) مطلوب";
-        if (lat is < -90 or > 90 || lng is < -180 or > 180) return "إحداثيات الموقع غير صالحة";
-        return null;
-    }
-
     public async Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i)
     {
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
-        if (ValidGps(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
+        if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
         InventoryPart? part;
@@ -139,6 +132,14 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             if (part == null) return new(null, "رمز القطعة غير موجود بالنظام", 404);
         }
         if (!CanSee(part, whs, brs)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+        if (i.WarehouseId is int requestedWarehouse)
+        {
+            if (!whs.Contains(requestedWarehouse)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+            var requestedBranch = await db.Warehouses.Where(w => w.Id == requestedWarehouse).Select(w => w.BranchId).FirstAsync();
+            if ((part.WarehouseId is int actual && actual != requestedWarehouse) ||
+                (part.BranchId is int branch && branch != requestedBranch))
+                return new(null, "المخزن لا يطابق فرع ومخزن القطعة", 400);
+        }
         // Branch-level part (imported with BranchNo. only): pin it to the warehouse it was counted in.
         if (part.WarehouseId == null && i.WarehouseId is int cw && whs.Contains(cw)) part.WarehouseId = cw;
         if (part.WarehouseId == null)
@@ -163,7 +164,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var vin = Validators.NormalizeVin(i.Vin);
         if (!Validators.IsVin(vin)) return new(null, Validators.VinError, 400);
-        if (ValidGps(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
+        if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         if (i.WarehouseId is not int wid) return new(null, "المستودع مطلوب", 400);
         var whs = await MyWarehouses(userId);
         if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);

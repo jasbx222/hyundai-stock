@@ -2,6 +2,9 @@ using HyundaiStock.Domain;
 using HyundaiStock.Infrastructure.Common;
 using HyundaiStock.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace HyundaiStock.Infrastructure.Services;
 
@@ -34,7 +37,7 @@ public sealed class QtyInput
 public sealed class SessionLookup(AppDbContext db)
 {
     public Task<StocktakingSession?> CurrentAsync() => db.Sessions.AsNoTracking().Where(x => x.Status == SessionStatus.InProgress).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync();
-    public Task<StocktakingSession?> LatestAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync();
+    public Task<StocktakingSession?> LatestAsync() => db.Sessions.AsNoTracking().OrderBy(x => x.Status).ThenByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync();
     public Task<List<NamedItem>> OptionsAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).Select(x => new NamedItem(x.Id, x.Year.ToString(), null)).ToListAsync();
 }
 
@@ -96,7 +99,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions)
     }
 }
 
-public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessions)
+public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessions, ILogger<QuantityRequestService>? logger = null)
 {
     private IQueryable<QuantityCorrectionRequest> Scoped(AdminScope s)
     {
@@ -202,11 +205,24 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
 
     public async Task<OpResult> FinalApproveAsync(int id, AdminScope s)
     {
+        var timer = Stopwatch.StartNew();
+        try { return await FinalApproveCoreAsync(id, s); }
+        catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6)
+        {
+            logger?.LogWarning("Quantity approval {RequestId}: local database is busy", id);
+            return OpResult.Fail("قاعدة البيانات مشغولة، حدّث حالة الطلب قبل إعادة المحاولة");
+        }
+        finally { logger?.LogInformation("Quantity approval {RequestId} completed in {ElapsedMs} ms", id, timer.ElapsedMilliseconds); }
+    }
+
+    private async Task<OpResult> FinalApproveCoreAsync(int id, AdminScope s)
+    {
         if (!s.CanFinalApproveQty) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
-        await using var tx = await db.Database.BeginTransactionAsync();
         var r = await db.QuantityCorrections.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || !InScope(s, r.BranchId, r.WarehouseId)) return OpResult.Fail("الطلب غير موجود");
         if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.First) return OpResult.Fail("الطلب يحتاج موافقة مدير المخزن قبل القبول النهائي");
+        // Invalid/terminal requests must not acquire SQLite's single writer lock.
+        await using var tx = await db.Database.BeginTransactionAsync();
         InventoryPart? part = null;
         if (r.InventoryPartId is int pid)
         {
