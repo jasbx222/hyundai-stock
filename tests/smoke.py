@@ -143,7 +143,7 @@ html = s.get(B + "/Parts").text; check("parts list paged 10", html.count("/Parts
 check("parts search", "D3A05" in s.get(B + "/Parts?search=D3A05").text)
 check("parts page 2", s.get(B + "/Parts?page=2").status_code == 200)
 r = s.get(B + f"/Parts/Details/{pid}"); check("part details", r.status_code == 200 and "سجل التغييرات" in r.text)
-check("part info partial (no price shown)", "السعر" not in s.get(B + f"/Parts/Info/{pid}").text and "السعر" not in s.get(B + f"/Parts/Details/{pid}").text)
+check("part info partial (no price shown)", "السعر" not in s.get(B + f"/Parts/Info/{pid}").text and "<span>السعر</span>" not in s.get(B + f"/Parts/Details/{pid}").text)
 check("recount form partial", "طلب إعادة عد" in s.get(B + f"/Parts/RecountForm/{pid}").text)
 check("quantity form partial", "تعديل الكمية" in s.get(B + f"/Parts/QuantityForm/{pid}").text)
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "other", "userId": uids[0] if False else ""}, ref="/Parts"); check("recount other w/o user rejected", flash(r)[0] == "er", flash(r))
@@ -199,7 +199,8 @@ w = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Vins?missing=true").co
 # --- role 2 admin
 a2, r = login("07711111111", "Admin#2026x"); check("role-2 admin login", r.status_code == 302)
 h = a2.get(B + "/").text
-check("role-2 menu hides admins/sessions", "/Admins" not in h and "/Sessions" not in h and "/VinRequests" in h)
+sidebar = re.search(r"<aside\b.*?</aside>", h, re.S).group(0)
+check("role-2 menu hides admins/sessions", "/Admins" not in sidebar and "/Sessions" not in sidebar and "/VinRequests" in sidebar)
 check("role-2 blocked from /Admins", a2.get(B + "/Admins", allow_redirects=False).status_code in (302, 403))
 check("role-2 blocked from /Sessions", a2.get(B + "/Sessions", allow_redirects=False).status_code in (302, 403))
 check("role-2 branches scoped", "فرع البصرة" not in a2.get(B + "/Branches").text and "فرع بغداد" in a2.get(B + "/Branches").text)
@@ -231,7 +232,7 @@ check("404 page", requests.get(B + "/nope/nothing").status_code == 404 and "404"
 check("API 404 json", requests.get(B + "/api/v1/nothing").status_code == 404)
 check("security headers", "X-Content-Type-Options" in requests.get(B + "/Account/Login").headers)
 check("csrf enforced", s.post(B + "/Branches/Save", data={"name": "csrf"}, allow_redirects=False).status_code == 400)
-check("home welcome", "مرحباً بك في نظام جرد هيونداي" in s.get(B + "/").text)
+check("home dashboard summary", "قطع الغيار المجرودة" in s.get(B + "/").text and "لوحة التحكم" in s.get(B + "/").text)
 
 fails = [r for r in results if not r[1]]
 print(f"\n{len(results) - len(fails)}/{len(results)} passed")

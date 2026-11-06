@@ -179,6 +179,7 @@ public sealed class LiveReadinessTests
         await DemoSeeder.SeedAsync(db, pw, opt, env, NullLogger.Instance);
         var counts = new[] { await db.InventoryParts.CountAsync(), await db.Admins.CountAsync(), await db.Sessions.CountAsync(), await db.WorkflowAudits.CountAsync() };
         Assert.Equal(1204, counts[0]); // 400 stock lines + one approved addition, in each of three sessions, plus existing.
+        Assert.Equal(await db.Sessions.CountAsync(), await db.Sessions.Select(x => x.Year).Distinct().CountAsync());
         Assert.Equal(5, await db.Branches.CountAsync());
         Assert.Equal(10, await db.Warehouses.CountAsync());
         Assert.True(pw.Verify(existing.PasswordHash, "Existing123"));
