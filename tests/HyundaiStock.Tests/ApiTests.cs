@@ -59,7 +59,7 @@ public sealed class ApiTests : IClassFixture<ApiFactory>
     public ApiTests(ApiFactory factory) => _factory = factory;
 
     [Fact]
-    public async Task Mobile_login_rejects_an_accountant_phone_and_accepts_a_new_part_request()
+    public async Task Mobile_login_preserves_legacy_employee_access_and_accepts_a_new_part_request()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -73,7 +73,7 @@ public sealed class ApiTests : IClassFixture<ApiFactory>
         db.Warehouses.Add(wh);
         db.Admins.AddRange(admin, main);
         var user = new AppUser { Name = "عداد", PhoneNumber = "07720000003", PasswordHash = pw.Hash("secret"), IsActive = true };
-        var shadow = new AppUser { Name = "ظل", PhoneNumber = admin.PhoneNumber, PasswordHash = pw.Hash("secret"), IsActive = true };
+        var shadow = new AppUser { Name = "ظل", PhoneNumber = admin.PhoneNumber, PasswordHash = pw.Hash("employee-secret"), IsActive = true };
         db.AppUsers.AddRange(user, shadow);
         await db.SaveChangesAsync();
         db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = user.Id, WarehouseId = wh.Id });

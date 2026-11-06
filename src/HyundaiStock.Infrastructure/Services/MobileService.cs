@@ -29,19 +29,18 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 {
     public async Task<AppUser?> LoginAsync(string? phone, string? password)
     {
-        phone = phone?.Trim();
-        if (string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(password)) return null;
-        var u = await db.AppUsers.FirstOrDefaultAsync(x => x.PhoneNumber == phone);
-        if (u == null || !u.IsActive || !pw.Verify(u.PasswordHash, password)) return null;
-        if (await db.Admins.AnyAsync(a => a.IsActive && a.PhoneNumber == phone)) return null;
-        return u;
+        phone = AccountPhones.Normalize(phone);
+        if (!Validators.IsIraqiPhone(phone) || string.IsNullOrEmpty(password)) return null;
+        // Mobile credentials belong to AppUsers only. A legacy Admin duplicate
+        // must not disable a valid employee or grant dashboard privileges.
+        var users = await db.AppUsers.Where(x => x.IsActive).ToListAsync();
+        var matches = users.Where(x => AccountPhones.Normalize(x.PhoneNumber) == phone).ToList();
+        if (matches.Count != 1) return null;
+        return pw.Verify(matches[0].PasswordHash, password) ? matches[0] : null;
     }
 
-    public async Task<bool> IsActiveAsync(int userId)
-    {
-        var u = await db.AppUsers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId && x.IsActive);
-        return u != null && !await db.Admins.AnyAsync(a => a.IsActive && a.PhoneNumber == u.PhoneNumber);
-    }
+    public Task<bool> IsActiveAsync(int userId) =>
+        db.AppUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive);
 
     private Task<List<int>> MyWarehouses(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
     /// <summary>Branches of the user's warehouses: parts imported per branch (BranchNo. only) are visible to every warehouse in that branch.</summary>

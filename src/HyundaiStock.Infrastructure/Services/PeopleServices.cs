@@ -48,10 +48,10 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
     public async Task<Dictionary<string, string>> CreateAsync(AdminInput i, AdminScope s)
     {
         var err = new Dictionary<string, string>();
-        var name = i.Name?.Trim(); var phone = i.PhoneNumber?.Trim();
+        var name = i.Name?.Trim(); var phone = AccountPhones.Normalize(i.PhoneNumber);
         if (string.IsNullOrEmpty(name) || name.Length < 2) err["Name"] = "اسم المشرف مطلوب (حرفين على الأقل)";
         if (!Validators.IsIraqiPhone(phone)) err["PhoneNumber"] = Validators.PhoneError;
-        else if (await db.Admins.AnyAsync(x => x.PhoneNumber == phone)) err["PhoneNumber"] = "رقم الهاتف مستخدم لمشرف آخر";
+        else if (await AccountPhones.IsUsedAsync(db, phone)) err["PhoneNumber"] = AccountPhones.DuplicateError;
         if (string.IsNullOrEmpty(i.Password) || i.Password.Length < 6) err["Password"] = "كلمة المرور 6 أحرف على الأقل";
         var role = s.IsMain ? i.Role : AdminRole.Admin;
         if (role == AdminRole.MainAdmin) err["Role"] = "لا يمكن إنشاء مسؤول رئيسي آخر";
@@ -70,12 +70,15 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
         var (a, e) = await Target(id, s);
         if (a == null) { err[""] = e!; return err; }
         var name = i.Name?.Trim();
+        var phone = AccountPhones.Normalize(i.PhoneNumber);
+        if (!Validators.IsIraqiPhone(phone)) err["PhoneNumber"] = Validators.PhoneError;
+        else if (await AccountPhones.IsUsedAsync(db, phone, adminId: id)) err["PhoneNumber"] = AccountPhones.DuplicateError;
         if (string.IsNullOrEmpty(name) || name.Length < 2) err["Name"] = "اسم المشرف مطلوب (حرفين على الأقل)";
         var role = s.IsMain ? i.Role : a.Role;
         if (role == AdminRole.MainAdmin) err["Role"] = "لا يمكن تعيين مسؤول رئيسي";
         foreach (var kv in await ValidateScope(role, i)) err[kv.Key] = kv.Value;
         if (err.Count > 0) return err;
-        a.Name = name!; a.Role = role;
+        a.Name = name!; a.PhoneNumber = phone; a.Role = role;
         db.AdminBranches.RemoveRange(await db.AdminBranches.Where(x => x.AdminId == a.Id).ToListAsync());
         db.AdminWarehouses.RemoveRange(await db.AdminWarehouses.Where(x => x.AdminId == a.Id).ToListAsync());
         ApplyScope(a, role, i);
@@ -168,10 +171,10 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
     public async Task<Dictionary<string, string>> SaveAsync(int? id, UserInput i, AdminScope s)
     {
         var err = new Dictionary<string, string>();
-        var name = i.Name?.Trim(); var phone = i.PhoneNumber?.Trim();
+        var name = i.Name?.Trim(); var phone = AccountPhones.Normalize(i.PhoneNumber);
         if (string.IsNullOrEmpty(name) || name.Length < 2) err["Name"] = "الاسم مطلوب (حرفين على الأقل)";
         if (!Validators.IsIraqiPhone(phone)) err["PhoneNumber"] = Validators.PhoneError;
-        else if (await db.AppUsers.AnyAsync(x => x.PhoneNumber == phone && x.Id != (id ?? 0))) err["PhoneNumber"] = "رقم الهاتف مستخدم لمستخدم آخر";
+        else if (await AccountPhones.IsUsedAsync(db, phone, userId: id)) err["PhoneNumber"] = AccountPhones.DuplicateError;
         var needPw = id == null || !string.IsNullOrEmpty(i.Password);
         if (needPw)
         {

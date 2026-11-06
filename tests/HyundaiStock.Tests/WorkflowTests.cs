@@ -68,7 +68,7 @@ public sealed class WorkflowTests : IDisposable
         _db.AdminBranches.AddRange(new AdminBranch { AdminId = _accountant.Id, BranchId = _branch.Id }, new AdminBranch { AdminId = _otherAccountant.Id, BranchId = _other.Id });
         _db.AdminWarehouses.Add(new AdminWarehouse { AdminId = _warehouse.Id, WarehouseId = _warehouseRow.Id });
         _counter = new AppUser { Name = "عداد", PhoneNumber = "07733333333", PasswordHash = _pw.Hash("secret"), IsActive = true };
-        var blocked = new AppUser { Name = "محاسب تطبيق", PhoneNumber = _accountant.PhoneNumber, PasswordHash = _pw.Hash("secret"), IsActive = true };
+        var blocked = new AppUser { Name = "محاسب تطبيق", PhoneNumber = _accountant.PhoneNumber, PasswordHash = _pw.Hash("employee-secret"), IsActive = true };
         _db.AppUsers.AddRange(_counter, blocked);
         _db.SaveChanges();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = _warehouseRow.Id });
@@ -85,7 +85,8 @@ public sealed class WorkflowTests : IDisposable
     {
         Assert.NotNull(await _mobile.LoginAsync(_counter.PhoneNumber, "secret"));
         Assert.Null(await _mobile.LoginAsync(_accountant.PhoneNumber, "secret"));
-        Assert.False(await _mobile.IsActiveAsync(_db.AppUsers.Single(x => x.PhoneNumber == _accountant.PhoneNumber).Id));
+        Assert.NotNull(await _mobile.LoginAsync(_accountant.PhoneNumber, "employee-secret"));
+        Assert.True(await _mobile.IsActiveAsync(_db.AppUsers.Single(x => x.PhoneNumber == _accountant.PhoneNumber).Id));
     }
 
     [Fact]
