@@ -191,53 +191,63 @@
   ];
 
 
+
   const FLOWS = [
     {
       id: "f-newpart", title: "1) طلب إضافة قطعة للجرد", exists: true,
-      img: ["images/mobile/requests.svg", "images/dash/requests.png", "images/dash/parts.png"],
-      body: `من يسوي: أحمد بالتطبيق → مدير القطع 07790000004 يوافق → محاسب 07790000005 يثبّت.\nAPI: POST /api/v1/new-part-requests ثم لوحة /NewParts.\nقيم تجريبية: رمز QA2630035506، وصف «جلدة باب تجريبية / Door seal»، كمية 2، موقع QA-Z-01، مخزن 9011، GPS حقيقي.\nحالات التطبيق: بانتظار مدير قطع الغيار → بانتظار المالية → مثبت. قبل التثبيت ما تنخلق قطعة. بعد التثبيت بـ /Parts: نظام 0 ومعدودة 2 وسعر 0.\nإرجاع مع سبب → رجع للموظف؛ أحمد يلغي فقط بهالحالة. تكرار رمز مفتوح = 409.`
+      img: ["images/mobile/requests.svg", "images/mobile/resubmit-newpart.svg", "images/dash/newparts.png", "images/dash/parts.png"],
+      body: `أحمد POST /api/v1/new-part-requests (مثال QA2630035506) → مدير القطع يوافق → محاسب يثبّت → قطعة بنظام 0 ومعدودة 2 وسعر 0.
+جديد PR#6: إذا اترجع الطلب، أحمد PUT /api/v1/new-part-requests/{id} «تعديل وإعادة إرسال» بنفس الرقم؛ نفس id ويرجع بانتظار مدير القطع.`
     },
     {
       id: "f-spare", title: "2) طلبات قطع الغيار", exists: "partial",
-      img: ["images/dash/requests.png"],
-      body: `بالكود ماكو قائمة بهذا الاسم حرفياً. اللي يخص مدير قطع الغيار هو منيو «طلبات إضافة قطعة» /NewParts فقط.\nمدير القطع ما يشوف /Parts ولا /Requests.\nاختبر بـ 07790000004 وفلاتر الحالات وطلبات DEMO-NEW-1..4.\nإذا تقصدون شاشة ثانية غير /NewParts: غير موجود حالياً.`
+      img: ["images/dash/newparts.png"],
+      body: `هي منيو «طلبات إضافة قطعة» /NewParts فقط. مدير القطع ما يشوف /Parts ولا /Requests. عينات DEMO-NEW-1..4. شاشة ثانية بنفس الاسم: غير موجود حالياً.`
     },
     {
       id: "f-diff", title: "3) فروقات المخزون", exists: true,
       img: ["images/dash/parts.png", "images/mobile/history.svg"],
-      body: `بعد POST /api/v1/counts تظهر الفروقات بـ /Parts وتفاصيل القطعة.\nمثال 58101D3A01: نظام 9 وعدّ 10 → فرق +1 × 85000 = 85000 د.ع.\nمجموع فروقات القطع الخمس بالوثيقة = 324,000 د.ع (مو إجمالي كل الجلسة).\nالفرق = CountedQuantity − SystemQuantity فقط بعد العد.`
+      body: `بعد العد تظهر بـ /Parts. 58101D3A01: 9→10 = +1 × 85000. مجموع الخمس قطع = 324,000 د.ع.`
     },
     {
       id: "f-finance", title: "4) المالية", exists: true,
-      img: ["images/dash/home.png"],
-      body: `منيو «فروقات المخزون المالية» /Finance للأدوار: مسؤول/سوبر/محاسب.\nالقيمة المالية = (معدودة − نظام) × السعر.\nبعد عد 58101D3A01 بـ10: 85000؛ بعد قبول تعديل لـ11: 170000.\nتصدير Excel Financial-Variance. محاسب البصرة ما يشوف المنصور. مدير القطع بلا منيو مالية.`
+      img: ["images/dash/finance.png"],
+      body: `/Finance: القيمة = (معدودة − نظام) × السعر. بعد قبول تعديل لـ11: فرق +2 = 170,000. تصدير Financial-Variance.`
     },
     {
-      id: "f-qty", title: "5) تعديل الكمية", exists: true,
-      img: ["images/dash/qty-request.png", "images/mobile/requests.svg", "images/dash/requests.png"],
-      body: `أحمد: POST /api/v1/qty-requests لـ58101D3A01 من 10 إلى 11 بسبب «كارتون إضافي بعد المطابقة».\nالحالات: بانتظار مدير المخزن → (موافقة مدير مخزن 07790000003) بانتظار المالية → (قبول نهائي محاسب) مقبول وتحديث CountedQuantity.\nمحاسب ما يقدر القبول الأول. إعادة قبول نهائي مزدوج ممنوعة؛ إذا SQLite مشغولة: «قاعدة البيانات مشغولة، حدّث حالة الطلب قبل إعادة المحاولة».`
+      id: "f-qty", title: "5) تعديل الكمية (+ تعديل الطلب)", exists: true,
+      img: ["images/mobile/edit-qty.svg", "images/dash/requests.png", "images/dash/requests-wm.png"],
+      body: `POST qty-requests ثم قبل الموافقة: PUT qty-requests/{id} من التطبيق (زر تعديل الطلب) أو POST /Requests/Edit من مدير المخزن.
+بعد موافقة المدير يختفي زر التعديل (409). محاسب يكمل القبول النهائي.`
     },
     {
-      id: "f-recount", title: "6) إعادة الجرد (إعادة العد)", exists: true,
-      img: ["images/dash/recount.png", "images/mobile/recount.svg"],
-      body: `من /Parts تفاصيل القطعة → طلب إعادة عد لأحمد. المحاسب ومدير القطع ممنوعين.\nأحمد: GET/POST /api/v1/recounts/{id}/submit بكمية وموقع وGPS.\nالنتيجة تمر عبر CountAsync؛ الحالة مكتمل. طلب مكرر Pending لنفس المستخدم يُرفض.`
+      id: "f-recount", title: "6) إعادة الجرد", exists: true,
+      img: ["images/dash/recount.png", "images/mobile/recount.svg", "images/mobile/recount-done.svg"],
+      body: `مدير المخزن يطلب إعادة عد. أحمد يرسل النتيجة.
+جديد: GET recounts?includeCompleted=true يعرض «مكتمل» والكمية بدون إعادة إرسال. الافتراضي يبقى المعلّق فقط.`
     },
     {
-      id: "f-correct", title: "7) تصحيح البيانات", exists: "partial",
-      img: ["images/dash/vin-requests.png", "images/dash/cars.png"],
-      body: `ماكو شاشة واحدة باسم «تصحيح البيانات». الموجود:\nأ) تصحيح VIN: تطبيق POST /api/v1/vin-corrections + لوحة /VinRequests (أدمن فرع ومدير مخزن فقط؛ المحاسب لا).\nب) تعديل مركبة /Cars/Edit.\nج) سجل تغييرات القطعة في /Parts/Details (عرض).\nشاشة موحّدة لكل الحقول: غير موجود حالياً.`
+      id: "f-correct", title: "7) تصحيح البيانات (VIN)", exists: true,
+      img: ["images/mobile/vin-correction.svg", "images/dash/vin-requests.png", "images/dash/cars.png"],
+      body: `تصحيح VIN فقط (مو اسم/وصف عام). أدمن الفرع 07790000002 أو مدير مخزن يوافق/يرفض من /VinRequests؛ الحالة والرقم يرجعان للتطبيق بعد السحب للتحديث.`
     },
     {
       id: "f-vin", title: "8) مسح VIN", exists: true,
       img: ["images/mobile/scan-vin.svg", "images/dash/cars.png"],
-      body: `مخزن مركبات 9012. OCR نص تحت HYUNDAI مو باركود. GPS مطلوب.\nPOST /api/v1/vins/scan — يظهر بـ /Cars وسجلي.\nتكرار نفس VIN بالجلسة: 409 «رقم VIN ممسوح مسبقًا في هذه الجلسة».\nI/O/Q أو طول ≠17: 400.`
+      body: `مخزن 9012، OCR نص، GPS مطلوب. تكرار 409. I/O/Q أو طول ≠17 → 400.`
     },
     {
       id: "f-gps", title: "9) رفض GPS", exists: true,
       img: ["images/mobile/gps-reject.svg"],
-      body: `Validators.GpsError على العد ومسح VIN وإعادة العد وطلب إضافة قطعة.\n0,0 أو خارج المدى أو ناقص → 400 «تعذر تحديد موقعك، يرجى المحاولة مرة أخرى» بدون حفظ.\nاختبر بـ API على قاعدة التجربة بهوية أحمد.`
+      body: `0,0 أو خارج المدى → 400 «تعذر تحديد موقعك، يرجى المحاولة مرة أخرى» بدون حفظ.`
+    },
+    {
+      id: "f-ui", title: "10) واجهة محدّثة", exists: true,
+      img: ["images/dash/home.png", "images/dash/warehouses.png"],
+      body: `الرئيسية بدون قسم «قريباً». المخازن بدون عمود/حقل النوع (اسم + رقم + فرع فقط). التطبيق يعرض اسم المخزن بدون نوع 1/2.`
     }
   ];
+
 
   const ROLES = ["الكل", "مسؤول رئيسي", "موظف جرد", "أدمن فرع", "مدير مخزن", "مدير قطع", "محاسب", "سوبر أدمن"];
 
