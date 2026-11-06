@@ -11,12 +11,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace HyundaiStock.Tests;
 
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
+    public string EnvironmentName { get; set; } = "Development";
+    public bool Demo { get; set; }
+    public string PublicOrigin { get; set; } = "";
     public string DbFile { get; } = Path.Combine(Path.GetTempPath(), $"hyst-api-{Guid.NewGuid():N}.db");
 
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        builder.UseSetting("environment", EnvironmentName);
+        builder.UseSetting("Seed:Demo", Demo.ToString());
+        builder.UseSetting("ReverseProxy:PublicOrigin", PublicOrigin);
         builder.UseSetting("Database:Provider", "Sqlite");
         builder.UseSetting("ConnectionStrings:Default", $"Data Source={DbFile}");
         builder.UseSetting("Database:ApplyMigrationsOnStartup", "true");
@@ -27,6 +33,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Seed:MainAdminPassword", "");
         builder.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
         {
+            ["Seed:Demo"] = Demo.ToString(),
+            ["ReverseProxy:PublicOrigin"] = PublicOrigin,
             ["Database:Provider"] = "Sqlite",
             ["ConnectionStrings:Default"] = $"Data Source={DbFile}",
             ["Database:ApplyMigrationsOnStartup"] = "true",

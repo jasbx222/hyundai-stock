@@ -1,10 +1,11 @@
 """End-to-end smoke test: seeds data via the dashboard + mobile API and checks every page/endpoint."""
 import os, re, sys, io, json, requests, openpyxl
+from pathlib import Path
 B = os.environ.get("BASE", "http://127.0.0.1:5080")
-env = dict(l.strip().split("=", 1) for l in open("/home/box/.secrets/hyundai_clone_admin.env") if "=" in l)
-APHONE, APW = env["HYUNDAI_CLONE_ADMIN_PHONE"], env["HYUNDAI_CLONE_ADMIN_PASSWORD"]
+APHONE, APW = os.environ["HYUNDAI_SMOKE_ADMIN_PHONE"], os.environ["HYUNDAI_SMOKE_ADMIN_PASSWORD"]
 results = []
 def check(name, ok, info=""):
+    info = "" if ok else re.sub(r'("(?:accessToken|token)"\s*:\s*")[^"]+', r'\1[redacted]', str(info))
     results.append((name, bool(ok), info)); print(("PASS " if ok else "FAIL ") + name + (" — " + str(info) if info and not ok else ""))
 def tok(html): m = re.search(r'name="__RequestVerificationToken" type="hidden" value="([^"]+)"', html) or re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html); return m.group(1)
 def login(phone, pw):
@@ -33,7 +34,7 @@ html = s.get(B + "/Branches").text
 bids = dict((n, int(i)) for i, n in re.findall(r'data-v-id="(\d+)" data-v-name="([^"]+)"', html))
 check("branches listed", "فرع بغداد" in bids and "فرع البصرة" in bids, bids)
 bg, bs = bids.get("فرع بغداد"), bids.get("فرع البصرة")
-post(s, "/Branches/Save", {"name": "فرع حذف"}, ref="/Branches")
+post(s, "/Branches/Save", {"name": "فرع حذف", "number": 99}, ref="/Branches")
 did = int(re.findall(r'data-v-id="(\d+)" data-v-name="فرع حذف"', s.get(B + "/Branches").text)[0])
 r = post(s, "/Branches/Delete", {"id": did}, ref="/Branches"); check("delete empty branch", flash(r)[0] == "ok", flash(r))
 for n, t, b, no in [("مخزن بغداد الرئيسي", 1, bg, 1), ("مخزن بغداد المركبات", 2, bg, 2), ("مخزن البصرة", 1, bs, 6)]:
@@ -83,7 +84,7 @@ r = post(s, "/Sessions/Start", {"year": 2025}, files={"file": ("bad.txt", b"nope
 sid = int(re.findall(r'/Sessions/File/(\d+)', s.get(B + "/Sessions").text)[0])
 r = s.get(B + f"/Sessions/File/{sid}"); check("download session file", r.status_code == 200 and r.content[:2] == b"PK")
 r = s.get(B + "/Sessions/Template"); check("download template", r.status_code == 200 and r.content[:2] == b"PK")
-tw = openpyxl.load_workbook(io.BytesIO(r.content)); check("template = Hyundai import format", tw.sheetnames == ["Parts", "Vins"] and [c.value for c in tw["Parts"][1]] == ["Quantity", "Description", "Location", "Serial", "BranchNo."] and [c.value for c in tw["Vins"][1]] == ["VIN", "WarehouseNo."])
+tw = openpyxl.load_workbook(io.BytesIO(r.content)); check("template = Hyundai import format", tw.sheetnames == ["Parts", "Vins"] and [c.value for c in tw["Parts"][1]] == ["Quantity", "Description", "Location", "Serial", "BranchNo."] and [c.value for c in tw["Vins"][1]] == ["VIN", "WarehouseNo.", "VehicleType"])
 
 # --- mobile API
 api = requests.Session()
@@ -107,7 +108,7 @@ r = api.post(B + "/api/v1/counts", headers=H, json={"partId": pid, "quantity": 7
 for x in parts[:5]:
     if x["id"] != pid: api.post(B + "/api/v1/counts", headers=H, json={"partId": x["id"], "quantity": 3, "location": "B-1", "latitude": 33.31, "longitude": 44.36})
 r = api.post(B + "/api/v1/counts", headers=H, json={"partId": pid, "quantity": -1}); check("API count validation", r.status_code == 400 and r.json()["success"] is False, r.text[:200])
-r = api.post(B + "/api/v1/counts", headers=H, json={"partNumber": "NEW-PART-1", "description": "قطعة جديدة غير موجودة", "warehouseId": wids["مخزن بغداد الرئيسي"], "quantity": 2, "location": "Z-1", "latitude": 33.3, "longitude": 44.3}); check("API count new part (not in file)", r.status_code in (200, 201), r.text[:300])
+r = api.post(B + "/api/v1/counts", headers=H, json={"partNumber": "NEW-PART-1", "description": "قطعة جديدة غير موجودة", "warehouseId": wids["مخزن بغداد الرئيسي"], "quantity": 2, "location": "Z-1", "latitude": 33.3, "longitude": 44.3}); check("API unknown part count rejected (use missing-part request)", r.status_code == 404, r.text[:300])
 r = api.post(B + "/api/v1/vins/scan", headers=H, json={"vin": "KMHD341CBMU100001", "warehouseId": wids["مخزن بغداد المركبات"], "latitude": 33.3152, "longitude": 44.3661}); check("API VIN scan", r.status_code in (200, 201), r.text[:300])
 vid = r.json()["data"]["id"]
 for i in range(2, 6): api.post(B + "/api/v1/vins/scan", headers=H, json={"vin": f"KMHD341CBMU{100000+i}", "warehouseId": wids["مخزن بغداد المركبات"], "latitude": 33.31, "longitude": 44.36})
@@ -120,7 +121,7 @@ r = api.post(B + "/api/v1/vin-corrections", headers=H, json={"scannedVinId": vid
 vid2 = api.get(B + "/api/v1/vins", headers=H).json()["data"]["items"][0]["id"]
 r = api.post(B + "/api/v1/vin-corrections", headers=H, json={"scannedVinId": vid2 if vid2 != vid else vid + 1, "newVin": "KMHD341CBMU188888", "reason": "تجربة رفض"}); check("API VIN correction #2", r.status_code in (200, 201), r.text[:200])
 r = api.get(B + "/api/v1/vin-corrections", headers=H); check("API my VIN corrections", r.json()["data"]["totalCount"] == 2)
-r = api.get(B + "/api/v1/history?type=part", headers=H); check("API history parts", r.status_code == 200 and r.json()["data"]["totalCount"] >= 6, r.text[:200])
+r = api.get(B + "/api/v1/history?type=part", headers=H); check("API history parts", r.status_code == 200 and r.json()["data"]["totalCount"] >= 5, r.text[:200])
 r = api.get(B + "/api/v1/history?type=vin", headers=H); check("API history vins", r.status_code == 200 and r.json()["data"]["totalCount"] == 5)
 r = api.get(B + "/api/v1/history", headers=H); check("API history all", r.status_code == 200)
 r = api.get(B + "/api/v1/history?search=100001", headers=H); check("API history search", r.status_code == 200 and r.json()["data"]["totalCount"] >= 1, r.text[:200])
@@ -159,7 +160,7 @@ check("request edit form", s.get(B + f"/Requests/Edit/{qids[0]}").status_code ==
 r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("request first approve", flash(r)[0] == "ok", flash(r))
 r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("double first approve blocked", flash(r)[0] == "er", flash(r))
 r = post(s, "/Requests/FinalApprove", {"id": qids[0]}, ref="/Requests"); check("request final approve", flash(r)[0] == "ok", flash(r))
-r = post(s, "/Requests/Reject", {"id": qids[1]}, ref="/Requests"); check("request reject", flash(r)[0] == "ok", flash(r))
+r = post(s, "/Requests/Reject", {"id": qids[1], "reason": "تجربة رفض"}, ref="/Requests"); check("request reject", flash(r)[0] == "ok", flash(r))
 r = s.get(B + f"/Parts/Details/{pid}?tab=logs"); check("change log written after final approve", "تصحيح" in r.text or r.text.count("<tr>") > 2)
 
 # --- cars
@@ -175,7 +176,7 @@ for path in ["/Exports/Parts?kind=all", "/Exports/Parts?kind=counted", "/Exports
     if ok:
         w = openpyxl.load_workbook(io.BytesIO(r.content)); ok = w.active.max_row >= 1
     check("export " + path, ok, r.status_code)
-w = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Parts?kind=counted").content)); check("counted export rows", w.active.max_row - 1 == 6, w.active.max_row)
+w = openpyxl.load_workbook(io.BytesIO(s.get(B + "/Exports/Parts?kind=counted").content)); check("counted export rows", w.active.max_row - 1 == 5, w.active.max_row)
 FMT = {"/Exports/Parts?kind=counted": ("Data", ["Part Number", "Description", "Location In Stock", "System Quantity", "Total Counted", "Difference", "Counted Location", "Counted Quantity", "User", "Branch", "Date", "Links"]),
        "/Exports/Parts?kind=all": ("Data", None), "/Exports/Parts?kind=uncounted": ("Not Counted Parts", ["Part Number", "Description", "Location In Stock", "System Quantity", "Branch"]),
        "/Exports/Cars": ("Vins", ["VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link"]),
@@ -234,5 +235,5 @@ check("home welcome", "مرحباً بك في نظام جرد هيونداي" in
 
 fails = [r for r in results if not r[1]]
 print(f"\n{len(results) - len(fails)}/{len(results)} passed")
-json.dump([{"name": n, "ok": o, "info": str(i)} for n, o, i in results], open("/workspace/hyundai-stock/tests/smoke-results.json", "w"), ensure_ascii=False, indent=1)
+json.dump([{"name": n, "ok": o, "info": str(i)} for n, o, i in results], open(os.environ.get("SMOKE_RESULTS", str(Path(__file__).with_name("smoke-results.json"))), "w"), ensure_ascii=False, indent=1)
 sys.exit(1 if fails else 0)
