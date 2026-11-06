@@ -61,7 +61,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted, bool mine = false, string? code = null)
     {
         var s = await sessions.CurrentAsync();
-        if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var whs = await MyWarehouses(userId);
         if (warehouseId is int w && !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
         var brs = await MyBranches(userId);
@@ -111,8 +111,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i)
     {
         var s = await sessions.CurrentAsync();
-        if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
-        if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة وما تكون سالبة", 400);
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
+        if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
         if (ValidGps(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
@@ -120,7 +120,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (i.PartId is int pid)
         {
             part = await db.InventoryParts.FirstOrDefaultAsync(x => x.Id == pid && x.SessionId == s.Id);
-            if (part == null) return new(null, "القطعة غير موجودة بالجلسة الحالية", 404);
+            if (part == null) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
         }
         else
         {
@@ -162,14 +162,14 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileResult<MobileVin>> ScanVinAsync(int userId, ScanInput i)
     {
         var s = await sessions.CurrentAsync();
-        if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var vin = Validators.NormalizeVin(i.Vin);
         if (!Validators.IsVin(vin)) return new(null, Validators.VinError, 400);
         if (ValidGps(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         if (i.WarehouseId is not int wid) return new(null, "المستودع مطلوب", 400);
         var whs = await MyWarehouses(userId);
         if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-        if (await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin)) return new(null, "رقم VIN ممسوح مسبقاً بهذه الجلسة", 409);
+        if (await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin)) return new(null, "رقم VIN ممسوح مسبقًا في هذه الجلسة", 409);
         var wh = await db.Warehouses.FirstAsync(x => x.Id == wid);
         var e = new ScannedVin { SessionId = s.Id, Vin = vin, UserId = userId, WarehouseId = wid, BranchId = wh.BranchId, Latitude = i.Latitude, Longitude = i.Longitude };
         db.ScannedVins.Add(e);
@@ -200,7 +200,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var v = await db.ScannedVins.Include(x => x.Session).FirstOrDefaultAsync(x => x.Id == sid && x.UserId == userId);
         if (v == null) return new(null, "المركبة غير موجودة", 404);
         if (v.Session!.Status != SessionStatus.InProgress) return new(null, "جلسة الجرد منتهية", 409);
-        if (v.Vin == newVin) return new(null, "رقم VIN الجديد نفس الحالي", 400);
+        if (v.Vin == newVin) return new(null, "رقم VIN الجديد مطابق للحالي", 400);
         if (await db.VinCorrections.AnyAsync(x => x.ScannedVinId == sid && x.Status == RequestStatus.Pending)) return new(null, "يوجد طلب تصحيح قيد الانتظار لنفس المركبة", 409);
         var r = new VinCorrectionRequest { ScannedVinId = sid, CurrentVin = v.Vin, NewVin = newVin, Reason = reason, RequestedByUserId = userId };
         db.VinCorrections.Add(r);
@@ -239,15 +239,15 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileResult<MobileQtyRequest>> QtyRequestAsync(int userId, QtyRequestInput i)
     {
         var s = await sessions.CurrentAsync();
-        if (s == null) return new(null, "ماكو جلسة جرد قيد التنفيذ", 409);
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         if (i.PartId is not int pid) return new(null, "القطعة مطلوبة", 400);
-        if (i.NewQuantity is null || i.NewQuantity < 0) return new(null, "الكمية الجديدة مطلوبة وما تكون سالبة", 400);
+        if (i.NewQuantity is null || i.NewQuantity < 0) return new(null, "الكمية الجديدة مطلوبة ويجب ألا تكون سالبة", 400);
         var reason = i.Reason?.Trim() ?? "";
         if (reason.Length == 0) return new(null, "السبب مطلوب", 400);
         if (reason.Length > 1000) reason = reason[..1000];
         var whs = await MyWarehouses(userId);
         var part = await db.InventoryParts.FirstOrDefaultAsync(x => x.Id == pid && x.SessionId == s.Id);
-        if (part == null) return new(null, "القطعة غير موجودة بالجلسة الحالية", 404);
+        if (part == null) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
         if (part.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
         if (await db.QuantityCorrections.AnyAsync(x => x.InventoryPartId == pid && x.Status == RequestStatus.Pending)) return new(null, "يوجد طلب تعديل قيد الانتظار لنفس القطعة", 409);
         var r = new QuantityCorrectionRequest { InventoryPartId = pid, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = i.NewQuantity.Value, Reason = reason, BranchId = part.BranchId, RequestedByUserId = userId };
@@ -269,7 +269,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var u = await db.AppUsers.FirstAsync(x => x.Id == userId);
         if (string.IsNullOrEmpty(i.CurrentPassword) || !pw.Verify(u.PasswordHash, i.CurrentPassword)) return new(false, "كلمة المرور الحالية غير صحيحة", 400);
         if (string.IsNullOrEmpty(i.NewPassword) || i.NewPassword.Length < 6) return new(false, "كلمة المرور 6 أحرف على الأقل", 400);
-        if (i.NewPassword == i.CurrentPassword) return new(false, "كلمة المرور الجديدة لازم تختلف عن الحالية", 400);
+        if (i.NewPassword == i.CurrentPassword) return new(false, "يجب أن تختلف كلمة المرور الجديدة عن الحالية", 400);
         u.PasswordHash = pw.Hash(i.NewPassword);
         await db.SaveChangesAsync();
         return new(true, null);

@@ -11,7 +11,7 @@
         @if (s.IsMain) {
         <div><label class="lbl" for="Role">الدور<i> *</i></label><div class="field"><select id="Role" name="Role"><option value="2" selected="@(Model.Role == AdminRole.Admin)">أدمن</option><option value="1" selected="@(Model.Role == AdminRole.SuperAdmin)">سوبر أدمن</option></select></div>@ms.Err("Role")</div>
         } else { <input type="hidden" name="Role" value="2" /> }
-        <div><label class="lbl" for="BranchId">الفرع</label><label class="sel @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">بدون فرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></label>@ms.Err("BranchId")<span class="hint">الأدمن يشوف بيانات فرعه فقط.</span></div>
+        <div><label class="lbl" for="BranchId">الفرع</label><label class="sel @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">بدون فرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></label>@ms.Err("BranchId")<span class="hint">يطّلع الأدمن على بيانات فرعه فقط.</span></div>
     </div>
     <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Admins">إلغاء</a></div>
 </form>

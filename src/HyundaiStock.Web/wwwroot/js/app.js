@@ -46,7 +46,7 @@
       fetch(rm.getAttribute('data-remote'), { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
         .then(function (html) { target.innerHTML = html; $$('input[name=returnUrl]', target).forEach(function (i) { i.value = location.pathname + location.search; }); openOv(target); })
-        .catch(function () { alert('تعذر تحميل البيانات، حدّث الصفحة وحاول مرة ثانية'); });
+        .catch(function () { alert('تعذر تحميل البيانات، حدّث الصفحة وحاول مرة أخرى'); });
       return;
     }
 
@@ -129,7 +129,7 @@
     ['dragleave', 'drop'].forEach(function (ev) { z.addEventListener(ev, function (e) { e.preventDefault(); z.classList.remove('over'); }); });
     z.addEventListener('drop', function (e) {
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return;
-      if (!/\.(xlsx|xls)$/i.test(f.name)) { z.classList.add('err'); if (fn) fn.textContent = 'الملف لازم يكون xlsx أو xls'; return; }
+      if (!/\.(xlsx|xls)$/i.test(f.name)) { z.classList.add('err'); if (fn) fn.textContent = 'يجب أن يكون الملف بصيغة xlsx أو xls'; return; }
       var dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; show();
     });
     var form = z.closest('form');
