@@ -11,9 +11,9 @@ public sealed record MobileSession(int Id, int Year, string Name, string Status,
 public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe);
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected, string? VehicleType = null);
 public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned);
-public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt);
+public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt, string Status = "قيد الانتظار", int? ResultQuantity = null, DateTime? CompletedAt = null);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
-public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt);
+public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt, bool CanEdit = false);
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
 
 public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
@@ -227,11 +227,11 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return Task.FromResult(Paging.Build(q, p));
     }
 
-    public Task<PagedResult<MobileRecount>> RecountsAsync(int userId, PageQuery p)
+    public Task<PagedResult<MobileRecount>> RecountsAsync(int userId, PageQuery p, bool includeCompleted = false)
     {
-        var q = db.RecountRequests.AsNoTracking().Where(x => x.AssignedUserId == userId && x.Status == RecountStatus.Pending && x.InventoryPart!.Session!.Status == SessionStatus.InProgress)
+        var q = db.RecountRequests.AsNoTracking().Where(x => x.AssignedUserId == userId && (includeCompleted || x.Status == RecountStatus.Pending) && x.InventoryPart!.Session!.Status == SessionStatus.InProgress)
             .OrderBy(x => x.CreatedAt).Select(x => new MobileRecount(x.Id, x.InventoryPartId, x.InventoryPart!.PartNumber, x.InventoryPart.Description, x.InventoryPart.SystemLocation,
-                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt));
+                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد الانتظار", x.ResultQuantity, x.CompletedAt));
         return Task.FromResult(Paging.Build(q, p));
     }
 
@@ -267,14 +267,36 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         await db.SaveChangesAsync();
         db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.Submitted, ToStatus = "PendingWarehouseApproval", ActorUserId = userId, ActorRole = "Counter", Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, InventoryPartId = pid, SessionId = part.SessionId });
         await db.SaveChangesAsync();
-        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt), null, 201);
+        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt, true), null, 201);
+    }
+
+    public async Task<MobileResult<MobileQtyRequest>> EditQtyRequestAsync(int userId, int id, QtyRequestInput i)
+    {
+        var r = await db.QuantityCorrections.AsNoTracking().Include(x => x.InventoryPart).ThenInclude(x => x!.Session)
+            .FirstOrDefaultAsync(x => x.Id == id && x.RequestedByUserId == userId);
+        if (r == null) return new(null, "الطلب غير موجود", 404);
+        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None)
+            return new(null, "لا يمكن تعديل الطلب بعد الموافقة عليه", 409);
+        if (r.InventoryPart?.Session?.Status != SessionStatus.InProgress) return new(null, "جلسة الجرد منتهية", 409);
+        if (i.NewQuantity is null or < 0 || string.IsNullOrWhiteSpace(i.Reason)) return new(null, "الكمية والسبب مطلوبان", 400);
+        if (i.PartId != null && i.PartId != r.InventoryPartId) return new(null, "لا يمكن تغيير قطعة الطلب", 400);
+        var whs = await MyWarehouses(userId);
+        if (r.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
+        var reason = i.Reason.Trim(); if (reason.Length > 1000) reason = reason[..1000];
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var changed = await db.QuantityCorrections.Where(x => x.Id == id && x.RequestedByUserId == userId && x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.NewQuantity, i.NewQuantity.Value).SetProperty(x => x.Reason, reason).SetProperty(x => x.UpdatedAt, DateTime.UtcNow));
+        if (changed != 1) return new(null, "تم التعامل مع هذا الطلب مسبقاً", 409);
+        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = id, Action = "Edited", ToStatus = "PendingWarehouseApproval", ActorUserId = userId, ActorRole = "Counter", Reason = reason, BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = r.InventoryPartId, SessionId = r.InventoryPart!.SessionId });
+        await db.SaveChangesAsync(); await tx.CommitAsync();
+        return new(new MobileQtyRequest(r.Id, r.InventoryPartId, r.PartNumber, r.PartDescription, r.OldQuantity, i.NewQuantity.Value, reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt, true), null);
     }
 
     public async Task<PagedResult<MobileQtyRequest>> MyQtyRequestsAsync(int userId, PageQuery p)
     {
         var q = db.QuantityCorrections.AsNoTracking().Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Select(x => new MobileQtyRequest(x.Id, x.InventoryPartId, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason,
-                x.Status == RequestStatus.Approved ? "مقبول" : x.Status == RequestStatus.Rejected ? "مرفوض" : x.ApprovalLevel == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", x.CreatedAt));
+                x.Status == RequestStatus.Approved ? "مقبول" : x.Status == RequestStatus.Rejected ? "مرفوض" : x.ApprovalLevel == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", x.CreatedAt, x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None && x.InventoryPart!.Session!.Status == SessionStatus.InProgress));
         return Paging.Build(q, p);
     }
 
