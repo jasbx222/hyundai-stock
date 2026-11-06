@@ -5,6 +5,7 @@ B = os.environ.get("BASE", "http://127.0.0.1:5080")
 APHONE, APW = os.environ["HYUNDAI_SMOKE_ADMIN_PHONE"], os.environ["HYUNDAI_SMOKE_ADMIN_PASSWORD"]
 results = []
 def check(name, ok, info=""):
+    info = "" if ok else re.sub(r'("(?:accessToken|token)"\s*:\s*")[^"]+', r'\1[redacted]', str(info))
     results.append((name, bool(ok), info)); print(("PASS " if ok else "FAIL ") + name + (" — " + str(info) if info and not ok else ""))
 def tok(html): m = re.search(r'name="__RequestVerificationToken" type="hidden" value="([^"]+)"', html) or re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html); return m.group(1)
 def login(phone, pw):
@@ -33,7 +34,7 @@ html = s.get(B + "/Branches").text
 bids = dict((n, int(i)) for i, n in re.findall(r'data-v-id="(\d+)" data-v-name="([^"]+)"', html))
 check("branches listed", "فرع بغداد" in bids and "فرع البصرة" in bids, bids)
 bg, bs = bids.get("فرع بغداد"), bids.get("فرع البصرة")
-post(s, "/Branches/Save", {"name": "فرع حذف"}, ref="/Branches")
+post(s, "/Branches/Save", {"name": "فرع حذف", "number": 99}, ref="/Branches")
 did = int(re.findall(r'data-v-id="(\d+)" data-v-name="فرع حذف"', s.get(B + "/Branches").text)[0])
 r = post(s, "/Branches/Delete", {"id": did}, ref="/Branches"); check("delete empty branch", flash(r)[0] == "ok", flash(r))
 for n, t, b, no in [("مخزن بغداد الرئيسي", 1, bg, 1), ("مخزن بغداد المركبات", 2, bg, 2), ("مخزن البصرة", 1, bs, 6)]:
