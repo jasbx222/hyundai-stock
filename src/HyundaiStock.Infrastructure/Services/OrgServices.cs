@@ -23,7 +23,7 @@ public sealed class BranchService(AppDbContext db)
     public Task<List<NamedItem>> AllAsync(AdminScope? s = null)
     {
         var q = db.Branches.AsNoTracking().AsQueryable();
-        if (s?.ScopeBranch is int b) q = q.Where(x => x.Id == b);
+        if (s is { IsUnrestricted: false }) { var ids = s.Branches.ToList(); q = q.Where(x => ids.Contains(x.Id)); }
         return q.OrderBy(x => x.Name).Select(x => new NamedItem(x.Id, x.Name, null)).ToListAsync();
     }
 
@@ -76,7 +76,8 @@ public sealed class WarehouseService(AppDbContext db)
     public Task<List<NamedItem>> AllAsync(AdminScope? s = null)
     {
         var q = db.Warehouses.AsNoTracking().AsQueryable();
-        if (s?.ScopeBranch is int b) q = q.Where(x => x.BranchId == b);
+        if (s is { IsUnrestricted: false, Role: AdminRole.WarehouseManager }) { var ids = s.Warehouses.ToList(); q = q.Where(x => ids.Contains(x.Id)); }
+        else if (s is { IsUnrestricted: false }) { var ids = s.Branches.ToList(); q = q.Where(x => ids.Contains(x.BranchId)); }
         return q.OrderBy(x => x.BranchId).ThenBy(x => x.Name).Select(x => new NamedItem(x.Id, x.Name, x.BranchId)).ToListAsync();
     }
 

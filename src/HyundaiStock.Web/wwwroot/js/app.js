@@ -35,6 +35,7 @@
       var extra = $('#cf-extra'); extra.innerHTML = '';
       var hidden = cf.getAttribute('data-hidden');
       if (hidden) { try { var o = JSON.parse(hidden); Object.keys(o).forEach(function (k) { var i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = o[k]; extra.appendChild(i); }); } catch (_) { } }
+      if (cf.getAttribute('data-reason') === '1') { var ta = document.createElement('textarea'); ta.name = 'reason'; ta.required = true; ta.maxLength = 1000; ta.placeholder = 'سبب الإرجاع أو الرفض'; ta.style.cssText = 'width:100%;min-height:72px;margin-top:12px'; extra.appendChild(ta); }
       var ru = document.createElement('input'); ru.type = 'hidden'; ru.name = 'returnUrl'; ru.value = location.pathname + location.search; extra.appendChild(ru);
       openOv(ov); return;
     }

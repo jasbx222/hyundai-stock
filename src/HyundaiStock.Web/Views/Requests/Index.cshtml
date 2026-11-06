@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>طلبات التعديل</h1></div>
-    <div class="acts"><a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a></div>
+    <div class="acts">@if (s.CanFirstApproveQty) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
@@ -18,13 +18,13 @@
                 <td><b class="num">@r.NewQuantity</b></td>
                 <td>@Ui.Step(r.Status, r.Level)</td><td>@Ui.Qty(r.Status, r.Level)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Clock(r.CreatedAt)</td>
                 <td><div class="ra">
-                @if (pending && r.Level == ApprovalLevel.None) {
+                @if (pending && r.Level == ApprovalLevel.None && s.CanFirstApproveQty) {
                     <button type="button" class="btn sm okb" data-confirm data-action="/Requests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" title="قبول الطلب؟" data-title="قبول الطلب؟" data-text="طلب #@r.Id · الكمية الجديدة @r.NewQuantity" data-ok="قبول">@Ui.Icon("check", 16) قبول</button>
-                } else if (pending && r.Level == ApprovalLevel.First && s.IsSuper) {
+                } else if (pending && r.Level == ApprovalLevel.First && s.CanFinalApproveQty) {
                     <button type="button" class="btn sm p" data-confirm data-action="/Requests/FinalApprove" data-hidden='{"id":"@r.Id"}' data-kind="p" data-icon="check" title="قبول نهائي؟" data-title="قبول نهائي؟" data-text="طلب #@r.Id · ستتغير الكمية في النظام إلى @r.NewQuantity" data-ok="قبول نهائي">@Ui.Icon("check", 16) قبول نهائي</button>
                 }
-                @if (pending) {
-                    <button type="button" class="btn sm dg" data-confirm data-action="/Requests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" title="رفض الطلب؟" data-title="رفض الطلب؟" data-text="طلب #@r.Id سيتم رفض" data-ok="رفض">@Ui.Icon("x", 16) رفض</button>
+                @if (pending && ((r.Level == ApprovalLevel.None && s.CanFirstApproveQty) || (r.Level == ApprovalLevel.First && s.CanFinalApproveQty))) {
+                    <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/Requests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" title="رفض الطلب؟" data-title="رفض الطلب؟" data-text="اكتب سبب الرفض. الكمية الأصلية تبقى كما هي." data-ok="رفض">@Ui.Icon("x", 16) رفض</button>
                     @if (r.Level == ApprovalLevel.None) { <a class="btn sm g" title="تعديل" aria-label="تعديل" href="/Requests/Edit/@r.Id">@Ui.Icon("edit", 16)</a> }
                 } else if (r.InventoryPartId.HasValue) {
                     <a class="btn sm g" title="عرض القطعة" aria-label="عرض القطعة" href="/Parts/Details/@r.InventoryPartId">@Ui.Icon("eye", 16)</a>

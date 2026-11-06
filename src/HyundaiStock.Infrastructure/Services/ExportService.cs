@@ -8,6 +8,17 @@ namespace HyundaiStock.Infrastructure.Services;
 
 public enum PartExportKind { All, Counted, Uncounted }
 
+public sealed class FinanceFilter
+{
+    public int? SessionId { get; set; }
+    public int? BranchId { get; set; }
+    public int? WarehouseId { get; set; }
+    public string? PartNumber { get; set; }
+    public string? Description { get; set; }
+    public string? Difference { get; set; }
+    public string? Sort { get; set; }
+}
+
 public sealed class ExportFilter
 {
     public int? SessionId { get; set; }
@@ -198,6 +209,76 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         var data = await q.OrderBy(x => x.Number ?? int.MaxValue).ThenBy(x => x.Id).Select(x => new { x.Number, x.Name, B = x.Branch!.Name }).ToListAsync();
         return Build("Warehouses", "Warehouses", WarehousesHeaders, WarehousesWidths, data.Select(x => new object?[] { x.Number, x.Name, x.B }));
     }
+
+    public sealed record FinanceRow(int Id, string PartNumber, string Description, int SystemQuantity, int? CountedQuantity, int? Difference, decimal Price, decimal? FinancialDifference, string? Branch, string? Warehouse, int Year);
+
+    public async Task<(PagedResult<FinanceRow>? Page, string? Error, bool Forbidden)> FinanceListAsync(FinanceFilter f, PageQuery p, AdminScope s)
+    {
+        var built = await FinanceSource(f, s);
+        if (built.Query == null) return (null, built.Error, built.Forbidden);
+        var rows = FinanceOrder(built.Query, f.Sort).Select(x => new FinanceRow(x.Id, x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity,
+            x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity, x.Price,
+            x.CountedQuantity == null ? null : decimal.Round((x.CountedQuantity.Value - x.SystemQuantity) * x.Price, 2, MidpointRounding.AwayFromZero),
+            x.Branch != null ? x.Branch.Name : null, x.Warehouse != null ? x.Warehouse.Name : null, x.Session!.Year));
+        return (Paging.Build(rows, p), null, false);
+    }
+
+    public async Task<(ExportFile? File, string? Error, bool Forbidden)> FinanceFileAsync(FinanceFilter f, AdminScope s)
+    {
+        var built = await FinanceSource(f, s);
+        if (built.Query == null) return (null, built.Error, built.Forbidden);
+        var data = await FinanceOrder(built.Query, f.Sort).Select(x => new { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Price, B = x.Branch != null ? x.Branch.Name : "", W = x.Warehouse != null ? x.Warehouse.Name : "", Y = x.Session!.Year }).ToListAsync();
+        var file = Build("Variance", "Financial-Variance",
+            new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Price", "Financial Difference", "Branch", "Warehouse", "Session" },
+            new[] { 22d, 40, 16, 16, 14, 14, 18, 18, 18, 12 },
+            data.Select(x =>
+            {
+                int? d = x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity;
+                decimal? m = d == null ? null : decimal.Round(d.Value * x.Price, 2, MidpointRounding.AwayFromZero);
+                return new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, d, x.Price, m, x.B, x.W, x.Y };
+            }));
+        return (file, null, false);
+    }
+
+    private async Task<(IQueryable<InventoryPart>? Query, string? Error, bool Forbidden)> FinanceSource(FinanceFilter f, AdminScope s)
+    {
+        if (!MenuAllowedFinance(s)) return (null, "ليس لديك صلاحية لتنفيذ هذه العملية", true);
+        var sid = f.SessionId ?? (await sessions.LatestAsync())?.Id ?? -1;
+        var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid);
+        if (!s.IsUnrestricted)
+        {
+            var branches = s.Branches.ToList();
+            q = q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
+            if (f.BranchId is int b && !branches.Contains(b)) return (null, "ليس لديك صلاحية لتنفيذ هذه العملية", true);
+        }
+        if (f.BranchId is int bid) q = q.Where(x => x.BranchId == bid);
+        if (f.WarehouseId is int wid)
+        {
+            var br = await db.Warehouses.Where(x => x.Id == wid).Select(x => (int?)x.BranchId).FirstOrDefaultAsync();
+            if (br == null || (!s.IsUnrestricted && !s.Branches.Contains(br.Value))) return (null, "ليس لديك صلاحية لتنفيذ هذه العملية", true);
+            q = q.Where(x => x.WarehouseId == wid);
+        }
+        if (!string.IsNullOrWhiteSpace(f.PartNumber)) { var t = f.PartNumber.Trim(); q = q.Where(x => x.PartNumber.Contains(t)); }
+        if (!string.IsNullOrWhiteSpace(f.Description)) { var t = f.Description.Trim(); q = q.Where(x => x.Description.Contains(t)); }
+        q = f.Difference switch
+        {
+            "shortage" => q.Where(x => x.CountedQuantity != null && x.CountedQuantity < x.SystemQuantity),
+            "surplus" => q.Where(x => x.CountedQuantity != null && x.CountedQuantity > x.SystemQuantity),
+            "match" => q.Where(x => x.CountedQuantity != null && x.CountedQuantity == x.SystemQuantity),
+            "uncounted" => q.Where(x => x.CountedQuantity == null),
+            "diff" => q.Where(x => x.CountedQuantity != null && x.CountedQuantity != x.SystemQuantity),
+            _ => q
+        };
+        return (q, null, false);
+    }
+
+    private static bool MenuAllowedFinance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    private static IQueryable<InventoryPart> FinanceOrder(IQueryable<InventoryPart> q, string? sort) => sort switch
+    {
+        "difference" => q.OrderBy(x => x.CountedQuantity == null ? 0 : x.CountedQuantity - x.SystemQuantity).ThenBy(x => x.Id),
+        "value" => q.OrderBy(x => x.CountedQuantity == null ? 0m : (x.CountedQuantity - x.SystemQuantity) * x.Price).ThenBy(x => x.Id),
+        _ => q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id)
+    };
 
     /// <summary>Empty session import template: sheets "Parts" (Quantity, Description, Location, Serial, BranchNo.) and "Vins" (VIN, WarehouseNo.).</summary>
     public static byte[] ImportTemplate()

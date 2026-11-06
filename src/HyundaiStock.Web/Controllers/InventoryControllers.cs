@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
 public sealed class RequestsController(QuantityRequestService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
@@ -43,9 +44,10 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
 
     [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تم قبول الطلب");
     [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تم القبول النهائي وتحديث الكمية");
-    [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.RejectAsync(id, Scope), "تم رفض الطلب");
+    [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب");
 }
 
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
 public sealed class PartsController(PartService svc, QuantityRequestService requests) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1)
@@ -95,6 +97,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
     }
 }
 
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
 public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1)
@@ -127,7 +130,7 @@ public sealed class CarsController(VinService svc, WarehouseService warehouses, 
     }
 }
 
-[Roles(AdminRole.Admin)]
+[Roles(AdminRole.Admin, AdminRole.WarehouseManager)]
 public sealed class VinRequestsController(VinRequestService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
@@ -170,6 +173,7 @@ public sealed class SessionsController(SessionService svc) : DashboardController
     public IActionResult Template() => File(ExportService.ImportTemplate(), ExportFile.ContentType, "session-import-template.xlsx");
 }
 
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin)]
 public sealed class ExportsController(ExportService svc) : DashboardController
 {
     private FileContentResult Send(ExportFile f) => File(f.Content, ExportFile.ContentType, f.FileName);

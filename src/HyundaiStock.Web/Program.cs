@@ -43,6 +43,7 @@ builder.Services.AddScoped<VinRequestService>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<MobileService>();
+builder.Services.AddScoped<NewPartRequestService>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AdminScopeFilter>();
 
@@ -131,7 +132,11 @@ using (var scope = app.Services.CreateScope())
     if (cfg.GetValue("Database:ApplyMigrationsOnStartup", true))
     {
         if (db.Database.IsSqlServer()) db.Database.Migrate();
-        else db.Database.EnsureCreated();
+        else
+        {
+            db.Database.EnsureCreated();
+            await SqliteSchema.EnsureCurrentAsync(db);
+        }
     }
     await DbSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordService>(),
         cfg.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions(), log);
@@ -145,6 +150,12 @@ app.UseExceptionHandler(e => e.Run(async ctx =>
     {
         ctx.Response.StatusCode = 500;
         await ctx.Response.WriteAsJsonAsync(ApiResponse.Fail("حدث خطأ غير متوقع"));
+    }
+    else if (ctx.Request.Path.StartsWithSegments("/Home/Error"))
+    {
+        ctx.Response.StatusCode = 500;
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+        await ctx.Response.WriteAsync("<!DOCTYPE html><html lang=\"ar\" dir=\"rtl\"><body><h1>حدث خطأ غير متوقع</h1><p><a href=\"/\">الرجوع</a></p></body></html>");
     }
     else ctx.Response.Redirect("/Home/Error");
 }));

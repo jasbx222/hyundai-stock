@@ -67,6 +67,36 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.ToTable("Admins");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.AdminBranch", b =>
+                {
+                    b.Property<int>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.HasKey("AdminId", "BranchId");
+
+                    b.HasIndex("BranchId");
+
+                    b.ToTable("AdminBranches");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.AdminWarehouse", b =>
+                {
+                    b.Property<int>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("AdminId", "WarehouseId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.ToTable("AdminWarehouses");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.AppUser", b =>
                 {
                     b.Property<int>("Id")
@@ -283,6 +313,107 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.ToTable("InventoryParts");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.NewPartRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("AccountantApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("AccountantApprovedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int?>("InventoryPartId")
+                        .HasColumnType("int");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("float");
+
+                    b.Property<string>("NormalizedPartNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PartNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequestedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReturnReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("SessionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SparePartsApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("SparePartsApprovedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("InventoryPartId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("RequestedByUserId", "CreatedAt");
+
+                    b.HasIndex("SessionId", "Status");
+
+                    b.HasIndex("SessionId", "WarehouseId", "NormalizedPartNumber")
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1, 2)");
+
+                    b.HasIndex("Status", "BranchId", "CreatedAt");
+
+                    b.ToTable("NewPartRequests");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.PartChangeLog", b =>
                 {
                     b.Property<int>("Id")
@@ -344,8 +475,18 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("FinalApprovedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("FinalApprovedByAdminId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("FirstApprovedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("FirstApprovedByAdminId")
                         .HasColumnType("int");
@@ -374,6 +515,9 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<DateTime?>("RejectedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int?>("RejectedByAdminId")
                         .HasColumnType("int");
 
@@ -389,6 +533,9 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InventoryPartId");
@@ -396,6 +543,12 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasIndex("RequestedByAdminId");
 
                     b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("Status", "BranchId");
+
+                    b.HasIndex("Status", "WarehouseId");
 
                     b.ToTable("QuantityCorrections");
                 });
@@ -622,6 +775,82 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.ToTable("Warehouses");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.WorkflowAudit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int?>("ActorAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("InventoryPartId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("NewPartRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("SessionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<int>("SubjectId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorAdminId");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("NewPartRequestId");
+
+                    b.HasIndex("Subject", "SubjectId", "CreatedAt");
+
+                    b.ToTable("WorkflowAudits");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.Admin", b =>
                 {
                     b.HasOne("HyundaiStock.Domain.Branch", "Branch")
@@ -630,6 +859,44 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.AdminBranch", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.Admin", "Admin")
+                        .WithMany("Branches")
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+
+                    b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.AdminWarehouse", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.Admin", "Admin")
+                        .WithMany("Warehouses")
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.AppUser", b =>
@@ -737,6 +1004,48 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Navigation("Warehouse");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.NewPartRequest", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.InventoryPart", "InventoryPart")
+                        .WithMany()
+                        .HasForeignKey("InventoryPartId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HyundaiStock.Domain.AppUser", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.StocktakingSession", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("InventoryPart");
+
+                    b.Navigation("RequestedByUser");
+
+                    b.Navigation("Session");
+
+                    b.Navigation("Warehouse");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.PartChangeLog", b =>
                 {
                     b.HasOne("HyundaiStock.Domain.InventoryPart", "InventoryPart")
@@ -765,11 +1074,18 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasForeignKey("RequestedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("HyundaiStock.Domain.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("InventoryPart");
 
                     b.Navigation("RequestedByAdmin");
 
                     b.Navigation("RequestedByUser");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.RecountRequest", b =>
@@ -882,6 +1198,37 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Navigation("Branch");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.WorkflowAudit", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.Admin", "ActorAdmin")
+                        .WithMany()
+                        .HasForeignKey("ActorAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HyundaiStock.Domain.AppUser", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HyundaiStock.Domain.NewPartRequest", "NewPartRequest")
+                        .WithMany("Audits")
+                        .HasForeignKey("NewPartRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ActorAdmin");
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("NewPartRequest");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.Admin", b =>
+                {
+                    b.Navigation("Branches");
+
+                    b.Navigation("Warehouses");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.AppUser", b =>
                 {
                     b.Navigation("Branches");
@@ -897,6 +1244,11 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
             modelBuilder.Entity("HyundaiStock.Domain.InventoryPart", b =>
                 {
                     b.Navigation("ChangeLogs");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.NewPartRequest", b =>
+                {
+                    b.Navigation("Audits");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.StocktakingSession", b =>

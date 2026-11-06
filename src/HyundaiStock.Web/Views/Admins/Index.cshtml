@@ -17,12 +17,13 @@
                 <td>@Ui.Who(a.Name)</td>
                 <td><span class="mono">@a.PhoneNumber</span></td>
                 <td>@Labels.Role(a.Role)</td>
-                <td>@(a.Role == AdminRole.Admin ? (a.BranchName ?? "—") : "كل الفروع")</td><td>@Ui.Active(a.IsActive)</td><td>@Ui.Day(a.CreatedAt)</td>
+                <td>@(a.Role is AdminRole.Admin or AdminRole.SparePartsManager ? (a.BranchName ?? "—") : a.Role == AdminRole.Accountant ? "فروع محددة" : a.Role == AdminRole.WarehouseManager ? "مخازن محددة" : "كل الفروع")</td><td>@Ui.Active(a.IsActive)</td><td>@Ui.Day(a.CreatedAt)</td>
                 <td><div class="ra">
                     <button type="button" class="btn sm g" title="التفاصيل" aria-label="التفاصيل" data-remote="/Admins/Details/@a.Id">@Ui.Icon("eye", 16)</button>
                     @if (!self && a.Role != AdminRole.MainAdmin) {
                         <button type="button" class="btn sm g" title="إعادة تعيين كلمة المرور" aria-label="إعادة تعيين كلمة المرور" data-modal="#reset-m" data-v-id="@a.Id" data-sub="@a.Name">@Ui.Icon("key", 16)</button>
-                        @if (a.Role == AdminRole.Admin) { <button type="button" class="btn sm g" title="تعيين فرع" aria-label="تعيين فرع" data-modal="#assign-m" data-v-id="@a.Id" data-v-branchId="@(a.BranchId?.ToString() ?? "")" data-sub="@a.Name">@Ui.Icon("branch", 16)</button> }
+                        @if (a.Role is AdminRole.Admin or AdminRole.SparePartsManager) { <button type="button" class="btn sm g" title="تعيين فرع" aria-label="تعيين فرع" data-modal="#assign-m" data-v-id="@a.Id" data-v-branchId="@(a.BranchId?.ToString() ?? "")" data-sub="@a.Name">@Ui.Icon("branch", 16)</button> }
+                        <a class="btn sm g" title="تعديل الدور والنطاق" aria-label="تعديل" href="/Admins/Edit/@a.Id">@Ui.Icon("edit", 16)</a>
                     }
                     <span class="sep"></span>
                     <a class="btn sm g" title="تصدير VINs" aria-label="تصدير VINs" href="/Exports/Cars?AdminId=@a.Id">@Ui.Icon("vin", 16)</a>

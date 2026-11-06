@@ -16,6 +16,8 @@ public sealed class AdminInput
     public string? Password { get; set; }
     public int? BranchId { get; set; }
     public AdminRole Role { get; set; } = AdminRole.Admin;
+    public List<int> BranchIds { get; set; } = new();
+    public List<int> WarehouseIds { get; set; } = new();
 }
 
 public sealed class UserInput
@@ -53,12 +55,55 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
         if (string.IsNullOrEmpty(i.Password) || i.Password.Length < 6) err["Password"] = "كلمة المرور 6 أحرف على الأقل";
         var role = s.IsMain ? i.Role : AdminRole.Admin;
         if (role == AdminRole.MainAdmin) err["Role"] = "لا يمكن إنشاء مسؤول رئيسي آخر";
-        if (i.BranchId is int bid) { if (!await db.Branches.AnyAsync(x => x.Id == bid)) err["BranchId"] = "الفرع غير موجود"; }
-        else if (role == AdminRole.Admin) err["BranchId"] = "اختر الفرع (الأدمن مرتبط بفرع)";
+        foreach (var kv in await ValidateScope(role, i)) err[kv.Key] = kv.Value;
         if (err.Count > 0) return err;
-        db.Admins.Add(new Admin { Name = name!, PhoneNumber = phone!, PasswordHash = pw.Hash(i.Password!), Role = role, BranchId = i.BranchId, IsActive = true });
+        var admin = new Admin { Name = name!, PhoneNumber = phone!, PasswordHash = pw.Hash(i.Password!), Role = role, IsActive = true };
+        db.Admins.Add(admin);
+        ApplyScope(admin, role, i);
         await db.SaveChangesAsync();
         return err;
+    }
+
+    public async Task<Dictionary<string, string>> UpdateAsync(int id, AdminInput i, AdminScope s)
+    {
+        var err = new Dictionary<string, string>();
+        var (a, e) = await Target(id, s);
+        if (a == null) { err[""] = e!; return err; }
+        var name = i.Name?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length < 2) err["Name"] = "اسم المشرف مطلوب (حرفين على الأقل)";
+        var role = s.IsMain ? i.Role : a.Role;
+        if (role == AdminRole.MainAdmin) err["Role"] = "لا يمكن تعيين مسؤول رئيسي";
+        foreach (var kv in await ValidateScope(role, i)) err[kv.Key] = kv.Value;
+        if (err.Count > 0) return err;
+        a.Name = name!; a.Role = role;
+        db.AdminBranches.RemoveRange(await db.AdminBranches.Where(x => x.AdminId == a.Id).ToListAsync());
+        db.AdminWarehouses.RemoveRange(await db.AdminWarehouses.Where(x => x.AdminId == a.Id).ToListAsync());
+        ApplyScope(a, role, i);
+        await db.SaveChangesAsync();
+        return err;
+    }
+
+    public async Task<(List<int> Branches, List<int> Warehouses)> AssignmentsAsync(int id) =>
+        (await db.AdminBranches.Where(x => x.AdminId == id).Select(x => x.BranchId).ToListAsync(),
+         await db.AdminWarehouses.Where(x => x.AdminId == id).Select(x => x.WarehouseId).ToListAsync());
+
+    private async Task<Dictionary<string, string>> ValidateScope(AdminRole role, AdminInput i)
+    {
+        var err = new Dictionary<string, string>();
+        if (role is AdminRole.Admin or AdminRole.SparePartsManager)
+        { if (i.BranchId is not int bid || !await db.Branches.AnyAsync(x => x.Id == bid)) err["BranchId"] = "اختر فرعًا واحدًا"; }
+        else if (role == AdminRole.Accountant)
+        { var ids = (i.BranchIds ?? new()).Distinct().ToList(); if (ids.Count == 0 || await db.Branches.CountAsync(x => ids.Contains(x.Id)) != ids.Count) err["BranchIds"] = "اختر فرعًا واحدًا على الأقل"; }
+        else if (role == AdminRole.WarehouseManager)
+        { var ids = (i.WarehouseIds ?? new()).Distinct().ToList(); if (ids.Count == 0 || await db.Warehouses.CountAsync(x => ids.Contains(x.Id)) != ids.Count) err["WarehouseIds"] = "اختر مخزنًا واحدًا على الأقل"; }
+        return err;
+    }
+
+    private void ApplyScope(Admin a, AdminRole role, AdminInput i)
+    {
+        a.BranchId = role is AdminRole.Admin or AdminRole.SparePartsManager ? i.BranchId : null;
+        if (role == AdminRole.Accountant) foreach (var id in (i.BranchIds ?? new()).Distinct()) db.AdminBranches.Add(new AdminBranch { Admin = a, BranchId = id });
+        if (role == AdminRole.WarehouseManager) foreach (var id in (i.WarehouseIds ?? new()).Distinct()) db.AdminWarehouses.Add(new AdminWarehouse { Admin = a, WarehouseId = id });
     }
 
     private async Task<(Admin? a, string? e)> Target(int id, AdminScope s)
@@ -88,6 +133,9 @@ public sealed class AdminService(AppDbContext db, IPasswordService pw)
     {
         if (!await db.Branches.AnyAsync(x => x.Id == branchId)) return OpResult.Fail("اختر الفرع");
         var (a, e) = await Target(id, s); if (a == null) return OpResult.Fail(e!);
+        if (a.Role is not (AdminRole.Admin or AdminRole.SparePartsManager)) return OpResult.Fail("استخدم التعديل لتعيين نطاق هذا الدور");
+        db.AdminBranches.RemoveRange(await db.AdminBranches.Where(x => x.AdminId == a.Id).ToListAsync());
+        db.AdminWarehouses.RemoveRange(await db.AdminWarehouses.Where(x => x.AdminId == a.Id).ToListAsync());
         a.BranchId = branchId; await db.SaveChangesAsync(); return OpResult.Success();
     }
 }

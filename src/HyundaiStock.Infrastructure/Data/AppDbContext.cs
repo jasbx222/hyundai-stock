@@ -19,6 +19,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<QuantityCorrectionRequest> QuantityCorrections => Set<QuantityCorrectionRequest>();
     public DbSet<RecountRequest> RecountRequests => Set<RecountRequest>();
     public DbSet<VinCorrectionRequest> VinCorrections => Set<VinCorrectionRequest>();
+    public DbSet<AdminBranch> AdminBranches => Set<AdminBranch>();
+    public DbSet<AdminWarehouse> AdminWarehouses => Set<AdminWarehouse>();
+    public DbSet<NewPartRequest> NewPartRequests => Set<NewPartRequest>();
+    public DbSet<WorkflowAudit> WorkflowAudits => Set<WorkflowAudit>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -37,6 +41,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.PhoneNumber).IsUnique();
             e.Property(x => x.PasswordHash).HasMaxLength(256).IsRequired();
             e.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<AdminBranch>(e =>
+        {
+            e.HasKey(x => new { x.AdminId, x.BranchId });
+            e.HasOne(x => x.Admin).WithMany(x => x.Branches).HasForeignKey(x => x.AdminId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<AdminWarehouse>(e =>
+        {
+            e.HasKey(x => new { x.AdminId, x.WarehouseId });
+            e.HasOne(x => x.Admin).WithMany(x => x.Warehouses).HasForeignKey(x => x.AdminId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<AppUser>(e =>
         {
@@ -106,8 +122,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.PartNumber).HasMaxLength(64).IsRequired(); e.Property(x => x.PartDescription).HasMaxLength(400).IsRequired();
             e.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
             e.HasOne(x => x.InventoryPart).WithMany().HasForeignKey(x => x.InventoryPartId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.DecisionReason).HasMaxLength(1000);
             e.HasOne(x => x.RequestedByAdmin).WithMany().HasForeignKey(x => x.RequestedByAdminId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.Status, x.BranchId });
+            e.HasIndex(x => new { x.Status, x.WarehouseId });
+        });
+        b.Entity<NewPartRequest>(e =>
+        {
+            e.Property(x => x.PartNumber).HasMaxLength(64).IsRequired();
+            e.Property(x => x.NormalizedPartNumber).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(400).IsRequired();
+            e.Property(x => x.Location).HasMaxLength(64).IsRequired();
+            e.Property(x => x.ReturnReason).HasMaxLength(1000);
+            e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Session).WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.InventoryPart).WithMany().HasForeignKey(x => x.InventoryPartId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.RequestedByUserId, x.CreatedAt });
+            e.HasIndex(x => new { x.Status, x.BranchId, x.CreatedAt });
+            e.HasIndex(x => new { x.SessionId, x.Status });
+            var sqlite = Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
+            e.HasIndex(x => new { x.SessionId, x.WarehouseId, x.NormalizedPartNumber }).IsUnique()
+                .HasFilter(sqlite ? "\"Status\" IN (0, 1, 2)" : "[Status] IN (0, 1, 2)");
+        });
+        b.Entity<WorkflowAudit>(e =>
+        {
+            e.Property(x => x.Subject).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(32).IsRequired();
+            e.Property(x => x.FromStatus).HasMaxLength(64);
+            e.Property(x => x.ToStatus).HasMaxLength(64).IsRequired();
+            e.Property(x => x.ActorRole).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(1000);
+            e.HasIndex(x => new { x.Subject, x.SubjectId, x.CreatedAt });
+            e.HasOne(x => x.ActorAdmin).WithMany().HasForeignKey(x => x.ActorAdminId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ActorUser).WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.NewPartRequest).WithMany(x => x.Audits).HasForeignKey(x => x.NewPartRequestId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<RecountRequest>(e =>
         {

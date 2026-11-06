@@ -348,11 +348,27 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
     public async Task<OpResult> EndAsync(int id, AdminScope s)
     {
         if (!s.IsSuper) return OpResult.Fail("إنهاء الجلسة للسوبر أدمن فقط");
+        await using var tx = await db.Database.BeginTransactionAsync();
         var e = await db.Sessions.FindAsync(id);
         if (e == null) return OpResult.Fail("الجلسة غير موجودة");
         if (e.Status != SessionStatus.InProgress) return OpResult.Fail("الجلسة منتهية");
         e.Status = SessionStatus.Completed; e.EndedAt = DateTime.UtcNow; e.EndedByAdminId = s.Id;
+        var now = DateTime.UtcNow;
+        var open = await db.NewPartRequests.Where(x => x.SessionId == id &&
+            (x.Status == NewPartRequestStatus.PendingSparePartsManager || x.Status == NewPartRequestStatus.PendingAccountant || x.Status == NewPartRequestStatus.ReturnedToEmployee)).ToListAsync();
+        foreach (var r in open)
+        {
+            var prev = r.Status;
+            r.Status = NewPartRequestStatus.SessionClosed; r.UpdatedAt = now;
+            db.WorkflowAudits.Add(new WorkflowAudit
+            {
+                Subject = AuditActions.NewPart, SubjectId = r.Id, NewPartRequestId = r.Id, Action = AuditActions.SessionClosed,
+                FromStatus = prev.ToString(), ToStatus = nameof(NewPartRequestStatus.SessionClosed), ActorAdminId = s.Id, ActorRole = s.Role.ToString(),
+                SessionId = r.SessionId, WarehouseId = r.WarehouseId, BranchId = r.BranchId
+            });
+        }
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
         return OpResult.Success();
     }
 

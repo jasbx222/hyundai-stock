@@ -33,10 +33,15 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(password)) return null;
         var u = await db.AppUsers.FirstOrDefaultAsync(x => x.PhoneNumber == phone);
         if (u == null || !u.IsActive || !pw.Verify(u.PasswordHash, password)) return null;
+        if (await db.Admins.AnyAsync(a => a.IsActive && a.PhoneNumber == phone)) return null;
         return u;
     }
 
-    public Task<bool> IsActiveAsync(int userId) => db.AppUsers.AnyAsync(x => x.Id == userId && x.IsActive);
+    public async Task<bool> IsActiveAsync(int userId)
+    {
+        var u = await db.AppUsers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId && x.IsActive);
+        return u != null && !await db.Admins.AnyAsync(a => a.IsActive && a.PhoneNumber == u.PhoneNumber);
+    }
 
     private Task<List<int>> MyWarehouses(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
     /// <summary>Branches of the user's warehouses: parts imported per branch (BranchNo. only) are visible to every warehouse in that branch.</summary>
@@ -131,14 +136,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             var wbr = await db.Warehouses.Where(z => z.Id == wid).Select(z => (int?)z.BranchId).FirstOrDefaultAsync();
             part = await db.InventoryParts.Where(x => x.SessionId == s.Id && x.PartNumber == pn && (x.WarehouseId == wid || (x.WarehouseId == null && x.BranchId == wbr)))
                 .OrderBy(x => x.WarehouseId == null ? 1 : 0).ThenBy(x => x.CountedQuantity == null ? 0 : 1).ThenBy(x => x.Id).FirstOrDefaultAsync();
-            if (part == null)
-            {
-                if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-                var wh = await db.Warehouses.FirstAsync(x => x.Id == wid);
-                var d = i.Description?.Trim() ?? "";
-                part = new InventoryPart { SessionId = s.Id, PartNumber = pn, Description = d.Length > 400 ? d[..400] : d, SystemQuantity = 0, WarehouseId = wid, BranchId = wh.BranchId };
-                db.InventoryParts.Add(part);
-            }
+            if (part == null) return new(null, "رمز القطعة غير موجود بالنظام", 404);
         }
         if (!CanSee(part, whs, brs)) return new(null, "المستودع غير مرتبط بحسابك", 403);
         // Branch-level part (imported with BranchNo. only): pin it to the warehouse it was counted in.
@@ -153,7 +151,6 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             if ((part.CountedLocation ?? "") != (loc ?? ""))
                 db.PartChangeLogs.Add(new PartChangeLog { InventoryPartId = part.Id, Field = "الموقع المحسوب", OldValue = part.CountedLocation, NewValue = loc, ChangedBy = user.Name, Source = "التطبيق" });
         }
-        else part.ChangeLogs.Add(new PartChangeLog { Field = "الكمية المحسوبة", NewValue = i.Quantity.ToString(), ChangedBy = user.Name, Source = "التطبيق (قطعة غير مدرجة)" });
         part.CountedQuantity = i.Quantity; part.CountedLocation = loc; part.CountedByUserId = userId; part.CountedAt = DateTime.UtcNow;
         part.Latitude = i.Latitude; part.Longitude = i.Longitude;
         await db.SaveChangesAsync();
@@ -264,17 +261,19 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (part == null) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
         if (part.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
         if (await db.QuantityCorrections.AnyAsync(x => x.InventoryPartId == pid && x.Status == RequestStatus.Pending)) return new(null, "يوجد طلب تعديل قيد الانتظار لنفس القطعة", 409);
-        var r = new QuantityCorrectionRequest { InventoryPartId = pid, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = i.NewQuantity.Value, Reason = reason, BranchId = part.BranchId, RequestedByUserId = userId };
+        var r = new QuantityCorrectionRequest { InventoryPartId = pid, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = i.NewQuantity.Value, Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, RequestedByUserId = userId };
         db.QuantityCorrections.Add(r);
         await db.SaveChangesAsync();
-        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, "قيد الانتظار", r.CreatedAt), null, 201);
+        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.Submitted, ToStatus = "PendingWarehouseApproval", ActorUserId = userId, ActorRole = "Counter", Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, InventoryPartId = pid, SessionId = part.SessionId });
+        await db.SaveChangesAsync();
+        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt), null, 201);
     }
 
     public async Task<PagedResult<MobileQtyRequest>> MyQtyRequestsAsync(int userId, PageQuery p)
     {
         var q = db.QuantityCorrections.AsNoTracking().Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Select(x => new MobileQtyRequest(x.Id, x.InventoryPartId, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason,
-                x.Status == RequestStatus.Pending ? "قيد الانتظار" : x.Status == RequestStatus.Approved ? "موافق عليه" : "مرفوض", x.CreatedAt));
+                x.Status == RequestStatus.Approved ? "مقبول" : x.Status == RequestStatus.Rejected ? "مرفوض" : x.ApprovalLevel == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", x.CreatedAt));
         return Paging.Build(q, p);
     }
 

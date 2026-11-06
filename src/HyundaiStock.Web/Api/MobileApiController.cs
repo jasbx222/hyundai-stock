@@ -19,7 +19,7 @@ public sealed class LoginRequest
 [Route("api/v1")]
 [Produces("application/json")]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-public sealed class MobileApiController(MobileService svc, TokenService tokens) : ControllerBase
+public sealed class MobileApiController(MobileService svc, NewPartRequestService newParts, TokenService tokens) : ControllerBase
 {
     private int UserId => int.Parse(User.FindFirst("sub")!.Value);
 
@@ -109,6 +109,19 @@ public sealed class MobileApiController(MobileService svc, TokenService tokens) 
     [HttpGet("qty-requests")]
     public async Task<IActionResult> MyQtyRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         => Ok(ApiResponse.Ok(PageDto<MobileQtyRequest>.From(await svc.MyQtyRequestsAsync(UserId, new PageQuery(page, pageSize)))));
+
+    /// <summary>إرسال طلب إضافة قطعة غير موجودة في جلسة الجرد. لا يُنشئ قطعة قبل الموافقة النهائية.</summary>
+    [HttpPost("new-part-requests")]
+    public async Task<IActionResult> CreateNewPart([FromBody] NewPartInput input) => From(await newParts.CreateAsync(UserId, input), "تم إرسال طلب الإضافة");
+
+    /// <summary>طلبات إضافة القطعة الخاصة بالمستخدم الحالي فقط.</summary>
+    [HttpGet("new-part-requests")]
+    public async Task<IActionResult> MyNewParts([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        => Ok(ApiResponse.Ok(PageDto<MobileNewPart>.From(await newParts.MineAsync(UserId, new PageQuery(page, pageSize)))));
+
+    /// <summary>إلغاء طلب أُرجع إلى الموظف. الموظف صاحب الطلب فقط، والحالة رجع للموظف فقط.</summary>
+    [HttpPost("new-part-requests/{id:int}/cancel")]
+    public async Task<IActionResult> CancelNewPart(int id) => From(await newParts.CancelAsync(UserId, id), "تم إلغاء الطلب بنجاح");
 
     /// <summary>تغيير كلمة مرور المستخدم.</summary>
     [HttpPost("me/password")]

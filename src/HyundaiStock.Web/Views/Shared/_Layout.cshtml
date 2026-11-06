@@ -23,10 +23,14 @@ else
     var sys = new List<(string key, string icon, string text, string url, string tip)> { ("home", "home", "لوحة التحكم", "/", "ملخص الجرد والإحصائيات وآخر النشاطات") };
     if (Menu.Users(s)) sys.Add(("users", "users", "المستخدمين", "/Users", "مستخدمو تطبيق الجرد على الهاتف وفروعهم ومخازنهم"));
     if (Menu.Admins(s)) sys.Add(("admins", "shield", "المشرفين", "/Admins", "حسابات الدخول إلى لوحة التحكم وصلاحياتها"));
-    sys.Add(("branches", "branch", "الفروع", "/Branches", "فروع الشركة وأرقامها في نظام هيونداي"));
-    sys.Add(("warehouses", "box", "المخازن", "/Warehouses", "مخازن كل فرع وأرقامها"));
-    var inv = new List<(string key, string icon, string text, string url, string tip)> {
-        ("requests", "edit", "طلبات التعديل", "/Requests", "طلبات تعديل كمية القطع المرسلة من التطبيق"), ("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"), ("cars", "car", "المركبات", "/Cars", "المركبات الممسوحة برقم الشاصي من التطبيق") };
+    if (Menu.Org(s)) sys.Add(("branches", "branch", "الفروع", "/Branches", "فروع الشركة وأرقامها في نظام هيونداي"));
+    if (Menu.Org(s)) sys.Add(("warehouses", "box", "المخازن", "/Warehouses", "مخازن كل فرع وأرقامها"));
+    var inv = new List<(string key, string icon, string text, string url, string tip)>();
+    if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests", "طلبات تعديل كمية القطع المرسلة من التطبيق"));
+    if (Menu.NewParts(s)) inv.Add(("newparts", "plus", "طلبات إضافة قطعة", "/NewParts", "طلبات إضافة قطعة غير موجودة في جلسة الجرد"));
+    if (Menu.Parts(s)) inv.Add(("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"));
+    if (Menu.Finance(s)) inv.Add(("finance", "export", "فروقات المخزون المالية", "/Finance", "كمية النظام والمعدودة والسعر والقيمة المالية"));
+    if (Menu.Cars(s)) inv.Add(("cars", "car", "المركبات", "/Cars", "المركبات الممسوحة برقم الشاصي من التطبيق"));
     if (Menu.VinRequests(s)) inv.Add(("vinrequests", "vin", "طلبات تصحيح VIN", "/VinRequests", "طلبات تصحيح رقم الشاصي المرسلة من التطبيق"));
     if (Menu.Sessions(s)) inv.Add(("sessions", "session", "جلسات الجرد", "/Sessions", "بدء جلسة جرد برفع ملفات Excel وإنهاؤها وتحميلها"));
     <div class="app">
