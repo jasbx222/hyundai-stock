@@ -9,7 +9,8 @@ public sealed record MobileWarehouse(int Id, string Name, string Type, int Branc
 public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses);
 public sealed record MobileSession(int Id, int Year, string Name, string Status, DateTime StartedAt);
 public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe);
-public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected);
+public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected, string? VehicleType = null);
+public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned);
 public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
 public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt);
@@ -174,8 +175,20 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var e = new ScannedVin { SessionId = s.Id, Vin = vin, UserId = userId, WarehouseId = wid, BranchId = wh.BranchId, Latitude = i.Latitude, Longitude = i.Longitude };
         db.ScannedVins.Add(e);
         await db.SaveChangesAsync();
-        var expected = await db.ExpectedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin);
-        return new(new MobileVin(e.Id, e.Vin, wid, wh.Name, e.Latitude, e.Longitude, e.CreatedAt, expected), null, 201);
+        var exp = await db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == s.Id && x.Vin == vin).Select(x => new { x.Model }).FirstOrDefaultAsync();
+        return new(new MobileVin(e.Id, e.Vin, wid, wh.Name, e.Latitude, e.Longitude, e.CreatedAt, exp != null, exp?.Model), null, 201);
+    }
+
+    /// <summary>Vehicle type for a VIN read by the app (from the session file), before it is saved.</summary>
+    public async Task<MobileResult<MobileVinLookup>> LookupVinAsync(string? raw)
+    {
+        var s = await sessions.CurrentAsync();
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
+        var vin = Validators.NormalizeVin(raw);
+        if (!Validators.IsVin(vin)) return new(null, Validators.VinError, 400);
+        var exp = await db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == s.Id && x.Vin == vin).Select(x => new { x.Model }).FirstOrDefaultAsync();
+        var scanned = await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin);
+        return new(new MobileVinLookup(vin, exp != null, exp?.Model, scanned), null, 200);
     }
 
     public async Task<PagedResult<MobileVin>> MyVinsAsync(int userId, PageQuery p)
@@ -185,7 +198,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var q = db.ScannedVins.AsNoTracking().Where(x => x.UserId == userId && x.SessionId == sid);
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t));
         var rows = q.OrderByDescending(x => x.CreatedAt).Select(x => new MobileVin(x.Id, x.Vin, x.WarehouseId, x.Warehouse!.Name, x.Latitude, x.Longitude, x.CreatedAt,
-            db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin)));
+            db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin),
+            db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Model).FirstOrDefault()));
         return Paging.Build(rows, p);
     }
 

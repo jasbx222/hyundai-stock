@@ -30,9 +30,9 @@
                     @if (!self && a.Role != AdminRole.MainAdmin) {
                         <span class="sep"></span>
                         if (a.IsActive) {
-                            <button type="button" class="btn sm dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" data-title="تعطيل المشرف؟" data-text="سيتم تعطيل حساب @a.Name وإخراجه من الجلسة فورًا" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
+                            <button type="button" class="btn sm dz" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"false"}' data-kind="d" data-icon="power" title="تعطيل المشرف؟" data-title="تعطيل المشرف؟" data-text="سيتم تعطيل حساب @a.Name وإخراجه من الجلسة فورًا" data-ok="تعطيل">@Ui.Icon("power", 14) تعطيل</button>
                         } else {
-                            <button type="button" class="btn sm en" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="power" data-title="تفعيل المشرف؟" data-text="@a.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
+                            <button type="button" class="btn sm en" data-confirm data-action="/Admins/SetActive" data-hidden='{"id":"@a.Id","active":"true"}' data-kind="ok" data-icon="power" title="تفعيل المشرف؟" data-title="تفعيل المشرف؟" data-text="@a.Name سيتمكن من الدخول مرة أخرى" data-ok="تفعيل">@Ui.Icon("power", 14) تفعيل</button>
                         }
                     }
                 </div></td></tr>

@@ -3,8 +3,8 @@
 <div class="ph">
     <div><h1>قطع الغيار</h1></div>
     <div class="acts">
-        <a class="btn" href="/Exports/Parts?kind=uncounted@(sq)">@Ui.Icon("export", 16) تصدير الأجزاء غير المعدودة</a>
-        <a class="btn p" href="/Exports/Parts?kind=all@(sq)">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
+        <a class="btn" href="/Exports/Parts?kind=uncounted@(sq)" title="تحميل ملف Excel بالقطع التي لم تُعدّ بعد">@Ui.Icon("export", 16) تصدير الأجزاء غير المعدودة</a>
+        <a class="btn p" href="/Exports/Parts?kind=all@(sq)" title="تحميل ملف Excel بكل قطع آخر جلسة مع الفروقات">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
     </div>
 </div>
 <div class="card" style="overflow:hidden">
@@ -21,7 +21,7 @@
                 <td><div class="ra">
                     <a class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16)</a>
                     <button type="button" class="btn sm" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تعديل الكمية</button>
-                    <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@p.Id">@Ui.Icon("refresh", 16) إعادة العد</button>
+                    <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@p.Id" title="إرسال القطعة إلى مستخدم لإعادة عدّها">@Ui.Icon("refresh", 16) إعادة العد</button>
                 </div></td></tr>
         }
         </tbody>

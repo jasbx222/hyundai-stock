@@ -1,3 +1,69 @@
-@{ ViewData["Title"] = "لوحة التحكم"; ViewData["Nav"] = "home"; }
-<div class="ph"><div><h1>لوحة التحكم</h1></div></div>
-<div class="card" style="flex:1;min-height:560px;display:grid;place-items:center;background:linear-gradient(180deg,#fff,#F8FAFC)"><div style="text-align:center;opacity:.9"><img src="~/img/hy_emblem_navy.png" alt="" style="display:block;width:120px;height:62px;object-fit:contain;margin:0 auto 16px;opacity:.18" /><div style="color:var(--t3)">مرحباً بك في نظام جرد هيونداي</div></div></div>
+@model HyundaiStock.Infrastructure.Services.HomeStats
+@{ ViewData["Title"] = "لوحة التحكم"; ViewData["Nav"] = "home"; var m = Model; }
+@functions {
+    static string N(int v) => v.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="ph"><div><h1>لوحة التحكم</h1>
+    <p class="muted">@(m.SessionYear is int y ? (m.SessionOpen ? $"ملخص جلسة جرد {y} (قيد التنفيذ)، بدأت {Ui.Date(m.SessionStartedAt)}" : $"ملخص آخر جلسة جرد ({y}، منتهية)") : "لا توجد جلسة جرد بعد. ابدأ جلسة من صفحة جلسات الجرد.")</p></div>
+    @if (m.SessionOpen) { <span class="sess" title="توجد جلسة جرد مفتوحة يمكن للمستخدمين الإرسال إليها">@Ui.Icon("session", 16) جلسة @m.SessionYear مفتوحة</span> }
+</div>
+
+<div class="kpis" style="margin-bottom:16px">
+    <a class="card kpi" href="/Parts" title="عدد قطع الغيار في ملف الجلسة، وكم قطعة منها تم عدّها من التطبيق">
+        <div class="l">@Ui.Icon("part", 18) قطع الغيار المجرودة</div>
+        <div class="v">@N(m.CountedParts) <small>من @N(m.Parts)</small></div>
+        <div class="s">نسبة الإنجاز @m.CountedPercent%</div>
+    </a>
+    <a class="card kpi" href="/Cars" title="عدد المركبات الممسوحة من التطبيق مقارنة بالمركبات الواردة في ملف الجلسة">
+        <div class="l">@Ui.Icon("car", 18) المركبات الممسوحة</div>
+        <div class="v">@N(m.ScannedExpected) <small>من @N(m.ExpectedVins)</small></div>
+        <div class="s">نسبة الإنجاز @m.VinPercent% · إجمالي الممسوح @N(m.ScannedVins)</div>
+    </a>
+    <a class="card kpi" href="/Parts" title="القطع التي اختلفت كميتها المعدودة عن كمية النظام">
+        <div class="l">@Ui.Icon("alert", 18) الفروقات</div>
+        <div class="v" style="color:var(--er)">@N(m.Shortage + m.Surplus)</div>
+        <div class="s">نقص @N(m.Shortage) · زيادة @N(m.Surplus) · مطابقة @N(m.MatchedParts)</div>
+    </a>
+    <a class="card kpi" href="/Requests" title="طلبات تعديل الكمية وتصحيح VIN وإعادة العد التي تنتظر إجراءً">
+        <div class="l">@Ui.Icon("clock", 18) طلبات بانتظار الإجراء</div>
+        <div class="v" style="color:var(--wa)">@N(m.PendingQty + m.PendingVin + m.PendingRecounts)</div>
+        <div class="s">تعديل كمية @N(m.PendingQty) · تصحيح VIN @N(m.PendingVin) · إعادة عد @N(m.PendingRecounts)</div>
+    </a>
+</div>
+<div class="kpis" style="margin-bottom:16px">
+    <a class="card kpi" href="/Branches" title="عدد الفروع المسجلة"><div class="l">@Ui.Icon("branch", 18) الفروع</div><div class="v">@N(m.Branches)</div></a>
+    <a class="card kpi" href="/Warehouses" title="عدد المخازن المسجلة"><div class="l">@Ui.Icon("box", 18) المخازن</div><div class="v">@N(m.Warehouses)</div></a>
+    <a class="card kpi" href="/Users" title="عدد مستخدمي تطبيق الجرد"><div class="l">@Ui.Icon("users", 18) مستخدمو التطبيق</div><div class="v">@N(m.Users)</div></a>
+    <a class="card kpi" href="/Sessions" title="عدد جلسات الجرد (الحالية والسابقة)"><div class="l">@Ui.Icon("session", 18) جلسات الجرد</div><div class="v">@N(m.Sessions)</div></a>
+</div>
+
+<div style="display:grid;grid-template-columns:3fr 2fr;gap:16px">
+    <div class="card" style="padding:20px">
+        <h3 style="margin:0 0 12px" title="تقدّم الجرد لكل فرع في الجلسة">التقدّم حسب الفرع</h3>
+        @if (m.ByBranch.Count == 0) { <p class="muted">لا توجد بيانات.</p> }
+        else {
+        <table class="tbl" style="width:100%">
+            <thead><tr><th>الفرع</th><th title="القطع المعدودة من إجمالي قطع الفرع">قطع الغيار</th><th title="نسبة القطع المعدودة">الإنجاز</th><th title="المركبات الممسوحة / الواردة في الملف">المركبات</th></tr></thead>
+            <tbody>
+            @foreach (var b in m.ByBranch) {
+                var pc = b.Parts == 0 ? 0 : (int)Math.Round(b.Counted * 100.0 / b.Parts);
+                <tr><td>@b.Name</td><td class="mono">@N(b.Counted) / @N(b.Parts)</td>
+                    <td><div title="@pc%" style="height:8px;border-radius:4px;background:var(--bd);min-width:80px"><div style="height:8px;border-radius:4px;background:var(--ok);width:@(pc)%"></div></div></td>
+                    <td class="mono">@N(b.Scanned) / @N(b.Vins)</td></tr>
+            }
+            </tbody>
+        </table>
+        }
+    </div>
+    <div class="card" style="padding:20px">
+        <h3 style="margin:0 0 12px" title="آخر عمليات العد والمسح من التطبيق">آخر النشاطات</h3>
+        @if (m.Recent.Count == 0) { <p class="muted">ستظهر هنا آخر عمليات العدّ والمسح من التطبيق.</p> }
+        @foreach (var a in m.Recent) {
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--bd)">
+                <span title="@(a.Kind == "car" ? "مسح مركبة" : "عدّ قطعة")">@Ui.Icon(a.Kind, 18)</span>
+                <div style="flex:1;min-width:0"><b style="font-size:14px">@a.Title</b><div class="muted" style="font-size:12px">@a.Detail@(a.By.Length > 0 ? " · " + a.By : "")</div></div>
+                <span class="muted mono" style="font-size:12px" title="التاريخ بتوقيت بغداد">@Ui.Date(a.At)</span>
+            </div>
+        }
+    </div>
+</div>
