@@ -14,7 +14,7 @@
     @if (ms.ErrorOf("") is string ge) { <div class="alert er" style="margin-bottom:18px">@Ui.Icon("alert", 18)<span>@ge</span></div> }
     <div class="fg2">
         <div><label class="lbl" for="Name">الاسم<i> *</i></label><div class="@ms.Cls("Name")"><input id="Name" name="Name" value="@Model.Name" maxlength="150" required placeholder="الاسم الكامل" /></div>@ms.Err("Name")</div>
-        <div><label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label><div class="@ms.Cls("PhoneNumber")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" maxlength="11" @(editing ? "readonly" : "required") placeholder="07XXXXXXXXX" dir="ltr" class="mono" style="text-align:right" /></div>@ms.Err("PhoneNumber")</div>
+        <div><label class="lbl" for="PhoneNumber">رقم الهاتف<i> *</i></label><div class="@ms.Cls("PhoneNumber")"><input id="PhoneNumber" name="PhoneNumber" value="@Model.PhoneNumber" inputmode="numeric" maxlength="11" required placeholder="07XXXXXXXXX" dir="ltr" class="mono" style="text-align:right" /></div>@ms.Err("PhoneNumber")</div>
         @if (!editing) {
         <div><label class="lbl" for="Password">كلمة المرور<i> *</i></label><div class="@ms.Cls("Password")"><input id="Password" name="Password" type="password" minlength="6" required autocomplete="new-password" placeholder="6 أحرف على الأقل" /></div>@ms.Err("Password")</div>
         }
