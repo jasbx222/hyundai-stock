@@ -28,8 +28,16 @@
         </select></div>@ms.Err("Role")</div>
         } else { <input type="hidden" name="Role" value="2" /> }
         <div data-scope="branch"><label class="lbl" for="BranchId">الفرع<i> *</i></label><label class="sel @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></label>@ms.Err("BranchId")</div>
-        <div data-scope="branches"><label class="lbl">الفروع<i> *</i></label><div class="field" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto">@foreach (var b in branches) { <label><input type="checkbox" name="BranchIds" value="@b.Id" checked="@(Model.BranchIds.Contains(b.Id))" /> @b.Name</label> }</div>@ms.Err("BranchIds")</div>
-        <div data-scope="warehouses"><label class="lbl">المخازن<i> *</i></label><div class="field" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto">@foreach (var w in warehouses) { <label><input type="checkbox" name="WarehouseIds" value="@w.Id" checked="@(Model.WarehouseIds.Contains(w.Id))" /> @w.Name</label> }</div>@ms.Err("WarehouseIds")</div>
+        <div data-scope="branches"><label class="lbl">الفروع<i> *</i></label>
+            <details class="msel @(ms.ErrorOf("BranchIds") != null ? "err" : "")"><summary><span data-ph="اختر الفروع"></span>@Ui.Icon("chev", 14)</summary><div class="opts">
+                @foreach (var b in branches) { <label><input type="checkbox" name="BranchIds" value="@b.Id" data-name="@b.Name" checked="@Model.BranchIds.Contains(b.Id)" /> @b.Name</label> }
+                @if (branches.Count == 0) { <p class="muted">لا توجد فروع</p> }
+            </div></details>@ms.Err("BranchIds")</div>
+        <div data-scope="warehouses"><label class="lbl">المخازن<i> *</i></label>
+            <details class="msel @(ms.ErrorOf("WarehouseIds") != null ? "err" : "")"><summary><span data-ph="اختر المخازن"></span>@Ui.Icon("chev", 14)</summary><div class="opts">
+                @foreach (var w in warehouses) { <label><input type="checkbox" name="WarehouseIds" value="@w.Id" data-name="@w.Name" checked="@Model.WarehouseIds.Contains(w.Id)" /> @w.Name</label> }
+                @if (warehouses.Count == 0) { <p class="muted">لا توجد مخازن</p> }
+            </div></details>@ms.Err("WarehouseIds")</div>
     </div>
     <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Admins">إلغاء</a></div>
 </form>
