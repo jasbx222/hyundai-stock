@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="/css/design.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <title>recount radio check</title>
+</head>
+<body>
+  <div class="ov show" id="remote" role="dialog" aria-modal="true">
+    <div class="modal"><form method="post" action="/Parts/Recount/1" id="recount-form">
+      <div class="mh"><div><h3>طلب إعادة عد</h3><p><span class="mono">COUNTED-1</span></p></div></div>
+      <div class="mb" style="display:grid;gap:10px">
+        <label class="opt" id="same-opt">
+          <input type="radio" name="mode" value="same" id="same-radio" />
+          <span>نفس المستخدم (ياسر عمار)</span>
+        </label>
+        <label class="opt" id="other-opt">
+          <input type="radio" name="mode" value="other" id="other-radio" checked />
+          <span>مستخدم آخر</span>
+        </label>
+        <div id="other-user" style="display:block">
+          <label class="lbl">المستخدم<i> *</i></label>
+          <div class="field"><select name="userId" id="user-select"><option value="">اختر المستخدم</option><option value="1">ياسر عمار</option></select></div>
+        </div>
+      </div>
+    </form></div>
+  </div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
