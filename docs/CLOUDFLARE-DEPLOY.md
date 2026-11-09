@@ -22,7 +22,7 @@ browser / mobile app ──HTTPS──▶ Worker "hyundai-stock" ──▶ Conta
 | Item | Why | Cost |
 |---|---|---|
 | Cloudflare **Workers Paid** plan | Containers are not available on the Free plan | $5 / month (includes 25 GiB-h memory, 375 vCPU-min, 200 GB-h disk) |
-| Container `basic` (¼ vCPU, 1 GiB, 4 GB disk) | Billed only while awake; sleeps after `SLEEP_AFTER` (default 2 h) idle | ~$0–3 / month for office-hours use; ~$7 / month if it never sleeps |
+| Container `basic` (¼ vCPU, 1 GiB, 4 GB disk) | Billed only while awake; kept warm 06:00–22:00 Baghdad, sleeps after `SLEEP_AFTER` (2 h) idle | ~$3–4 / month above the included usage; ~$7 / month if it never sleeps |
 | SQL Server database | Container disk is wiped on every restart, so data must live outside it | **Azure SQL Basic (5 DTU, 2 GB): ~$4.90 / month**, or Azure SQL free offer: $0 |
 
 The app already supports SQL Server (EF Core migrations run automatically on start),
@@ -88,20 +88,58 @@ expected VINs, 3 recount requests, 12 change logs). Two options:
 
 Uploaded import files (`App_Data/uploads`) are not needed to run the session.
 
-## Switching `hyundai.cloudapps.trade`
+## Cut-over: same hostname, no app rebuild
+
+The released mobile app is built with `API_BASE_URL=https://hyundai.cloudapps.trade`
+and calls `/api/v1/...` over HTTPS. The container serves exactly the same app, so
+paths, request/response JSON and HTTPS stay identical. Only the Worker behind the
+hostname changes; DNS, the TLS certificate and the app build are untouched.
 
 `hyundai.cloudapps.trade` is currently a Worker custom domain on
-`hyundai-admin-relay` (relay to the PC). After the workers.dev URL is verified:
+`hyundai-admin-relay` (relay to the PC). `api-hyundai.cloudapps.trade`
+(`hyundai-api`) is not touched.
 
-1. Dashboard → Workers & Pages → `hyundai-admin-relay` → Settings → Domains &
-   Routes → remove `hyundai.cloudapps.trade`.
-2. In `deploy/cloudflare/wrangler.jsonc`, uncomment the `routes` line, push to
-   `main` (token needs Zone → Workers Routes → Edit).
-3. Check `https://hyundai.cloudapps.trade/Account/Login` and the mobile app.
-   The app's API base URL stays the same.
+**Before the cut-over**
 
-**Rollback:** remove the custom domain from `hyundai-stock` and add it back to
-`hyundai-admin-relay`; the PC relay works as before.
+1. Deploy (merge to `main`) and test on
+   `https://hyundai-stock.cloudapps-trade.workers.dev`: dashboard login, and with a
+   debug build or `curl`, `POST /api/v1/auth/login` → `GET /api/v1/me` →
+   `GET /api/v1/sessions/current`.
+2. Decide the data path (see "Moving existing data"), and stop counting on the PC
+   while the data is copied.
+3. **JWT key:** phones keep their stored token across the cut-over.
+   * Data copied with the same IDs → set `HYUNDAI_JWT_KEY` to the PC's current
+     `Jwt:Key`; phones stay signed in.
+   * Fresh database → use a **new** key. Old tokens then get 401 and the app shows
+     its login screen (users sign in once; no rebuild). Never reuse the old key
+     with a fresh database: a token's user ID could point at a different account.
+
+**Switch (one API call, seconds, no DNS change)**
+
+```bash
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+  --data '{"hostname":"hyundai.cloudapps.trade","service":"hyundai-stock","zone_name":"cloudapps.trade"}'
+```
+
+This re-points the existing custom domain from `hyundai-admin-relay` to
+`hyundai-stock` (the dashboard's Worker → Settings → Domains & Routes does the same).
+Then uncomment the `routes` line in `wrangler.jsonc` and push, so later deploys keep
+the domain (the deploy token then needs **Zone → Workers Routes → Edit** on
+`cloudapps.trade`).
+
+**Check right after:** `https://hyundai.cloudapps.trade/Account/Login`, a login and
+a count from a phone with the installed app.
+
+**Rollback (seconds):** the same call with `"service":"hyundai-admin-relay"`; the PC
+relay works as before (the PC backend must be running).
+
+**Cold starts and the app's 30 s timeout:** the app gives up after 30 s. A cron
+trigger pings the container every 20 minutes from 06:00 to 22:00 Baghdad time, so it
+stays warm during the working day. If an API call still arrives during a cold
+start, the Worker answers within ~15 s with HTTP 503 and the app's usual JSON shape
+(`{"success":false,"message":"الخادم قيد التشغيل، حاول بعد لحظات"}`) instead of
+hanging; a retry succeeds once the container is up.
 
 ## Known limitations (follow-up work, not blocking)
 
@@ -115,8 +153,8 @@ Uploaded import files (`App_Data/uploads`) are not needed to run the session.
 * **Login rate limit** (10/min) is keyed on the client IP, which is always the
   loopback forwarder (same as with the current relay). Fix: key on
   `CF-Connecting-IP`.
-* Cold start (container + .NET + migrations) takes roughly 5–30 s; the Worker shows
-  a short "starting" page (503 + `Retry-After` for `/api`).
+* Cold start (container + .NET + migrations) takes roughly 5–30 s outside the
+  keep-warm window; the Worker shows a short "starting" page (503 JSON for `/api`).
 
 ## Local verification
 

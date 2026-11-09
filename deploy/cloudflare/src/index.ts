@@ -45,9 +45,11 @@ export class HyundaiBackend extends Container<Env> {
     if (state.status !== "healthy") {
       try {
         // .NET start-up plus EF migrations (and a waking database) can exceed the 20 s default.
+        // The mobile app gives up after 30 s, so API calls get a clean 503 before that.
+        const api = isApiPath(request);
         await this.startAndWaitForPorts(PORT, {
-          instanceGetTimeoutMS: 60_000,
-          portReadyTimeoutMS: 180_000,
+          instanceGetTimeoutMS: api ? 10_000 : 60_000,
+          portReadyTimeoutMS: api ? 15_000 : 180_000,
           abort: request.signal,
         });
       } catch (err) {
@@ -64,9 +66,12 @@ export class HyundaiBackend extends Container<Env> {
   }
 }
 
+function isApiPath(request: Request): boolean {
+  return new URL(request.url).pathname.toLowerCase().startsWith("/api");
+}
+
 function startingResponse(request: Request): Response {
-  const isApi = new URL(request.url).pathname.toLowerCase().startsWith("/api");
-  if (isApi) {
+  if (isApiPath(request)) {
     return Response.json(
       { success: false, message: "الخادم قيد التشغيل، حاول بعد لحظات", data: null, errors: null },
       { status: 503, headers: { "Retry-After": "15" } },
@@ -89,5 +94,19 @@ export default {
     const forwarded = new Request(request, { headers });
     // Single named instance: the app keeps rate limits and data-protection keys in memory.
     return getContainer(env.BACKEND, "primary").fetch(forwarded);
+  },
+
+  // Keep-warm during working hours (see "triggers" in wrangler.jsonc) so phones
+  // never hit a cold start: each ping renews the container's sleep timer.
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const ping = new Request("https://hyundai.cloudapps.trade/Account/Login", {
+      headers: { "X-Forwarded-Proto": "https", "User-Agent": "hyundai-keep-warm" },
+    });
+    ctx.waitUntil(
+      getContainer(env.BACKEND, "primary")
+        .fetch(ping)
+        .then((r) => console.log("keep-warm", r.status))
+        .catch((e) => console.error("keep-warm failed", e)),
+    );
   },
 } satisfies ExportedHandler<Env>;

@@ -7,11 +7,14 @@
   "compatibility_date": "2026-11-01",
   "observability": { "enabled": true },
 
-  // Served on hyundai-stock.cloudapps-trade.workers.dev until the switch-over.
-  // To move hyundai.cloudapps.trade here, first detach it from the
-  // "hyundai-admin-relay" Worker, then uncomment (see docs/CLOUDFLARE-DEPLOY.md).
+  // Served on hyundai-stock.cloudapps-trade.workers.dev until the cut-over.
+  // hyundai.cloudapps.trade is moved here with one API call (docs/CLOUDFLARE-DEPLOY.md);
+  // only after that, uncomment the route so later deploys keep it.
   "workers_dev": true,
   // "routes": [{ "pattern": "hyundai.cloudapps.trade", "custom_domain": true }],
+
+  // Keep-warm ping every 20 min, 06:00-21:59 Baghdad time (03:00-18:59 UTC).
+  "triggers": { "crons": ["*/20 3-18 * * *"] },
 
   "containers": [
     {
