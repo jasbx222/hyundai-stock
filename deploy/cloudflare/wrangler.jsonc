@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Worker that fronts the Hyundai Stock ASP.NET container.
+  // Deployed by .github/workflows/deploy-cloudflare.yml on push to main.
+  "name": "hyundai-stock",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+
+  // Served on hyundai-stock.cloudapps-trade.workers.dev until the switch-over.
+  // To move hyundai.cloudapps.trade here, first detach it from the
+  // "hyundai-admin-relay" Worker, then uncomment (see docs/CLOUDFLARE-DEPLOY.md).
+  "workers_dev": true,
+  // "routes": [{ "pattern": "hyundai.cloudapps.trade", "custom_domain": true }],
+
+  "containers": [
+    {
+      "class_name": "HyundaiBackend",
+      "image": "../../Dockerfile",
+      "image_build_context": "../..",
+      // 1/4 vCPU, 1 GiB RAM, 4 GB disk. Enough for the dashboard, API and Excel imports.
+      "instance_type": "basic",
+      // One instance: in-memory login rate limiting and data-protection keys stay consistent.
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "BACKEND", "class_name": "HyundaiBackend" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HyundaiBackend"] }],
+
+  "vars": {
+    // Idle time before the container sleeps. Each cold start takes ~10-60 s and
+    // signs dashboard users out (data-protection keys are not persisted yet).
+    "SLEEP_AFTER": "2h",
+    "ASPNETCORE_ENVIRONMENT": "Production"
+  }
+  // Runtime secrets (set by the GitHub workflow from repository secrets, never committed):
+  //   DB_CONNECTION_STRING, JWT_KEY, SEED_ADMIN_NAME, SEED_ADMIN_PHONE,
+  //   SEED_ADMIN_PASSWORD, FCM_SERVER_KEY (optional)
+}
