@@ -248,7 +248,7 @@ public sealed class ExcelImportService
     }
 }
 
-public sealed class SessionService(AppDbContext db, ExcelImportService importer, IOptions<StorageOptions> opt, Microsoft.Extensions.Hosting.IHostEnvironment env)
+public sealed class SessionService(AppDbContext db, ExcelImportService importer, IOptions<StorageOptions> opt, Microsoft.Extensions.Hosting.IHostEnvironment env, IStockNotifier? notify = null)
 {
     private string Dir
     {
@@ -360,6 +360,11 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
             });
         }
         finally { db.ChangeTracker.AutoDetectChangesEnabled = prevDetect; }
+        if (notify != null)
+        {
+            try { await notify.SessionStartedAsync(session.Id); }
+            catch { /* a missed notification does not undo the session */ }
+        }
         return OpResult.Success(session.Id);
     }
 

@@ -30,4 +30,5 @@ public abstract class DashboardController : Controller
     }
 
     protected IActionResult NotFoundPage() { Response.StatusCode = 404; return View("~/Views/Shared/NotFound.cshtml"); }
+    protected IActionResult ForbidPage() { Response.StatusCode = 403; return View("~/Views/Shared/Forbidden.cshtml"); }
 }

@@ -1,10 +1,12 @@
 @model InventoryPart
+@{ var indicator = ViewBag.Indicator as string; }
 <div class="modal">
     <div class="mh"><div class="mic pr">@Ui.Icon("part", 20)</div><div><h3 class="mono">@Model.PartNumber</h3><p>@Model.Description</p></div><button class="ib" data-close style="margin-inline-start:auto" title="إغلاق" aria-label="إغلاق">@Ui.Icon("x", 18)</button></div>
     <div class="kv">
-        <div><span>كمية النظام</span><b class="num">@Model.SystemQuantity</b></div>
+        @if (indicator == null) { <div><span>كمية النظام</span><b class="num">@Model.SystemQuantity</b></div> }
         <div><span>الكمية المعدودة</span><b class="num">@(Model.CountedQuantity?.ToString() ?? "—")</b></div>
-        <div><span>الفرق</span><b>@Ui.Diff(Model.CountedQuantity, Model.SystemQuantity)</b></div>
+        @if (indicator == null) { <div><span>الفرق</span><b>@Ui.Diff(Model.CountedQuantity, Model.SystemQuantity)</b></div> }
+        else { <div><span>المؤشر</span><b>@indicator</b></div> }
         <div><span>موقع النظام</span><b class="mono">@(Model.SystemLocation ?? "—")</b></div>
         <div><span>الموقع المعدود</span><b class="mono">@(Model.CountedLocation ?? "—")</b></div>
         <div><span>الفرع / المخزن</span><b>@(Model.Branch?.Name ?? "—") / @(Model.Warehouse?.Name ?? "—")</b></div>

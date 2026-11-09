@@ -1,8 +1,7 @@
 @model PagedResult<PartRow>
-@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"&sessionId={session.Id}" : ""; }
+@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"&sessionId={session.Id}" : ""; var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>قطع الغيار</h1></div>
-    @{ var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
     <div class="acts">
         @if (Menu.LegacyExport(me)) {
         <a class="btn" href="/Exports/Parts?kind=uncounted@(sq)" title="تحميل ملف Excel بالقطع التي لم تُعدّ بعد">@Ui.Icon("export", 16) تصدير الأجزاء غير المعدودة</a>
@@ -14,23 +13,26 @@
     <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم القطعة")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(session == null || string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", session == null ? "ابدأ جلسة جرد وارفع ملف Excel لتظهر القطع." : "جرّب رقم قطعة آخر.", "part")) }
     else {
-    <table>
-        <thead><tr><th>الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th><th>الكمية في النظام</th><th>الفرق</th><th>الفرع</th><th>المستخدم</th><th>الإجراءات</th></tr></thead>
+    <div class="hscroll"><table>
+        <thead><tr><th>الرقم</th><th>رقم القطعة</th><th>الوصف</th><th>الكمية المعدودة</th>@if (me.HidesStockFigures) { <th>المؤشر</th> } else { <th>الكمية في النظام</th><th>الفرق</th> }<th>الفرع</th><th>المستخدم</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var p in Model.Items) {
             <tr><td><span class="idx">@Ui.Idx(p.Id)</span></td><td><span class="mono">@p.PartNumber</span></td><td class="clip" title="@p.Description">@p.Description</td>
-                <td><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></td><td class="num">@p.SystemQuantity</td><td>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</td>
+                <td><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></td>
+                @if (me.HidesStockFigures) { <td>@(p.Indicator ?? "—")</td> } else { <td class="num">@p.SystemQuantity</td><td>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</td> }
                 <td>@(p.BranchName ?? "—")</td><td>@Ui.Who(p.UserName)</td>
                 <td><div class="ra">
                     <a class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16)</a>
-                    @if (Menu.PartActions(me)) {
+                    @if (!me.HidesStockFigures && (me.CanFirstApproveQty || me.CanFinalApproveQty)) {
                     <button type="button" class="btn sm" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تعديل الكمية</button>
+                    }
+                    @if (me.CanRequestRecount) {
                     <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@p.Id" title="إرسال القطعة إلى مستخدم لإعادة عدّها">@Ui.Icon("refresh", 16) إعادة العد</button>
                     }
                 </div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

@@ -11,5 +11,19 @@
         <div><label class="lbl" for="NewQuantity">الكمية الجديدة<i> *</i></label><div class="@ms.Cls("NewQuantity")"><input id="NewQuantity" name="NewQuantity" value="@Model.NewQuantity" type="number" min="0" class="num" required placeholder="0" /></div>@ms.Err("NewQuantity")</div>
     </div>
     <div style="margin-top:18px"><label class="lbl" for="Reason">السبب</label><div class="@ms.Cls("Reason")"><input id="Reason" name="Reason" value="@Model.Reason" maxlength="500" placeholder="اكتب سبب التعديل" /></div>@ms.Err("Reason")</div>
+    @{
+        var choices = ViewBag.Choices as AudienceChoices ?? new AudienceChoices(new(), new(), new());
+        var audience = Model.Audience ?? "user";
+    }
+    <div style="margin-top:18px;display:grid;gap:8px">
+        <label class="lbl">إرسال الطلب إلى<i> *</i></label>
+        <label class="opt"><input type="radio" name="Audience" value="user" checked="@(audience == "user" ? "checked" : null)" /> <span>مستخدم محدد</span></label>
+        <div class="@ms.Cls("AudienceUserId")"><select name="AudienceUserId"><option value="">اختر المستخدم</option>@foreach (var u in choices.Users) { <option value="@u.Id" selected="@(Model.AudienceUserId == u.Id ? "selected" : null)">@u.Name</option> }</select></div>
+        <label class="opt"><input type="radio" name="Audience" value="branch" checked="@(audience == "branch" ? "checked" : null)" /> <span>فرع — يصل لكل مستخدميه</span></label>
+        <div class="field"><select name="AudienceBranchId"><option value="">اختر الفرع</option>@foreach (var b in choices.Branches) { <option value="@b.Id" selected="@(Model.AudienceBranchId == b.Id ? "selected" : null)">@b.Name</option> }</select></div>
+        <label class="opt"><input type="radio" name="Audience" value="warehouse" checked="@(audience == "warehouse" ? "checked" : null)" /> <span>مخزن — يصل لكل مستخدميه</span></label>
+        <div class="field"><select name="AudienceWarehouseId"><option value="">اختر المخزن</option>@foreach (var w in choices.Warehouses) { <option value="@w.Id" selected="@(Model.AudienceWarehouseId == w.Id ? "selected" : null)">@w.Name</option> }</select></div>
+        <span class="hint">إذا لم تختر مستخدمًا، يصل الطلب إلى المستخدمين النشطين في الفرع أو المخزن الذي اخترته. يجب أن يطابق الفرع أو المخزن قطعة الطلب.</span>
+    </div>
     <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Requests">إلغاء</a></div>
 </form>

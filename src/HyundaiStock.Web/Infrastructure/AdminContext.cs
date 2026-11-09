@@ -27,7 +27,7 @@ public sealed class AdminScopeFilter(AppDbContext db) : IAsyncActionFilter
                 ctx.Result = new RedirectToActionResult("Login", "Account", null);
                 return;
             }
-            http.Items[Key] = new AdminScope(a.Id, a.Name, a.Role, a.BranchId, a.Warehouses.Select(x => x.WarehouseId).ToList(), a.Branches.Select(x => x.BranchId).ToList());
+            http.Items[Key] = new AdminScope(a.Id, a.Name, a.Role, a.BranchId, a.Warehouses.Select(x => x.WarehouseId).ToList(), a.Branches.Select(x => x.BranchId).ToList(), a.AllBranches);
         }
         await next();
     }
@@ -55,15 +55,15 @@ public static class Menu
     public static bool Users(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
     public static bool Admins(AdminScope s) => s.IsSuper;
     public static bool Sessions(AdminScope s) => s.IsSuper;
-    public static bool VinRequests(AdminScope s) => s.Role is AdminRole.Admin or AdminRole.WarehouseManager;
+    public static bool VinRequests(AdminScope s) => s.Role is AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.VehicleWarehouseManager;
     public static bool ManageOrg(AdminScope s) => s.IsSuper;
     public static bool Org(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
-    public static bool Parts(AdminScope s) => s.Role != AdminRole.SparePartsManager;
-    public static bool Requests(AdminScope s) => s.Role != AdminRole.SparePartsManager;
+    public static bool Parts(AdminScope s) => true;
+    public static bool Requests(AdminScope s) => s.Role is not (AdminRole.SparePartsManager or AdminRole.VehicleWarehouseManager);
     public static bool Cars(AdminScope s) => s.Role != AdminRole.SparePartsManager;
     public static bool NewParts(AdminScope s) => s.CanReviewNewPart || s.CanFinalApproveNewPart;
-    public static bool Finance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
-    public static bool PartActions(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager;
+    public static bool Finance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
+    public static bool PartActions(AdminScope s) => s.CanFirstApproveQty;
     public static bool LegacyExport(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
 }
 

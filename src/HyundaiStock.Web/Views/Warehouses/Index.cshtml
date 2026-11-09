@@ -15,7 +15,7 @@
     </div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) && bid == null ? "لا توجد بيانات" : "لا توجد نتائج", "لا توجد مخازن مطابقة. أضف مخزنًا جديدًا أو غيّر الفلتر.", "box")) }
     else {
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الرقم</th><th>رقم المخزن</th><th>اسم المخزن</th><th>الفرع</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var w in Model.Items) {
@@ -30,7 +30,7 @@
             </div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

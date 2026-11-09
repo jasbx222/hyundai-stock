@@ -1,16 +1,18 @@
 @model PartDetails
 @{ var p = Model.Part; ViewData["Title"] = p.PartNumber; ViewData["Nav"] = "parts"; string tab = ViewBag.Tab as string ?? "corrections"; if (tab is not ("corrections" or "recounts" or "logs")) tab = "corrections"; }
 <div class="ph">
-    <div style="display:flex;align-items:center;gap:12px"><h1 class="mono">@p.PartNumber</h1>@Ui.Match(p.CountedQuantity, p.SystemQuantity)</div>
+    <div style="display:flex;align-items:center;gap:12px"><h1 class="mono">@p.PartNumber</h1>@(Model.Indicator != null ? Ui.Badge(Model.Indicator, Model.Indicator == "مطابق" ? "ok" : "er") : Ui.Match(p.CountedQuantity, p.SystemQuantity))</div>
     <div class="acts"><a class="btn" href="/Parts">@Ui.Icon("arrowr", 16) رجوع</a></div>
 </div>
 <div class="card" style="padding:24px">
     <div class="kv kf">
         <div style="grid-column:1/-1"><span>الوصف</span><b>@p.Description</b></div>
-        <div><span>الكمية في النظام</span><b class="num">@p.SystemQuantity</b></div>
+        @if (Model.Indicator == null) { <div><span>الكمية في النظام</span><b class="num">@p.SystemQuantity</b></div> }
         <div><span>الكمية المحسوبة</span><b class="num">@(p.CountedQuantity?.ToString() ?? "—")</b></div>
-        <div><span>الفرق</span><b>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</b></div>
-        <div><span>الحالة</span><b>@Ui.Match(p.CountedQuantity, p.SystemQuantity)</b></div>
+        @if (Model.Indicator == null) {
+            <div><span>الفرق</span><b>@Ui.Diff(p.CountedQuantity, p.SystemQuantity)</b></div>
+            <div><span>الحالة</span><b>@Ui.Match(p.CountedQuantity, p.SystemQuantity)</b></div>
+        } else { <div><span>المؤشر</span><b>@Model.Indicator</b></div> }
         <div><span>الموقع في المخزن</span><b class="mono">@(p.SystemLocation ?? "—")</b></div>
         <div><span>الموقع المحسوب</span><b class="mono">@(p.CountedLocation ?? "—")</b></div>
         <div><span>الفرع</span><b>@(p.Branch?.Name ?? "—")</b></div>
@@ -27,20 +29,20 @@
     </div>
     <div class="tabpane @(tab == "corrections" ? "on" : "")" id="corrections">
         @if (Model.Corrections.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "تظهر هنا طلبات تعديل الكمية لهذه القطعة.", "edit")) }
-        else { <table><thead><tr><th>الرقم</th><th>طلب من قبل</th><th>الكمية الجديدة</th><th>مستوى الموافقة</th><th>الحالة</th><th>تاريخ الطلب</th><th>وقت الطلب</th></tr></thead><tbody>
+        else { <div class="hscroll"><table><thead><tr><th>الرقم</th><th>طلب من قبل</th><th>الكمية الجديدة</th><th>مستوى الموافقة</th><th>الحالة</th><th>تاريخ الطلب</th><th>وقت الطلب</th></tr></thead><tbody>
             @foreach (var r in Model.Corrections) { <tr title="@r.Reason"><td><span class="idx">#@r.Id.ToString("0000")</span></td><td>@Ui.Who(r.RequestedBy)</td><td><b class="num">@r.NewQuantity</b></td><td>@Ui.Step(r.Status, r.Level)</td><td>@Ui.Qty(r.Status, r.Level)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Clock(r.CreatedAt)</td></tr> }
-        </tbody></table> }
+        </tbody></table></div> }
     </div>
     <div class="tabpane @(tab == "recounts" ? "on" : "")" id="recounts">
         @if (Model.Recounts.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "تظهر هنا طلبات إعادة العد لهذه القطعة.", "refresh")) }
-        else { <table><thead><tr><th>الرقم</th><th>المستخدم</th><th>طلب بواسطة</th><th>الحالة</th><th>النتيجة</th><th>تاريخ الطلب</th><th>تاريخ الإكمال</th></tr></thead><tbody>
+        else { <div class="hscroll"><table><thead><tr><th>الرقم</th><th>المستخدم</th><th>طلب بواسطة</th><th>الحالة</th><th>النتيجة</th><th>تاريخ الطلب</th><th>تاريخ الإكمال</th></tr></thead><tbody>
             @foreach (var r in Model.Recounts) { <tr><td><span class="idx">@Ui.Idx(r.Id)</span></td><td>@Ui.Who(r.UserName)</td><td>@Ui.Who(r.RequestedBy)</td><td>@Ui.Recount(r.Status)</td><td class="num">@(r.ResultQuantity?.ToString() ?? "—")</td><td>@Ui.When(r.CreatedAt)</td><td>@Ui.When(r.CompletedAt)</td></tr> }
-        </tbody></table> }
+        </tbody></table></div> }
     </div>
     <div class="tabpane @(tab == "logs" ? "on" : "")" id="logs">
         @if (Model.Logs.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "أي تغيير على القطعة ينسجل هنا.", "history")) }
-        else { <table><thead><tr><th>الحقل</th><th>القيمة القديمة</th><th>القيمة الجديدة</th><th>بواسطة</th><th>المصدر</th><th>التاريخ</th></tr></thead><tbody>
+        else { <div class="hscroll"><table><thead><tr><th>الحقل</th><th>القيمة القديمة</th><th>القيمة الجديدة</th><th>بواسطة</th><th>المصدر</th><th>التاريخ</th></tr></thead><tbody>
             @foreach (var l in Model.Logs) { <tr><td>@l.Field</td><td class="num">@(l.OldValue ?? "—")</td><td class="num"><b>@(l.NewValue ?? "—")</b></td><td>@l.ChangedBy</td><td>@l.Source</td><td>@Ui.When(l.CreatedAt)</td></tr> }
-        </tbody></table> }
+        </tbody></table></div> }
     </div>
 </div>

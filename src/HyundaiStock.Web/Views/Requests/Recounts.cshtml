@@ -1,0 +1,29 @@
+@model PagedResult<RecountListRow>
+@{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; }
+<div class="ph"><div><h1>طلبات التعديل</h1></div></div>
+<div class="tabs" role="tablist" style="margin-bottom:12px">
+    <a href="/Requests" role="tab">تصحيح الكمية</a>
+    <a href="/Requests?kind=recount" class="on" role="tab">إعادة العد</a>
+</div>
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو الاسم")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات إعادة العد.", "refresh")) }
+    else {
+    <div class="hscroll"><table>
+        <thead><tr><th>القطعة</th><th>طلب من قبل</th><th>موجّه إلى</th><th>وقت الطلب</th><th>الحالة</th><th>النتيجة</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Items) {
+            <tr>
+                <td class="mono">@r.PartNumber</td>
+                <td>@Ui.Who(r.RequestedBy)</td>
+                <td>@Ui.Who(r.AssignedTo)</td>
+                <td>@Ui.When(r.CreatedAt)</td>
+                <td>@Ui.Recount(r.Status)</td>
+                <td class="num">@(r.Status == RecountStatus.Completed ? r.ResultQuantity?.ToString() ?? "—" : "—")</td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

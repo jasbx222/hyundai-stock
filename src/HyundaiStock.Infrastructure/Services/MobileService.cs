@@ -43,6 +43,40 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         db.AppUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive);
 
     private Task<List<int>> MyWarehouses(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
+
+    /// <summary>One assigned warehouse can be omitted. Several require an explicit assigned id. The branch always comes from that warehouse.</summary>
+    private async Task<(int? Id, string? Error, int Status)> ResolveWarehouseAsync(int userId, int? requested)
+    {
+        var whs = (await MyWarehouses(userId)).Distinct().ToList();
+        if (whs.Count == 0) return (null, "لا يوجد مستودع مرتبط بحسابك", 400);
+        if (requested is int id)
+            return whs.Contains(id) ? (id, null, 200) : (null, "المستودع غير مرتبط بحسابك", 403);
+        if (whs.Count == 1) return (whs[0], null, 200);
+        return (null, "اختر المستودع", 400);
+    }
+
+    public async Task<MobileResult<object>> RegisterDeviceAsync(int userId, string? token, string? platform)
+    {
+        var t = token?.Trim();
+        if (string.IsNullOrEmpty(t) || t.Length is < 20 or > 512) return new(null, "رمز الجهاز غير صالح", 400);
+        var plat = string.Equals(platform, "ios", StringComparison.OrdinalIgnoreCase) ? "ios" : "android";
+        var row = await db.DeviceRegistrations.FirstOrDefaultAsync(x => x.Token == t);
+        if (row == null) db.DeviceRegistrations.Add(new DeviceRegistration { AppUserId = userId, Token = t, Platform = plat });
+        else { row.AppUserId = userId; row.Platform = plat; row.IsActive = true; row.UpdatedAt = DateTime.UtcNow; }
+        await db.SaveChangesAsync();
+        return new(null, null, 200);
+    }
+
+    public async Task<MobileResult<object>> DeactivateDeviceAsync(int userId, string? token)
+    {
+        var t = token?.Trim();
+        var q = db.DeviceRegistrations.Where(x => x.AppUserId == userId && x.IsActive);
+        if (!string.IsNullOrEmpty(t)) q = q.Where(x => x.Token == t);
+        var rows = await q.ToListAsync();
+        foreach (var row in rows) { row.IsActive = false; row.UpdatedAt = DateTime.UtcNow; }
+        await db.SaveChangesAsync();
+        return new(null, null, 200);
+    }
     /// <summary>Branches of the user's warehouses: parts imported per branch (BranchNo. only) are visible to every warehouse in that branch.</summary>
     private Task<List<int>> MyBranches(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.Warehouse!.BranchId).Distinct().ToListAsync();
     private static bool CanSee(InventoryPart p, List<int> whs, List<int> brs) =>
@@ -112,6 +146,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
         if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
+        var resolved = await ResolveWarehouseAsync(userId, i.WarehouseId);
+        if (resolved.Error != null) return new(null, resolved.Error, resolved.Status);
+        i.WarehouseId = resolved.Id;
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
         InventoryPart? part;
@@ -164,7 +201,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var vin = Validators.NormalizeVin(i.Vin);
         if (!Validators.IsVin(vin)) return new(null, Validators.VinError, 400);
         if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
-        if (i.WarehouseId is not int wid) return new(null, "المستودع مطلوب", 400);
+        var resolved = await ResolveWarehouseAsync(userId, i.WarehouseId);
+        if (resolved.Error != null) return new(null, resolved.Error, resolved.Status);
+        var wid = resolved.Id!.Value;
         var whs = await MyWarehouses(userId);
         if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);
         if (await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin)) return new(null, "رقم VIN ممسوح مسبقًا في هذه الجلسة", 409);
@@ -230,7 +269,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     {
         var q = db.RecountRequests.AsNoTracking().Where(x => x.AssignedUserId == userId && (includeCompleted || x.Status == RecountStatus.Pending) && x.InventoryPart!.Session!.Status == SessionStatus.InProgress)
             .OrderBy(x => x.CreatedAt).Select(x => new MobileRecount(x.Id, x.InventoryPartId, x.InventoryPart!.PartNumber, x.InventoryPart.Description, x.InventoryPart.SystemLocation,
-                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد الانتظار", x.ResultQuantity, x.CompletedAt));
+                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد المعالجة", x.ResultQuantity, x.CompletedAt));
         return Task.FromResult(Paging.Build(q, p));
     }
 

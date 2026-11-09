@@ -16,12 +16,12 @@
     </div>
 </div>
 <div class="card" style="overflow:hidden">
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الإجراء</th><th>من</th><th>إلى</th><th>المنفّذ</th><th>الدور</th><th>السبب</th><th>الوقت</th></tr></thead>
         <tbody>
         @foreach (var h in Model.History) {
             <tr><td>@h.Action</td><td>@(h.FromStatus ?? "—")</td><td>@h.ToStatus</td><td>@h.Actor</td><td>@h.ActorRole</td><td>@(h.Reason ?? "—")</td><td>@Ui.DT(h.CreatedAt)</td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
 </div>

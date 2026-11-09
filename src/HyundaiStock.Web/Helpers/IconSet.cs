@@ -41,6 +41,7 @@ public static class IconSet
         ["arrowr"] = "<path d=\"M5 12h14M13 6l6 6-6 6\"/>",
         ["arrowl"] = "<path d=\"M19 12H5M11 6l-6 6 6 6\"/>",
         ["logout"] = "<path d=\"M15 4h4v16h-4\"/><path d=\"M10 8l-4 4 4 4M6 12h10\"/>",
+        ["menu"] = "<path d=\"M4 7h16M4 12h16M4 17h16\"/>",
         ["layers"] = "<path d=\"m12 3 9 5-9 5-9-5z\"/><path d=\"m3 13 9 5 9-5\"/>",
         ["user"] = "<circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21c.8-4 4-6 8-6s7.2 2 8 6\"/>",
         ["sheet"] = "<rect x=\"4\" y=\"3\" width=\"16\" height=\"18\" rx=\"2\"/><path d=\"M4 9h16M4 15h16M10 3v18\"/>",
