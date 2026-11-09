@@ -272,7 +272,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         return (q, null, false);
     }
 
-    private static bool MenuAllowedFinance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    private static bool MenuAllowedFinance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
     private static IQueryable<InventoryPart> FinanceOrder(IQueryable<InventoryPart> q, string? sort) => sort switch
     {
         "difference" => q.OrderBy(x => x.CountedQuantity == null ? 0 : x.CountedQuantity - x.SystemQuantity).ThenBy(x => x.Id),

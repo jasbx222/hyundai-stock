@@ -14,6 +14,10 @@
     <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
 </head>
 <body>
+<div class="pageload" id="pageload" aria-hidden="true">
+    <div class="pageload-bar" aria-hidden="true"><i></i></div>
+    <div class="pageload-status" role="status" aria-live="polite"><span class="bspin" aria-hidden="true"></span><span data-pageload-text>جارٍ التحميل</span></div>
+</div>
 @if (s == null)
 {
     @RenderBody()
@@ -26,7 +30,7 @@ else
     if (Menu.Org(s)) sys.Add(("branches", "branch", "الفروع", "/Branches", "فروع الشركة وأرقامها في نظام هيونداي"));
     if (Menu.Org(s)) sys.Add(("warehouses", "box", "المخازن", "/Warehouses", "مخازن كل فرع وأرقامها"));
     var inv = new List<(string key, string icon, string text, string url, string tip)>();
-    if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests", "طلبات تعديل كمية القطع المرسلة من التطبيق"));
+    if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests?kind=recount", "طلبات إعادة العد وتصحيح الكمية"));
     if (Menu.NewParts(s)) inv.Add(("newparts", "plus", "طلبات إضافة قطعة", "/NewParts", "طلبات إضافة قطعة غير موجودة في جلسة الجرد"));
     if (Menu.Parts(s)) inv.Add(("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"));
     if (Menu.Finance(s)) inv.Add(("finance", "export", "فروقات المخزون المالية", "/Finance", "كمية النظام والمعدودة والسعر والقيمة المالية"));
@@ -34,13 +38,18 @@ else
     if (Menu.VinRequests(s)) inv.Add(("vinrequests", "vin", "طلبات تصحيح VIN", "/VinRequests", "طلبات تصحيح رقم الشاصي المرسلة من التطبيق"));
     if (Menu.Sessions(s)) inv.Add(("sessions", "session", "جلسات الجرد", "/Sessions", "بدء جلسة جرد برفع ملفات Excel وإنهاؤها وتحميلها"));
     <div class="app">
-        <aside class="side">
+        <button type="button" class="navbtn" id="navbtn" aria-controls="sidenav" aria-expanded="false" aria-label="القائمة">@Ui.Icon("menu", 20)</button>
+        <div class="navscrim" id="navscrim"></div>
+        <aside class="side" id="sidenav">
+            <button type="button" class="navx" id="navx" aria-label="إغلاق القائمة">@Ui.Icon("x", 18)</button>
             <div class="deco">@Html.Raw(IconSet.Deco)</div>
             <a class="brand" href="/" title="العودة إلى لوحة التحكم"><div class="lg"><img src="~/img/hy_emblem_white.png" alt="Hyundai" style="width:100%;height:100%;object-fit:contain" /></div><div><b>جرد هيونداي</b><span>هيونداي موتورز العراق</span></div></a>
+            <div class="sidenav">
             <div class="grp" title="إعداد الحسابات والفروع والمخازن">إدارة النظام</div>
             @foreach (var n in sys) { <a class="nav @(n.key == active ? "on" : "")" href="@n.url" title="@n.tip" aria-label="@n.text: @n.tip">@Ui.Icon(n.icon)<span>@n.text</span></a> }
             <div class="grp" title="بيانات الجرد والطلبات">المخزون</div>
             @foreach (var n in inv) { <a class="nav @(n.key == active ? "on" : "")" href="@n.url" title="@n.tip" aria-label="@n.text: @n.tip">@Ui.Icon(n.icon)<span>@n.text</span></a> }
+            </div>
             <div class="me">
                 <div class="av" title="الحساب الحالي">@Ui.Initial(s.Name)</div>
                 <div class="t"><b>@s.Name</b><span>@Labels.Role(s.Role)</span></div>

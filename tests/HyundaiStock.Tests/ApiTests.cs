@@ -103,4 +103,67 @@ public sealed class ApiTests : IClassFixture<ApiFactory>
         var forbidden = await client.PostAsJsonAsync("/api/v1/new-part-requests/1/nope", new { });
         Assert.NotEqual(HttpStatusCode.OK, forbidden.StatusCode);
     }
+
+    [Fact]
+    public async Task Recount_form_disables_same_user_until_counted_and_lists_branch_counters()
+    {
+        using var factory = new ApiFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var pw = scope.ServiceProvider.GetRequiredService<IPasswordService>();
+        var branch = new Branch { Name = "بغداد", Number = 31 };
+        var other = new Branch { Name = "البصرة", Number = 32 };
+        db.Branches.AddRange(branch, other);
+        await db.SaveChangesAsync();
+        var wh = new Warehouse { Name = "بغداد النهضة", Number = 31, BranchId = branch.Id };
+        var otherWh = new Warehouse { Name = "مخزن البصرة", Number = 32, BranchId = other.Id };
+        db.Warehouses.AddRange(wh, otherWh);
+        var admin = new Admin { Name = "رئيسي", PhoneNumber = "07731000001", PasswordHash = pw.Hash("secret"), Role = AdminRole.MainAdmin, IsActive = true };
+        db.Admins.Add(admin);
+        var counter = new AppUser { Name = "ياسر عمار", PhoneNumber = "07731000002", PasswordHash = pw.Hash("secret"), IsActive = true };
+        var outsider = new AppUser { Name = "عداد البصرة", PhoneNumber = "07731000003", PasswordHash = pw.Hash("secret"), IsActive = true };
+        db.AppUsers.AddRange(counter, outsider);
+        await db.SaveChangesAsync();
+        db.AppUserWarehouses.AddRange(
+            new AppUserWarehouse { AppUserId = counter.Id, WarehouseId = wh.Id },
+            new AppUserWarehouse { AppUserId = outsider.Id, WarehouseId = otherWh.Id });
+        var session = new StocktakingSession { Year = 2026, StartedByAdminId = admin.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
+        db.Sessions.Add(session);
+        await db.SaveChangesAsync();
+        var open = new InventoryPart { SessionId = session.Id, PartNumber = "00H72AQ210", Description = "قطعة", SystemQuantity = 1, BranchId = branch.Id };
+        var counted = new InventoryPart { SessionId = session.Id, PartNumber = "COUNTED-1", Description = "معدودة", SystemQuantity = 1, BranchId = branch.Id, WarehouseId = wh.Id, CountedQuantity = 4, CountedByUserId = counter.Id };
+        db.InventoryParts.AddRange(open, counted);
+        await db.SaveChangesAsync();
+
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        static string Token(string html) => WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
+        var loginPage = await client.GetStringAsync("/Account/Login");
+        var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["PhoneNumber"] = admin.PhoneNumber, ["Password"] = "secret", ["__RequestVerificationToken"] = Token(loginPage)
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+
+        var fresh = await client.GetStringAsync($"/Parts/RecountForm/{open.Id}");
+        Assert.Contains("نفس المستخدم (لم تُعدّ بعد)", fresh);
+        Assert.Contains("لم تُعدّ هذه القطعة بعد، لذا هذا الخيار غير متاح.", fresh);
+        Assert.Contains("class=\"opt off\"", fresh);
+        Assert.Contains("<option value=\"" + counter.Id + "\">ياسر عمار</option>", fresh);
+        Assert.DoesNotContain("عداد البصرة", fresh);
+        var same = System.Text.RegularExpressions.Regex.Match(fresh, "<input type=\"radio\" name=\"mode\" value=\"same\"[^>]*>").Value;
+        var otherRadio = System.Text.RegularExpressions.Regex.Match(fresh, "<input type=\"radio\" name=\"mode\" value=\"other\"[^>]*>").Value;
+        Assert.Contains("disabled", same);
+        Assert.DoesNotContain("checked", same);
+        Assert.Contains("checked", otherRadio);
+
+        var again = await client.GetStringAsync($"/Parts/RecountForm/{counted.Id}");
+        Assert.Contains("نفس المستخدم (ياسر عمار)", again);
+        Assert.DoesNotContain("class=\"opt off\"", again);
+        Assert.DoesNotContain("لم تُعدّ هذه القطعة بعد", again);
+        var sameAgain = System.Text.RegularExpressions.Regex.Match(again, "<input type=\"radio\" name=\"mode\" value=\"same\"[^>]*>").Value;
+        Assert.Contains("checked", sameAgain);
+        Assert.DoesNotContain("disabled", sameAgain);
+        Assert.Contains("<option value=\"" + counter.Id + "\">ياسر عمار</option>", again);
+        Assert.DoesNotContain("عداد البصرة", again);
+    }
 }

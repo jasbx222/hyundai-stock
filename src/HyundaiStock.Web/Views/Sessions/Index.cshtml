@@ -7,7 +7,7 @@
 <div class="card" style="overflow:hidden">
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }
     else {
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الرقم</th><th>السنة</th><th>الحالة</th><th>بواسطة</th><th>تاريخ البدء</th><th>تاريخ الإنهاء</th><th>الملف</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var x in Model.Items) {
@@ -27,7 +27,7 @@
                 </div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

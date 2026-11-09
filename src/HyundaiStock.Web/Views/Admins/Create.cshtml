@@ -18,16 +18,34 @@
         @if (!editing) {
         <div><label class="lbl" for="Password">كلمة المرور<i> *</i></label><div class="@ms.Cls("Password")"><input id="Password" name="Password" type="password" minlength="6" required autocomplete="new-password" placeholder="6 أحرف على الأقل" /></div>@ms.Err("Password")</div>
         }
-        @if (s.IsMain) {
-        <div><label class="lbl" for="Role">الدور<i> *</i></label><div class="field"><select id="Role" name="Role">
-            <option value="2" selected="@(Model.Role == AdminRole.Admin)">أدمن</option>
-            <option value="1" selected="@(Model.Role == AdminRole.SuperAdmin)">سوبر أدمن</option>
-            <option value="3" selected="@(Model.Role == AdminRole.WarehouseManager)">مدير مخزن</option>
-            <option value="4" selected="@(Model.Role == AdminRole.SparePartsManager)">مدير قطع الغيار</option>
-            <option value="5" selected="@(Model.Role == AdminRole.Accountant)">محاسب</option>
-        </select></div>@ms.Err("Role")</div>
-        } else { <input type="hidden" name="Role" value="2" /> }
-        <div data-scope="branch"><label class="lbl" for="BranchId">الفرع<i> *</i></label><label class="sel @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></label>@ms.Err("BranchId")</div>
+    </div>
+    @if (s.IsMain) {
+    <div class="admblock">
+        <label class="lbl" for="Role">الدور<i> *</i></label>
+        <div class="field"><select id="Role" name="Role">
+            <option value="0" selected="@(Model.Role == AdminRole.MainAdmin)">@Labels.Role(AdminRole.MainAdmin)</option>
+            <option value="1" selected="@(Model.Role == AdminRole.SuperAdmin)">@Labels.Role(AdminRole.SuperAdmin)</option>
+            <option value="2" selected="@(Model.Role == AdminRole.Admin)">@Labels.Role(AdminRole.Admin)</option>
+            <option value="3" selected="@(Model.Role == AdminRole.WarehouseManager)">@Labels.Role(AdminRole.WarehouseManager)</option>
+            <option value="4" selected="@(Model.Role == AdminRole.SparePartsManager)">@Labels.Role(AdminRole.SparePartsManager)</option>
+            <option value="5" selected="@(Model.Role == AdminRole.Accountant)">@Labels.Role(AdminRole.Accountant)</option>
+            <option value="6" selected="@(Model.Role == AdminRole.AccountsManager)">@Labels.Role(AdminRole.AccountsManager)</option>
+            <option value="7" selected="@(Model.Role == AdminRole.VehicleWarehouseManager)">@Labels.Role(AdminRole.VehicleWarehouseManager)</option>
+        </select></div>
+        <p class="rolehint" id="rolehint"></p>
+        @ms.Err("Role")
+    </div>
+    } else { <input type="hidden" name="Role" value="2" /> <p class="rolehint" id="rolehint"></p> }
+    <div class="admblock" id="scopeblock">
+        @if (s.IsSuper) {
+        <div data-scope="all">
+            <label class="allpick">
+                <input type="checkbox" name="AllBranches" value="true" checked="@Model.AllBranches" />
+                <span><b>كل الفروع</b></span>
+            </label>
+        </div>
+        }
+        <div data-scope="branch"><label class="lbl" for="BranchId">الفرع<i> *</i></label><div class="field @(ms.ErrorOf("BranchId") != null ? "err" : "")"><select id="BranchId" name="BranchId"><option value="">اختر الفرع</option>@foreach (var b in branches) { <option value="@b.Id" selected="@(Model.BranchId == b.Id)">@b.Name</option> }</select></div>@ms.Err("BranchId")</div>
         <div data-scope="branches"><label class="lbl">الفروع<i> *</i></label>
             <details class="msel @(ms.ErrorOf("BranchIds") != null ? "err" : "")"><summary><span data-ph="اختر الفروع"></span>@Ui.Icon("chev", 14)</summary><div class="opts">
                 @foreach (var b in branches) { <label><input type="checkbox" name="BranchIds" value="@b.Id" data-name="@b.Name" checked="@Model.BranchIds.Contains(b.Id)" /> @b.Name</label> }
@@ -44,17 +62,37 @@
 <script>
 (function () {
   var role = document.getElementById('Role');
+  var hints = {
+    '0': 'يشوف كل شيء في النظام: المشرفين، الجلسات، الجرد، الطلبات، والمالية.',
+    '1': 'يدير الجلسات والفروع والمخازن، ويشوف كل البيانات بدون إنشاء مسؤول رئيسي.',
+    '2': 'يدير مستخدمي فرعه ويوافق على المرحلة الأولى لتعديل الكمية وتصحيح VIN وإعادة العد.',
+    '3': 'يشوف مخازنه فقط، يوافق أولًا على تعديل الكمية، ويطلب إعادة العد.',
+    '4': 'اطلاع فقط على تقدّم الجرد والفروقات (أعلى / أقل / مطابق) بدون كمية النظام أو السعر أو التعديل.',
+    '5': 'المالية والموافقة النهائية على الكمية، ويطلب إعادة العد ضمن الفروع المحددة.',
+    '6': 'نفس صلاحيات المحاسب: المالية، الموافقة النهائية، وطلب إعادة العد.',
+    '7': 'المركبات وتصحيح VIN واطلاع على تقدّم الجرد بدون تعديل الكميات أو المالية.'
+  };
   function show() {
     var v = role ? role.value : '2';
+    var hint = document.getElementById('rolehint');
+    if (hint) hint.textContent = hints[v] || '';
+    var all = document.querySelector('[data-scope="all"] input');
+    var wide = all && all.checked && (v === '2' || v === '4' || v === '5' || v === '6' || v === '7');
+    var block = document.getElementById('scopeblock');
+    if (block) block.hidden = v === '0' || v === '1';
     document.querySelectorAll('[data-scope]').forEach(function (el) {
-      var on = (v === '2' || v === '4') && el.getAttribute('data-scope') === 'branch'
-        || v === '5' && el.getAttribute('data-scope') === 'branches'
-        || v === '3' && el.getAttribute('data-scope') === 'warehouses';
+      var kind = el.getAttribute('data-scope');
+      var on = kind === 'all' ? (v === '2' || v === '4' || v === '5' || v === '6' || v === '7')
+        : !wide && ((v === '2' || v === '4' || v === '7') && kind === 'branch'
+        || (v === '5' || v === '6') && kind === 'branches'
+        || v === '3' && kind === 'warehouses');
       el.style.display = on ? '' : 'none';
-      el.querySelectorAll('input,select').forEach(function (i) { i.disabled = !on; });
+      el.querySelectorAll('input,select').forEach(function (i) { if (kind !== 'all') i.disabled = !on; });
     });
   }
   if (role) role.addEventListener('change', show);
+  var allBox = document.querySelector('[data-scope="all"] input');
+  if (allBox) allBox.addEventListener('change', show);
   show();
 })();
 </script>

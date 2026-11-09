@@ -8,12 +8,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
-public sealed class RequestsController(QuantityRequestService svc) : DashboardController
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
+public sealed class RequestsController(QuantityRequestService svc, PartService parts) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    public async Task<IActionResult> Index(string? search, string? kind, int page = 1)
+    {
+        ViewBag.Kind = kind == "recount" ? "recount" : "qty";
+        if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    }
 
-    public IActionResult Create() => View("Form", new QtyInput());
+    public async Task<IActionResult> Create()
+    {
+        ViewBag.Choices = await svc.ChoicesAsync(Scope);
+        return View("Form", new QtyInput());
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create(QtyInput input)
@@ -21,6 +30,7 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
         var err = await svc.SaveAsync(null, input, Scope);
         if (err.Count == 0) { TempData["ok"] = "تم إرسال طلب التعديل"; return RedirectToAction(nameof(Index)); }
         AddErrors(err);
+        ViewBag.Choices = await svc.ChoicesAsync(Scope);
         return View("Form", input);
     }
 
@@ -30,7 +40,13 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
         if (r == null) return NotFoundPage();
         if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
         ViewBag.Id = id;
-        return View("Form", new QtyInput { PartNumber = r.PartNumber, PartDescription = r.PartDescription, OldQuantity = r.OldQuantity, NewQuantity = r.NewQuantity, Reason = r.Reason });
+        ViewBag.Choices = await svc.ChoicesAsync(Scope);
+        return View("Form", new QtyInput
+        {
+            PartNumber = r.PartNumber, PartDescription = r.PartDescription, OldQuantity = r.OldQuantity, NewQuantity = r.NewQuantity, Reason = r.Reason,
+            Audience = r.AudienceKind switch { 1 => "user", 2 => "branch", 3 => "warehouse", _ => null },
+            AudienceUserId = r.AudienceUserId, AudienceBranchId = r.BranchId, AudienceWarehouseId = r.WarehouseId
+        });
     }
 
     [HttpPost]
@@ -39,6 +55,7 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
         var err = await svc.SaveAsync(id, input, Scope);
         if (err.Count == 0) { TempData["ok"] = "تم تعديل الطلب"; return RedirectToAction(nameof(Index)); }
         AddErrors(err); ViewBag.Id = id;
+        ViewBag.Choices = await svc.ChoicesAsync(Scope);
         return View("Form", input);
     }
 
@@ -47,13 +64,15 @@ public sealed class RequestsController(QuantityRequestService svc) : DashboardCo
     [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب");
 }
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.SparePartsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class PartsController(PartService svc, QuantityRequestService requests) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? view, int page = 1)
     {
-        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope);
+        var selected = view is "counted" or "diff" ? view : null;
+        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope, selected);
         ViewBag.Session = session;
+        ViewBag.View = selected;
         return View(p);
     }
 
@@ -68,11 +87,14 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
     public async Task<IActionResult> Info(int id)
     {
         var d = await svc.GetAsync(id, Scope);
-        return d == null ? NotFound() : PartialView("_Info", d.Part);
+        if (d == null) return NotFound();
+        ViewBag.Indicator = d.Indicator;
+        return PartialView("_Info", d.Part);
     }
 
     public async Task<IActionResult> RecountForm(int id)
     {
+        if (!Scope.CanRequestRecount) return ForbidPage();
         var d = await svc.GetAsync(id, Scope);
         if (d == null) return NotFound();
         ViewBag.Users = await svc.CandidateUsersAsync(id);
@@ -81,23 +103,32 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
 
     [HttpPost]
     public async Task<IActionResult> Recount(int id, string mode, int? userId, string? returnUrl)
-        => Done(await svc.RequestRecountAsync(id, mode == "other" ? userId ?? -1 : null, Scope), "تم إرسال طلب إعادة العد", returnUrl);
+    {
+        if (!Scope.CanRequestRecount) return ForbidPage();
+        var target = mode == "other" ? (userId is > 0 ? userId : -1) : null;
+        var result = await svc.RequestRecountAsync(id, target, Scope);
+        return Done(result, "تم إرسال طلب إعادة العد", result.Ok ? "/Requests?kind=recount" : returnUrl);
+    }
 
     public async Task<IActionResult> QuantityForm(int id)
     {
+        if (Scope.HidesStockFigures) return ForbidPage();
         var d = await svc.GetAsync(id, Scope);
-        return d == null ? NotFound() : PartialView("_Quantity", d.Part);
+        if (d == null) return NotFound();
+        ViewBag.Users = await svc.CandidateUsersAsync(id);
+        return PartialView("_Quantity", d.Part);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Quantity(int id, int? newQuantity, string? reason, string? returnUrl)
+    public async Task<IActionResult> Quantity(int id, int? newQuantity, string? reason, string? audience, int? audienceUserId, int? audienceBranchId, int? audienceWarehouseId, string? returnUrl)
     {
-        var err = await requests.SaveAsync(null, new QtyInput { InventoryPartId = id, NewQuantity = newQuantity, Reason = reason }, Scope);
+        if (Scope.HidesStockFigures) return ForbidPage();
+        var err = await requests.SaveAsync(null, new QtyInput { InventoryPartId = id, NewQuantity = newQuantity, Reason = reason, Audience = audience, AudienceUserId = audienceUserId, AudienceBranchId = audienceBranchId, AudienceWarehouseId = audienceWarehouseId }, Scope);
         return Done(err.Count == 0 ? OpResult.Success() : OpResult.Fail(string.Join("\n", err.Values)), "تم إرسال طلب تحديث الكمية", returnUrl);
     }
 }
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1)
@@ -130,7 +161,7 @@ public sealed class CarsController(VinService svc, WarehouseService warehouses, 
     }
 }
 
-[Roles(AdminRole.Admin, AdminRole.WarehouseManager)]
+[Roles(AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.VehicleWarehouseManager)]
 public sealed class VinRequestsController(VinRequestService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));

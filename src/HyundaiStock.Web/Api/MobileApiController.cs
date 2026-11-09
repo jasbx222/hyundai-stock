@@ -129,6 +129,18 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     [HttpPost("new-part-requests/{id:int}/cancel")]
     public async Task<IActionResult> CancelNewPart(int id) => From(await newParts.CancelAsync(UserId, id), "تم إلغاء الطلب بنجاح");
 
+    public sealed class DeviceInput { public string? Token { get; set; } public string? Platform { get; set; } }
+
+    /// <summary>يربط رمز الإشعارات بالمستخدم المسجّل. لا يُقبل رقم مستخدم من الطلب.</summary>
+    [HttpPost("devices")]
+    public async Task<IActionResult> RegisterDevice([FromBody] DeviceInput input)
+        => From(await svc.RegisterDeviceAsync(UserId, input.Token, input.Platform), "تم تسجيل الجهاز");
+
+    /// <summary>يعطّل رمز هذا المستخدم عند الخروج. رمز مستخدم آخر لا يُنقل ولا يُعطّل.</summary>
+    [HttpPost("devices/deactivate")]
+    public async Task<IActionResult> DeactivateDevice([FromBody] DeviceInput input)
+        => From(await svc.DeactivateDeviceAsync(UserId, input.Token), "تم إيقاف الجهاز");
+
     /// <summary>تغيير كلمة مرور المستخدم.</summary>
     [HttpPost("me/password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordInput input)

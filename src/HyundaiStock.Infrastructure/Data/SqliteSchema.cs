@@ -48,6 +48,8 @@ public static class SqliteSchema
         await Column(conn, db, "QuantityCorrections", "FinalApprovedAt", "FinalApprovedAt TEXT NULL");
         await Column(conn, db, "QuantityCorrections", "RejectedAt", "RejectedAt TEXT NULL");
         await Column(conn, db, "QuantityCorrections", "DecisionReason", "DecisionReason TEXT NULL");
+        await Column(conn, db, "QuantityCorrections", "AudienceKind", "AudienceKind INTEGER NULL");
+        await Column(conn, db, "QuantityCorrections", "AudienceUserId", "AudienceUserId INTEGER NULL");
         await Sql(db, """
             UPDATE QuantityCorrections
             SET WarehouseId = (SELECT p.WarehouseId FROM InventoryParts AS p WHERE p.Id = QuantityCorrections.InventoryPartId)
@@ -134,6 +136,25 @@ public static class SqliteSchema
             await Sql(db, "CREATE INDEX IF NOT EXISTS IX_WorkflowAudits_ActorAdminId ON WorkflowAudits (ActorAdminId)");
             await Sql(db, "CREATE INDEX IF NOT EXISTS IX_WorkflowAudits_ActorUserId ON WorkflowAudits (ActorUserId)");
             await Sql(db, "CREATE INDEX IF NOT EXISTS IX_WorkflowAudits_NewPartRequestId ON WorkflowAudits (NewPartRequestId)");
+        }
+
+        await Column(conn, db, "Admins", "AllBranches", "AllBranches INTEGER NOT NULL DEFAULT 0");
+        if (!await Table(conn, "DeviceRegistrations"))
+        {
+            await Sql(db, """
+                CREATE TABLE DeviceRegistrations (
+                    Id INTEGER NOT NULL CONSTRAINT PK_DeviceRegistrations PRIMARY KEY AUTOINCREMENT,
+                    AppUserId INTEGER NOT NULL,
+                    Token TEXT NOT NULL,
+                    Platform TEXT NOT NULL,
+                    IsActive INTEGER NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_DeviceRegistrations_AppUsers_AppUserId FOREIGN KEY (AppUserId) REFERENCES AppUsers (Id) ON DELETE CASCADE
+                )
+                """);
+            await Sql(db, "CREATE UNIQUE INDEX IF NOT EXISTS IX_DeviceRegistrations_Token ON DeviceRegistrations (Token)");
+            await Sql(db, "CREATE INDEX IF NOT EXISTS IX_DeviceRegistrations_AppUserId ON DeviceRegistrations (AppUserId)");
         }
     }
 

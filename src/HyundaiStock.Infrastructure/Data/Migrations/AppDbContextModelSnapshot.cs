@@ -30,6 +30,9 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("AllBranches")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
@@ -198,6 +201,46 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasFilter("[Number] IS NOT NULL");
 
                     b.ToTable("Branches");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.DeviceRegistration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AppUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppUserId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("DeviceRegistrations");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.ExpectedVin", b =>
@@ -469,6 +512,12 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<int>("ApprovalLevel")
                         .HasColumnType("int");
 
+                    b.Property<int?>("AudienceKind")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("AudienceUserId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
@@ -537,6 +586,8 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AudienceUserId");
 
                     b.HasIndex("InventoryPartId");
 
@@ -947,6 +998,17 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Navigation("Warehouse");
                 });
 
+            modelBuilder.Entity("HyundaiStock.Domain.DeviceRegistration", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.AppUser", "AppUser")
+                        .WithMany()
+                        .HasForeignKey("AppUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AppUser");
+                });
+
             modelBuilder.Entity("HyundaiStock.Domain.ExpectedVin", b =>
                 {
                     b.HasOne("HyundaiStock.Domain.Branch", "Branch")
@@ -1069,6 +1131,11 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasForeignKey("RequestedByAdminId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("HyundaiStock.Domain.AppUser", "AudienceUser")
+                        .WithMany()
+                        .HasForeignKey("AudienceUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HyundaiStock.Domain.AppUser", "RequestedByUser")
                         .WithMany()
                         .HasForeignKey("RequestedByUserId")
@@ -1078,6 +1145,8 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AudienceUser");
 
                     b.Navigation("InventoryPart");
 

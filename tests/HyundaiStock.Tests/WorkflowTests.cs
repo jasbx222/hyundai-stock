@@ -3,8 +3,10 @@ using HyundaiStock.Infrastructure.Common;
 using HyundaiStock.Infrastructure.Data;
 using HyundaiStock.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace HyundaiStock.Tests;
@@ -212,7 +214,7 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task Branch_admin_still_approves_vin_and_recount_and_accountant_cannot_recount()
+    public async Task Branch_admin_still_approves_vin_and_accountant_can_request_recount()
     {
         var scan = new ScannedVin { SessionId = _session.Id, Vin = "KMHD1111111111111", WarehouseId = _warehouseRow.Id, BranchId = _branch.Id, UserId = _counter.Id };
         _db.ScannedVins.Add(scan);
@@ -226,8 +228,8 @@ public sealed class WorkflowTests : IDisposable
 
         _part.CountedByUserId = _counter.Id;
         await _db.SaveChangesAsync();
-        Assert.False((await _parts.RequestRecountAsync(_part.Id, _counter.Id, AccScope())).Ok);
-        Assert.True((await _parts.RequestRecountAsync(_part.Id, _counter.Id, WmScope())).Ok);
+        Assert.False((await _parts.RequestRecountAsync(_part.Id, _counter.Id, SpareScope())).Ok);
+        Assert.True((await _parts.RequestRecountAsync(_part.Id, _counter.Id, AccScope())).Ok);
     }
 
     [Fact]
@@ -327,6 +329,196 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(WarehouseType.Type2, (await _db.Warehouses.AsNoTracking().SingleAsync(x => x.Id == _warehouseRow.Id)).Type);
     }
 
+    [Fact]
+    public async Task Counted_and_difference_lists_are_filtered_before_they_are_returned()
+    {
+        var spare = await _parts.ListAsync(new PageQuery(1, 10), SpareScope(), "counted");
+        var row = Assert.Single(spare.page.Items);
+        Assert.Equal(0, row.SystemQuantity);
+        Assert.Equal("مطابق", row.Indicator);
+        var hidden = await _parts.GetAsync(_part.Id, SpareScope());
+        Assert.NotNull(hidden);
+        Assert.Equal(0, hidden!.Part.SystemQuantity);
+        Assert.Equal(0, hidden.Part.Price);
+        Assert.Equal("مطابق", hidden.Indicator);
+
+        _part.CountedQuantity = 0;
+        await _db.SaveChangesAsync();
+        Assert.Single((await _parts.ListAsync(new PageQuery(1, 10), Super(), "counted")).page.Items);
+        Assert.Single((await _parts.ListAsync(new PageQuery(1, 10), Super(), "diff")).page.Items);
+
+        _part.CountedQuantity = null;
+        await _db.SaveChangesAsync();
+        Assert.Empty((await _parts.ListAsync(new PageQuery(1, 10), Super(), "counted")).page.Items);
+        Assert.Empty((await _parts.ListAsync(new PageQuery(1, 10), Super(), "diff")).page.Items);
+    }
+
+    [Fact]
+    public async Task All_branches_is_explicit_and_null_branch_stays_closed()
+    {
+        var closed = new AdminScope(9, "فرع", AdminRole.Admin, null);
+        Assert.False(closed.SeesAllBranches);
+        Assert.Empty((await _parts.ListAsync(new PageQuery(1, 10), closed)).page.Items);
+
+        var open = new AdminScope(9, "كل", AdminRole.SparePartsManager, null, AllBranches: true);
+        Assert.True(open.SeesAllBranches);
+        Assert.Single((await _parts.ListAsync(new PageQuery(1, 10), open)).page.Items);
+
+        var svc = new AdminService(_db, _pw);
+        var created = await svc.CreateAsync(new AdminInput { Name = "كل الفروع", PhoneNumber = "07710000077", Password = "secret1", Role = AdminRole.Admin, AllBranches = true }, Super());
+        Assert.Empty(created);
+        var saved = await _db.Admins.SingleAsync(x => x.PhoneNumber == "07710000077");
+        Assert.True(saved.AllBranches);
+        Assert.Null(saved.BranchId);
+
+        var tampered = await svc.CreateAsync(new AdminInput { Name = "محاولة", PhoneNumber = "07710000078", Password = "secret1", Role = AdminRole.MainAdmin, AllBranches = true, BranchId = _branch.Id }, new AdminScope(_branchAdmin.Id, _branchAdmin.Name, AdminRole.Admin, _branch.Id));
+        Assert.Empty(tampered);
+        var limited = await _db.Admins.SingleAsync(x => x.PhoneNumber == "07710000078");
+        Assert.Equal(AdminRole.Admin, limited.Role);
+        Assert.False(limited.AllBranches);
+        Assert.Equal(_branch.Id, limited.BranchId);
+    }
+
+    [Fact]
+    public async Task Recount_candidates_follow_the_part_warehouse_or_its_branch()
+    {
+        var otherWh = await _db.Warehouses.SingleAsync(x => x.BranchId == _other.Id);
+        var sibling = new Warehouse { Name = "مخزن مجاور", Number = 9, BranchId = _branch.Id, Type = WarehouseType.Type1 };
+        _db.Warehouses.Add(sibling);
+        await _db.SaveChangesAsync();
+        var local = new AppUser { Name = "عداد الفرع", PhoneNumber = "07755555551", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        var siblingUser = new AppUser { Name = "مخزن مجاور", PhoneNumber = "07755555555", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        var outsider = new AppUser { Name = "عداد آخر", PhoneNumber = "07755555552", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        var inactive = new AppUser { Name = "متوقف", PhoneNumber = "07755555553", PasswordHash = _pw.Hash("secret"), IsActive = false };
+        var branchOnly = new AppUser { Name = "بدون مخزن", PhoneNumber = "07755555554", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        _db.AppUsers.AddRange(local, siblingUser, outsider, inactive, branchOnly);
+        await _db.SaveChangesAsync();
+        _db.AppUserWarehouses.AddRange(
+            new AppUserWarehouse { AppUserId = local.Id, WarehouseId = _warehouseRow.Id },
+            new AppUserWarehouse { AppUserId = siblingUser.Id, WarehouseId = sibling.Id },
+            new AppUserWarehouse { AppUserId = outsider.Id, WarehouseId = otherWh.Id },
+            new AppUserWarehouse { AppUserId = inactive.Id, WarehouseId = _warehouseRow.Id });
+        _db.AppUserBranches.Add(new AppUserBranch { AppUserId = branchOnly.Id, BranchId = _branch.Id });
+        var part = new InventoryPart { SessionId = _session.Id, PartNumber = "00H72AQ210", Description = "قطعة فرع", SystemQuantity = 1, BranchId = _branch.Id };
+        _db.InventoryParts.Add(part);
+        await _db.SaveChangesAsync();
+
+        var branchIds = (await _parts.CandidateUsersAsync(part.Id)).Select(x => x.Id).ToList();
+        Assert.Contains(_counter.Id, branchIds);
+        Assert.Contains(local.Id, branchIds);
+        Assert.Contains(siblingUser.Id, branchIds);
+        Assert.DoesNotContain(outsider.Id, branchIds);
+        Assert.DoesNotContain(inactive.Id, branchIds);
+        Assert.DoesNotContain(branchOnly.Id, branchIds);
+        Assert.True((await _parts.RequestRecountAsync(part.Id, siblingUser.Id, AccScope())).Ok);
+        Assert.False((await _parts.RequestRecountAsync(part.Id, outsider.Id, AccScope())).Ok);
+        Assert.False((await _parts.RequestRecountAsync(part.Id, inactive.Id, AccScope())).Ok);
+        Assert.False((await _parts.RequestRecountAsync(part.Id, branchOnly.Id, AccScope())).Ok);
+        Assert.False((await _parts.RequestRecountAsync(part.Id, null, AccScope())).Ok);
+
+        var pinnedIds = (await _parts.CandidateUsersAsync(_part.Id)).Select(x => x.Id).ToList();
+        Assert.Contains(_counter.Id, pinnedIds);
+        Assert.Contains(local.Id, pinnedIds);
+        Assert.DoesNotContain(siblingUser.Id, pinnedIds);
+        Assert.DoesNotContain(outsider.Id, pinnedIds);
+        Assert.False((await _parts.RequestRecountAsync(_part.Id, siblingUser.Id, AccScope())).Ok);
+        _part.CountedByUserId = _counter.Id;
+        await _db.SaveChangesAsync();
+        Assert.True((await _parts.RequestRecountAsync(_part.Id, null, AccScope())).Ok);
+        Assert.Equal(_counter.Id, (await _db.RecountRequests.SingleAsync(x => x.InventoryPartId == _part.Id)).AssignedUserId);
+    }
+
+    [Fact]
+    public async Task Main_admin_can_assign_another_main_admin()
+    {
+        var svc = new AdminService(_db, _pw);
+        var main = new AdminScope(_main.Id, _main.Name, AdminRole.MainAdmin, null);
+        var err = await svc.CreateAsync(new AdminInput { Name = "مسؤول ثاني", PhoneNumber = "07710000079", Password = "secret1", Role = AdminRole.MainAdmin }, main);
+        Assert.Empty(err);
+        Assert.Equal(AdminRole.MainAdmin, (await _db.Admins.SingleAsync(x => x.PhoneNumber == "07710000079")).Role);
+    }
+
+    [Fact]
+    public async Task Read_only_roles_cannot_change_quantities_and_finance_can_request_recount()
+    {
+        var vehicle = new AdminScope(8, "سيارات", AdminRole.VehicleWarehouseManager, _branch.Id);
+        Assert.False(vehicle.CanRequestRecount);
+        Assert.False(vehicle.CanFirstApproveQty);
+        Assert.True(vehicle.HidesStockFigures);
+        var denied = await _qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 3, Reason = "لا" }, vehicle);
+        Assert.Contains(denied, x => x.Value.Contains("صلاحية"));
+
+        _part.CountedByUserId = _counter.Id;
+        await _db.SaveChangesAsync();
+        Assert.False((await _parts.RequestRecountAsync(_part.Id, null, vehicle)).Ok);
+        var accounts = new AdminScope(_accountant.Id, _accountant.Name, AdminRole.AccountsManager, null, null, new[] { _branch.Id });
+        Assert.True(accounts.CanFinalApproveQty);
+        Assert.False(accounts.CanFirstApproveQty);
+        Assert.True((await _parts.RequestRecountAsync(_part.Id, null, accounts)).Ok);
+        Assert.False((await _parts.RequestRecountAsync(_part.Id, null, accounts)).Ok);
+        var row = await _db.RecountRequests.SingleAsync();
+        Assert.Equal(_accountant.Id, row.RequestedByAdminId);
+        Assert.Equal(_counter.Id, row.AssignedUserId);
+        Assert.Equal(RecountStatus.Pending, row.Status);
+    }
+
+    [Fact]
+    public async Task One_warehouse_is_resolved_and_its_branch_is_taken_from_the_warehouse()
+    {
+        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Null(counted.Error);
+        var scanned = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD1111111111111", Latitude = 33.3, Longitude = 44.3 });
+        Assert.Null(scanned.Error);
+        Assert.Equal(_warehouseRow.BranchId, (await _db.ScannedVins.SingleAsync()).BranchId);
+
+        var second = new Warehouse { Name = "مخزن إضافي", Number = 3, BranchId = _branch.Id, Type = WarehouseType.Type1 };
+        _db.Warehouses.Add(second);
+        await _db.SaveChangesAsync();
+        _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = second.Id });
+        await _db.SaveChangesAsync();
+        var needsChoice = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(400, needsChoice.Status);
+        var foreign = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD2222222222222", WarehouseId = 999, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(403, foreign.Status);
+
+        var stranger = new AppUser { Name = "بدون مخزن", PhoneNumber = "07744444444", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        _db.AppUsers.Add(stranger);
+        await _db.SaveChangesAsync();
+        var none = await _mobile.CountAsync(stranger.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(400, none.Status);
+    }
+
+    [Fact]
+    public async Task Device_token_follows_the_authenticated_user_and_push_failure_keeps_the_request()
+    {
+        var token = "device-token-1234567890";
+        Assert.Null((await _mobile.RegisterDeviceAsync(_counter.Id, token, "android")).Error);
+        Assert.Null((await _mobile.RegisterDeviceAsync(_counter.Id, "second-device-token-123456", "android")).Error);
+        Assert.Equal(2, await _db.DeviceRegistrations.CountAsync(x => x.AppUserId == _counter.Id && x.IsActive));
+        var other = await _db.AppUsers.SingleAsync(x => x.PhoneNumber == _accountant.PhoneNumber);
+        Assert.Null((await _mobile.RegisterDeviceAsync(other.Id, token, "android")).Error);
+        var owner = await _db.DeviceRegistrations.SingleAsync(x => x.Token == token);
+        Assert.Equal(other.Id, owner.AppUserId);
+        await _mobile.DeactivateDeviceAsync(_counter.Id, token);
+        Assert.True((await _db.DeviceRegistrations.SingleAsync(x => x.Token == token)).IsActive);
+        await _mobile.DeactivateDeviceAsync(other.Id, token);
+        Assert.False((await _db.DeviceRegistrations.SingleAsync(x => x.Token == token)).IsActive);
+
+        var parts = new PartService(_db, _sessions, new BoomNotifier());
+        _part.CountedByUserId = _counter.Id;
+        await _db.SaveChangesAsync();
+        Assert.True((await parts.RequestRecountAsync(_part.Id, _counter.Id, WmScope())).Ok);
+        var previous = Environment.GetEnvironmentVariable("FCM_SERVER_KEY");
+        Environment.SetEnvironmentVariable("FCM_SERVER_KEY", null);
+        try
+        {
+            var notifier = new StockNotifier(_db, LoggerFactory.Create(_ => { }).CreateLogger<StockNotifier>(), new ConfigurationBuilder().Build(), new NoHttp());
+            await notifier.RecountAssignedAsync(_counter.Id, 1, _part.PartNumber);
+            await notifier.SessionStartedAsync(_session.Id);
+        }
+        finally { Environment.SetEnvironmentVariable("FCM_SERVER_KEY", previous); }
+    }
+
     private NewPartInput Input(string partNumber = "ZZ-9", int? quantity = 3, int? branchId = null, int? warehouseId = null, double? latitude = 33.31, double? longitude = 44.36) => new()
     {
         PartNumber = partNumber, Description = "قطعة جديدة", BranchId = branchId ?? _branch.Id, WarehouseId = warehouseId ?? _warehouseRow.Id,
@@ -339,6 +531,69 @@ public sealed class WorkflowTests : IDisposable
     private AdminScope OtherAcc() => new(_otherAccountant.Id, _otherAccountant.Name, AdminRole.Accountant, null, null, new[] { _other.Id });
     private AdminScope WmScope() => new(_warehouse.Id, _warehouse.Name, AdminRole.WarehouseManager, null, new[] { _warehouseRow.Id });
     private AdminScope Super() => new(_main.Id, _main.Name, AdminRole.SuperAdmin, null);
+
+    [Fact]
+    public async Task Quantity_request_reaches_one_user_or_the_warehouse_users()
+    {
+        var sent = new List<int>();
+        var qty = new QuantityRequestService(_db, _sessions, null, new CaptureNotifier(sent));
+        var missing = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 4 }, Super());
+        Assert.Contains("اختر مستخدمًا أو فرعًا أو مخزنًا", missing.Values);
+
+        var otherWh = await _db.Warehouses.SingleAsync(x => x.BranchId == _other.Id);
+        var outsider = new AppUser { Name = "خارج", PhoneNumber = "07744444444", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        _db.AppUsers.Add(outsider);
+        await _db.SaveChangesAsync();
+        _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = outsider.Id, WarehouseId = otherWh.Id });
+        await _db.SaveChangesAsync();
+
+        var wrong = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 4, Audience = "user", AudienceUserId = outsider.Id }, Super());
+        Assert.Contains("المستخدم غير مرتبط بهذا المخزن أو الفرع", wrong.Values);
+
+        sent.Clear();
+        var one = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 4, Audience = "user", AudienceUserId = _counter.Id }, Super());
+        Assert.Empty(one);
+        var saved = await _db.QuantityCorrections.OrderByDescending(x => x.Id).FirstAsync();
+        Assert.Equal(1, saved.AudienceKind);
+        Assert.Equal(_counter.Id, saved.AudienceUserId);
+        Assert.Equal(new[] { _counter.Id }, sent);
+        Assert.True((await qty.ApproveAsync(saved.Id, WmScope())).Ok);
+
+        sent.Clear();
+        var many = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 5, Audience = "warehouse", AudienceWarehouseId = _warehouseRow.Id }, Super());
+        Assert.Empty(many);
+        var broad = await _db.QuantityCorrections.OrderByDescending(x => x.Id).FirstAsync();
+        Assert.Equal(3, broad.AudienceKind);
+        Assert.Null(broad.AudienceUserId);
+        Assert.Equal(new[] { _counter.Id }, sent);
+        Assert.DoesNotContain(outsider.Id, sent);
+
+        var mismatch = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 6, Audience = "warehouse", AudienceWarehouseId = otherWh.Id }, Super());
+        Assert.Contains("المخزن لا يطابق مخزن القطعة", mismatch.Values);
+    }
+
+    private sealed class CaptureNotifier(List<int> sent) : IStockNotifier
+    {
+        public Task SessionStartedAsync(int sessionId) => Task.CompletedTask;
+        public Task RecountAssignedAsync(int userId, int recountId, string partNumber) => Task.CompletedTask;
+        public Task QuantityRequestedAsync(IReadOnlyCollection<int> userIds, int requestId, string partNumber)
+        {
+            sent.AddRange(userIds);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BoomNotifier : IStockNotifier
+    {
+        public Task SessionStartedAsync(int sessionId) => throw new InvalidOperationException("down");
+        public Task RecountAssignedAsync(int userId, int recountId, string partNumber) => throw new InvalidOperationException("down");
+        public Task QuantityRequestedAsync(IReadOnlyCollection<int> userIds, int requestId, string partNumber) => throw new InvalidOperationException("down");
+    }
+
+    private sealed class NoHttp : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new InvalidOperationException("provider was called");
+    }
 
     private sealed class TestHost : IHostEnvironment
     {

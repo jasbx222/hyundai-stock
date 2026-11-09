@@ -28,25 +28,29 @@ public sealed record OpResult(bool Ok, string? Error = null, int? Id = null)
 }
 
 /// <summary>The signed-in dashboard account and its data scope. Assignment lists come from the database, never from the client.</summary>
-public sealed record AdminScope(int Id, string Name, AdminRole Role, int? BranchId, IReadOnlyList<int>? AssignedWarehouses = null, IReadOnlyList<int>? AssignedBranches = null)
+public sealed record AdminScope(int Id, string Name, AdminRole Role, int? BranchId, IReadOnlyList<int>? AssignedWarehouses = null, IReadOnlyList<int>? AssignedBranches = null, bool AllBranches = false)
 {
     public bool IsSuper => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin;
     public bool IsMain => Role == AdminRole.MainAdmin;
-    public bool IsUnrestricted => IsSuper;
-    /// <summary>Branch filter: null means all branches. Roles without a single branch keep -1 so older queries do not open every branch.</summary>
-    public int? ScopeBranch => IsSuper ? null : (BranchId ?? -1);
+    /// <summary>All Branches is an explicit flag. A null BranchId never grants it, and it does not grant session or admin management.</summary>
+    public bool SeesAllBranches => IsSuper || (AllBranches && Role is AdminRole.Admin or AdminRole.SparePartsManager or AdminRole.Accountant or AdminRole.AccountsManager or AdminRole.VehicleWarehouseManager);
+    public bool IsUnrestricted => SeesAllBranches;
+    public bool HidesStockFigures => Role is AdminRole.SparePartsManager or AdminRole.VehicleWarehouseManager;
+    /// <summary>Branch filter: null means every branch. A missing branch stays -1 so it cannot match real rows.</summary>
+    public int? ScopeBranch => SeesAllBranches ? null : (BranchId ?? -1);
     public IReadOnlyList<int> Warehouses => AssignedWarehouses ?? Array.Empty<int>();
     public IReadOnlyList<int> Branches => Role switch
     {
-        AdminRole.Accountant => AssignedBranches ?? Array.Empty<int>(),
-        AdminRole.Admin or AdminRole.SparePartsManager => BranchId is int b ? new[] { b } : Array.Empty<int>(),
+        AdminRole.Accountant or AdminRole.AccountsManager => AssignedBranches ?? Array.Empty<int>(),
+        AdminRole.Admin or AdminRole.SparePartsManager or AdminRole.VehicleWarehouseManager => BranchId is int b ? new[] { b } : Array.Empty<int>(),
         _ => Array.Empty<int>()
     };
 
     public bool CanFirstApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager;
-    public bool CanFinalApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    public bool CanFinalApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
+    public bool CanRequestRecount => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanReviewNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager;
-    public bool CanFinalApproveNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant;
+    public bool CanFinalApproveNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
 
     public bool AllowsBranch(int? branchId)
     {

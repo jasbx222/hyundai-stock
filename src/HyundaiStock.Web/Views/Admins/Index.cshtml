@@ -8,7 +8,7 @@
     <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم الهاتف")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد نتائج", "لا يوجد مشرفون مطابقون.", "shield")) }
     else {
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الدور</th><th>الفرع</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var a in Model.Items) {
@@ -39,7 +39,7 @@
                 </div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

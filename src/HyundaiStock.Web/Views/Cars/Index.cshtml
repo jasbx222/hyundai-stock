@@ -16,7 +16,7 @@
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا المركبات التي تُمسح من التطبيق.", "car")) }
     else {
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الرقم</th><th>VIN</th><th>اسم الجلسة</th><th>المستخدم</th><th>المستودع</th><th>الفرع</th><th>الموقع</th><th>تاريخ الإضافة</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var v in Model.Items) {
@@ -27,7 +27,7 @@
                 <td><div class="ra"><a class="btn sm g" href="/Cars/Edit/@v.Id" title="تعديل" aria-label="تعديل">@Ui.Icon("edit", 16)</a></div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

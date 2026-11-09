@@ -23,6 +23,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AdminWarehouse> AdminWarehouses => Set<AdminWarehouse>();
     public DbSet<NewPartRequest> NewPartRequests => Set<NewPartRequest>();
     public DbSet<WorkflowAudit> WorkflowAudits => Set<WorkflowAudit>();
+    public DbSet<DeviceRegistration> DeviceRegistrations => Set<DeviceRegistration>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -41,6 +42,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.PhoneNumber).IsUnique();
             e.Property(x => x.PasswordHash).HasMaxLength(256).IsRequired();
             e.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<DeviceRegistration>(e =>
+        {
+            e.Property(x => x.Token).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Platform).HasMaxLength(32).IsRequired();
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasOne(x => x.AppUser).WithMany().HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Cascade);
         });
         b.Entity<AdminBranch>(e =>
         {
@@ -125,6 +133,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.DecisionReason).HasMaxLength(1000);
             e.HasOne(x => x.RequestedByAdmin).WithMany().HasForeignKey(x => x.RequestedByAdminId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.AudienceUser).WithMany().HasForeignKey(x => x.AudienceUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.Status, x.BranchId });
             e.HasIndex(x => new { x.Status, x.WarehouseId });

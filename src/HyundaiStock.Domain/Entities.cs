@@ -1,6 +1,6 @@
 namespace HyundaiStock.Domain;
 
-public enum AdminRole { MainAdmin = 0, SuperAdmin = 1, Admin = 2, WarehouseManager = 3, SparePartsManager = 4, Accountant = 5 }
+public enum AdminRole { MainAdmin = 0, SuperAdmin = 1, Admin = 2, WarehouseManager = 3, SparePartsManager = 4, Accountant = 5, AccountsManager = 6, VehicleWarehouseManager = 7 }
 public enum WarehouseType { Type1 = 1, Type2 = 2 }
 public enum SessionStatus { InProgress = 0, Completed = 1 }
 public enum RequestStatus { Pending = 0, Approved = 1, Rejected = 2 }
@@ -52,6 +52,8 @@ public class Admin : Entity
     public int? BranchId { get; set; }
     public Branch? Branch { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Explicit grant to see every branch. Null BranchId never means this.</summary>
+    public bool AllBranches { get; set; }
     public ICollection<AdminBranch> Branches { get; set; } = new List<AdminBranch>();
     public ICollection<AdminWarehouse> Warehouses { get; set; } = new List<AdminWarehouse>();
 }
@@ -197,6 +199,10 @@ public class QuantityCorrectionRequest : Entity
     public int? BranchId { get; set; }
     public int? WarehouseId { get; set; }
     public Warehouse? Warehouse { get; set; }
+    /// <summary>1 = one user, 2 = users of the branch, 3 = users of the warehouse. Null on older and mobile-created rows.</summary>
+    public int? AudienceKind { get; set; }
+    public int? AudienceUserId { get; set; }
+    public AppUser? AudienceUser { get; set; }
     /// <summary>Set when an admin created the request from the dashboard.</summary>
     public int? RequestedByAdminId { get; set; }
     public Admin? RequestedByAdmin { get; set; }
@@ -295,6 +301,17 @@ public static class AuditActions
     public const string SessionClosed = "SessionClosed";
 }
 
+/// <summary>Push token owned by the authenticated mobile user. A token belongs to one user at a time.</summary>
+public class DeviceRegistration : Entity
+{
+    public int AppUserId { get; set; }
+    public AppUser? AppUser { get; set; }
+    public string Token { get; set; } = "";
+    public string Platform { get; set; } = "android";
+    public bool IsActive { get; set; } = true;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class VinCorrectionRequest : Entity
 {
     public int ScannedVinId { get; set; }
@@ -319,8 +336,24 @@ public static class Labels
         AdminRole.WarehouseManager => "مدير مخزن",
         AdminRole.SparePartsManager => "مدير قطع الغيار",
         AdminRole.Accountant => "محاسب",
+        AdminRole.AccountsManager => "مدير حسابات",
+        AdminRole.VehicleWarehouseManager => "مدير مخزن سيارات",
         _ => "أدمن"
     };
+    public static string RoleHint(AdminRole r) => r switch
+    {
+        AdminRole.MainAdmin => "يشوف كل شيء في النظام: المشرفين، الجلسات، الجرد، الطلبات، والمالية.",
+        AdminRole.SuperAdmin => "يدير الجلسات والفروع والمخازن، ويشوف كل البيانات بدون إنشاء مسؤول رئيسي.",
+        AdminRole.Admin => "يدير مستخدمي فرعه ويوافق على المرحلة الأولى لتعديل الكمية وتصحيح VIN وإعادة العد.",
+        AdminRole.WarehouseManager => "يشوف مخازنه فقط، يوافق أولًا على تعديل الكمية، ويطلب إعادة العد.",
+        AdminRole.SparePartsManager => "اطلاع فقط على تقدّم الجرد والفروقات (أعلى / أقل / مطابق) بدون كمية النظام أو السعر أو التعديل.",
+        AdminRole.Accountant => "المالية والموافقة النهائية على الكمية، ويطلب إعادة العد ضمن الفروع المحددة.",
+        AdminRole.AccountsManager => "نفس صلاحيات المحاسب: المالية، الموافقة النهائية، وطلب إعادة العد.",
+        AdminRole.VehicleWarehouseManager => "المركبات وتصحيح VIN واطلاع على تقدّم الجرد بدون تعديل الكميات أو المالية.",
+        _ => ""
+    };
+    /// <summary>Higher / lower / matching. Does not reveal the system quantity.</summary>
+    public static string Direction(int? counted, int system) => counted is not int c ? "—" : c > system ? "أعلى" : c < system ? "أقل" : "مطابق";
     public static string Type(WarehouseType t) => t == WarehouseType.Type1 ? "نوع 1" : "نوع 2";
     public static string Session(SessionStatus s) => s == SessionStatus.InProgress ? "قيد التنفيذ" : "مكتمل";
     public static string Qty(RequestStatus s) => s switch { RequestStatus.Pending => "قيد الانتظار", RequestStatus.Approved => "مقبول", _ => "مرفوض" };
@@ -343,5 +376,5 @@ public static class Labels
     public static bool NewPartOpen(NewPartRequestStatus s) => s is NewPartRequestStatus.PendingSparePartsManager or NewPartRequestStatus.PendingAccountant or NewPartRequestStatus.ReturnedToEmployee;
     public static string Vin(RequestStatus s) => s switch { RequestStatus.Pending => "قيد الانتظار", RequestStatus.Approved => "موافق عليه", _ => "مرفوض" };
     public static string Level(ApprovalLevel l) => l switch { ApprovalLevel.None => "القبول الأول", ApprovalLevel.First => "القبول النهائي", _ => "مكتمل" };
-    public static string Recount(RecountStatus s) => s == RecountStatus.Pending ? "قيد الانتظار" : "مكتمل";
+    public static string Recount(RecountStatus s) => s == RecountStatus.Pending ? "قيد المعالجة" : "مكتمل";
 }

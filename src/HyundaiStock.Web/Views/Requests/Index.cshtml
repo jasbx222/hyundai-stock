@@ -2,19 +2,23 @@
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>طلبات التعديل</h1></div>
-    <div class="acts">@if (s.CanFirstApproveQty) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
+    <div class="acts">@if (s.CanFirstApproveQty || s.CanFinalApproveQty) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
+</div>
+<div class="tabs" role="tablist" style="margin-bottom:12px">
+    <a href="/Requests" class="on" role="tab">تصحيح الكمية</a>
+    <a href="/Requests?kind=recount" role="tab">إعادة العد</a>
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "ستظهر هنا الطلبات المضافة." : "جرّب رقم قطعة آخر.", "edit")) }
     else {
-    <table>
-        <thead><tr><th>الرقم</th><th>طلب من قبل</th><th>الكمية الجديدة</th><th>مستوى الموافقة</th><th>الحالة</th><th>تاريخ الطلب</th><th>وقت الطلب</th><th>الإجراءات</th></tr></thead>
+    <div class="hscroll"><table>
+        <thead><tr><th>الرقم</th><th>طلب من قبل</th><th>إلى</th><th>الكمية الجديدة</th><th>مستوى الموافقة</th><th>الحالة</th><th>تاريخ الطلب</th><th>وقت الطلب</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
             var pending = r.Status == RequestStatus.Pending;
             <tr title="@r.PartNumber · @r.PartDescription@(string.IsNullOrEmpty(r.Reason) ? "" : " · " + r.Reason)"><td><span class="idx">#@r.Id.ToString("0000")</span></td>
-                <td>@Ui.Who(r.RequestedBy)</td>
+                <td>@Ui.Who(r.RequestedBy)</td><td>@r.SentTo</td>
                 <td><b class="num">@r.NewQuantity</b></td>
                 <td>@Ui.Step(r.Status, r.Level)</td><td>@Ui.Qty(r.Status, r.Level)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Clock(r.CreatedAt)</td>
                 <td><div class="ra">
@@ -32,7 +36,7 @@
                 </div></td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

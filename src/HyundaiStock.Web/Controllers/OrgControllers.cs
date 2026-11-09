@@ -76,12 +76,12 @@ public sealed class AdminsController(AdminService svc, BranchService branches, W
     public async Task<IActionResult> Edit(int id)
     {
         var a = await svc.GetAsync(id);
-        if (a == null || a.Role == AdminRole.MainAdmin || a.Id == Scope.Id) return NotFoundPage();
+        if (a == null || a.Id == Scope.Id || (a.Role == AdminRole.MainAdmin && !Scope.IsMain)) return NotFoundPage();
         var (bs, ws) = await svc.AssignmentsAsync(id);
         ViewBag.Branches = await branches.AllAsync();
         ViewBag.Warehouses = await warehouses.AllAsync();
         ViewBag.Id = id;
-        return View("Create", new AdminInput { Name = a.Name, PhoneNumber = a.PhoneNumber, Role = a.Role, BranchId = a.BranchId, BranchIds = bs, WarehouseIds = ws });
+        return View("Create", new AdminInput { Name = a.Name, PhoneNumber = a.PhoneNumber, Role = a.Role, BranchId = a.BranchId, BranchIds = bs, WarehouseIds = ws, AllBranches = a.AllBranches });
     }
 
     [HttpPost]

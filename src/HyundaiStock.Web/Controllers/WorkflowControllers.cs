@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class NewPartsController(NewPartRequestService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, string? status, int page = 1)
@@ -27,7 +27,7 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
     [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تم التثبيت وإضافة القطعة للجرد");
 }
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Accountant)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class FinanceController(ExportService exports, BranchService branches, WarehouseService warehouses, SessionLookup sessions) : DashboardController
 {
     public async Task<IActionResult> Index([FromQuery] FinanceFilter f, string? search, int page = 1)

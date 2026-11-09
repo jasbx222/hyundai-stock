@@ -5,7 +5,7 @@
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات تصحيح VIN من التطبيق.", "vin")) }
     else {
-    <table>
+    <div class="hscroll"><table>
         <thead><tr><th>الرقم</th><th>VIN الحالي</th><th>VIN الجديد</th><th>السبب</th><th>طلب بواسطة</th><th>تمت الموافقة بواسطة</th><th>الحالة</th><th>تاريخ الطلب</th><th>تاريخ الموافقة</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
@@ -19,7 +19,7 @@
                 } else { <span class="muted">—</span> }</td></tr>
         }
         </tbody>
-    </table>
+    </table></div>
     @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
     }
 </div>

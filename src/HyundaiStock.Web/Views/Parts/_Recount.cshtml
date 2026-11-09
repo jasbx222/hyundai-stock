@@ -1,12 +1,26 @@
 @model InventoryPart
-@{ var users = (List<NamedItem>)ViewBag.Users; var same = Model.CountedByUserId != null; }
+@{
+    var users = ViewBag.Users as List<NamedItem> ?? new List<NamedItem>();
+    var countedName = Model.CountedByUser?.Name;
+    if (string.IsNullOrWhiteSpace(countedName) && Model.CountedByUserId is int namedId)
+        countedName = users.FirstOrDefault(u => u.Id == namedId)?.Name;
+    var sameOk = Model.CountedByUserId is int countedId && users.Any(u => u.Id == countedId);
+    var sameLabel = string.IsNullOrWhiteSpace(countedName) ? "نفس المستخدم (لم تُعدّ بعد)" : $"نفس المستخدم ({countedName})";
+}
 <div class="modal"><form method="post" action="/Parts/Recount/@Model.Id">
     @Html.AntiForgeryToken()<input type="hidden" name="returnUrl" />
     <div class="mh"><div class="mic pr">@Ui.Icon("refresh", 20)</div><div><h3>طلب إعادة عد</h3><p><span class="mono">@Model.PartNumber</span> · @Model.Description</p></div></div>
     <div class="mb" style="display:grid;gap:10px">
-        <label class="opt"><input type="radio" name="mode" value="same" @(same ? "checked" : "disabled") /> <span>نفس المستخدم (@(Model.CountedByUser?.Name ?? "لم تُعدّ بعد"))</span></label>
-        <label class="opt"><input type="radio" name="mode" value="other" @(same ? "" : "checked") /> <span>مستخدم آخر</span></label>
-        <div id="other-user" style="display:@(same ? "none" : "block")"><label class="lbl">المستخدم<i> *</i></label><div class="field"><select name="userId"><option value="">اختر المستخدم</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div>
+        <label class="opt@(sameOk ? "" : " off")">
+            <input type="radio" name="mode" value="same" checked="@sameOk" disabled="@(!sameOk)" />
+            <span>@sameLabel</span>
+        </label>
+        @if (!sameOk)
+        {
+            <span class="hint">@(Model.CountedByUserId == null ? "لم تُعدّ هذه القطعة بعد، لذا هذا الخيار غير متاح." : "المستخدم الذي عدّ القطعة غير نشط أو غير مرتبط بمخزنها.")</span>
+        }
+        <label class="opt"><input type="radio" name="mode" value="other" checked="@(!sameOk)" /> <span>مستخدم آخر</span></label>
+        <div id="other-user" style="display:@(sameOk ? "none" : "block")"><label class="lbl">المستخدم<i> *</i></label><div class="field"><select name="userId" required="@(!sameOk)"><option value="">اختر المستخدم</option>@foreach (var u in users) { <option value="@u.Id">@u.Name</option> }</select></div>
             @if (users.Count == 0) { <span class="hint">لا يوجد مستخدمون نشطون مرتبطون بمخزن هذه القطعة.</span> }</div>
     </div>
     <div class="mf"><button class="btn p" type="submit">إرسال</button><button type="button" class="btn" data-close>إلغاء</button></div>
