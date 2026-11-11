@@ -94,7 +94,12 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task Existing_count_works_and_unknown_part_is_not_created()
     {
-        var ok = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Location = "A1", Latitude = 33.3, Longitude = 44.3 });
+        var blocked = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Location = "A1", Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(409, blocked.Status);
+        var previous = Assert.IsType<CountedSnapshot>(blocked.Detail);
+        Assert.Equal(2, previous.CountedQuantity);
+        Assert.Equal(1, await _db.InventoryParts.CountAsync());
+        var ok = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(ok.Error);
         Assert.Equal(4, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
 
@@ -117,6 +122,9 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(400, wrong.Status);
         var other = await _newParts.CreateAsync(_counter.Id, Input(branchId: _other.Id, warehouseId: _warehouseRow.Id));
         Assert.True(other.Status is 400 or 403);
+        var exists = await _newParts.CreateAsync(_counter.Id, Input(partNumber: _part.PartNumber));
+        Assert.Equal(409, exists.Status);
+        Assert.Equal(NewPartRequestService.PartExistsMessage, exists.Error);
 
         var created = await _newParts.CreateAsync(_counter.Id, Input());
         Assert.Equal(201, created.Status);
@@ -312,7 +320,13 @@ public sealed class WorkflowTests : IDisposable
         _part.CountedByUserId = _counter.Id; await _db.SaveChangesAsync();
         Assert.True((await _parts.RequestRecountAsync(_part.Id, _counter.Id, WmScope())).Ok);
         var id = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items.Single().Id;
-        Assert.Null((await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3 })).Error);
+        var pending = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items.Single();
+        Assert.Equal(_part.BranchId, pending.BranchId);
+        Assert.Equal(_branch.Name, pending.BranchName);
+        Assert.Equal(_warehouseRow.Id, pending.WarehouseId);
+        var again = await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(409, again.Status);
+        Assert.Null((await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true })).Error);
         Assert.Empty((await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items);
         var completed = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10), true)).Items.Single();
         Assert.Equal("مكتمل", completed.Status); Assert.Equal(5, completed.ResultQuantity); Assert.NotNull(completed.CompletedAt);
@@ -465,7 +479,7 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task One_warehouse_is_resolved_and_its_branch_is_taken_from_the_warehouse()
     {
-        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Latitude = 33.3, Longitude = 44.3 });
+        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(counted.Error);
         var scanned = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD1111111111111", Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(scanned.Error);
@@ -476,8 +490,14 @@ public sealed class WorkflowTests : IDisposable
         await _db.SaveChangesAsync();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = second.Id });
         await _db.SaveChangesAsync();
-        var needsChoice = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Latitude = 33.3, Longitude = 44.3 });
-        Assert.Equal(400, needsChoice.Status);
+        var byPart = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Null(byPart.Error);
+        var saved = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id);
+        Assert.Equal(5, saved.CountedQuantity);
+        Assert.Equal(_warehouseRow.Id, saved.WarehouseId);
+        var byCode = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = _part.PartNumber, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(400, byCode.Status);
+        Assert.Equal("اختر المستودع", byCode.Error);
         var foreign = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD2222222222222", WarehouseId = 999, Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(403, foreign.Status);
 
@@ -486,6 +506,17 @@ public sealed class WorkflowTests : IDisposable
         await _db.SaveChangesAsync();
         var none = await _mobile.CountAsync(stranger.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(400, none.Status);
+    }
+
+    [Fact]
+    public void New_part_details_hide_geographic_coordinates()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HyundaiStock.sln"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        var text = File.ReadAllText(Path.Combine(dir!.FullName, "src", "HyundaiStock.Web", "Views", "NewParts", "Details.cshtml"));
+        Assert.DoesNotContain("الموقع الجغرافي", text);
+        Assert.Contains("الموقع", text);
     }
 
     [Fact]

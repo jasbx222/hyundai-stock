@@ -24,7 +24,7 @@ public class ApiResponse
     public object? Data { get; init; }
     public IDictionary<string, string[]>? Errors { get; init; }
     public static ApiResponse Ok(object? data, string? message = null) => new() { Success = true, Data = data, Message = message };
-    public static ApiResponse Fail(string message, IDictionary<string, string[]>? errors = null) => new() { Success = false, Message = message, Errors = errors };
+    public static ApiResponse Fail(string message, IDictionary<string, string[]>? errors = null, object? data = null) => new() { Success = false, Message = message, Errors = errors, Data = data };
 }
 
 /// <summary>Standard paginated payload used in <c>data</c> for list endpoints.</summary>
