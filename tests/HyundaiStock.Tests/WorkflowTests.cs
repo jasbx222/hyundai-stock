@@ -110,6 +110,30 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task Duplicate_part_number_keeps_the_uncounted_row_uncounted_until_it_is_saved()
+    {
+        var counted = new InventoryPart { SessionId = _session.Id, PartNumber = "DUP-1", Description = "قطعة مكررة", SystemQuantity = 1, SystemLocation = "A-1", WarehouseId = _warehouseRow.Id, BranchId = _branch.Id, CountedQuantity = 3, CountedLocation = "A-1" };
+        var open = new InventoryPart { SessionId = _session.Id, PartNumber = "DUP-1", Description = "قطعة مكررة", SystemQuantity = 1, SystemLocation = "A-1", WarehouseId = _warehouseRow.Id, BranchId = _branch.Id };
+        _db.InventoryParts.AddRange(counted, open);
+        await _db.SaveChangesAsync();
+
+        var list = await _mobile.PartsAsync(_counter.Id, new PageQuery(1, 20), _warehouseRow.Id, null, code: "DUP-1");
+        Assert.Null(list.Error);
+        var rows = list.Data!.Items.Where(x => x.PartNumber == "DUP-1").OrderBy(x => x.Id).ToList();
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(3, rows.Single(x => x.Id == counted.Id).CountedQuantity);
+        Assert.Null(rows.Single(x => x.Id == open.Id).CountedQuantity);
+
+        var saved = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = "DUP-1", WarehouseId = _warehouseRow.Id, Quantity = 4, Location = "A-1", Latitude = 33.3, Longitude = 44.3 });
+        Assert.Null(saved.Error);
+        Assert.Equal(open.Id, saved.Data!.Id);
+        Assert.Equal(4, saved.Data.CountedQuantity);
+        Assert.Equal(2, await _db.InventoryParts.CountAsync(x => x.PartNumber == "DUP-1"));
+        Assert.Equal(3, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == counted.Id)).CountedQuantity);
+        Assert.Equal(4, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == open.Id)).CountedQuantity);
+    }
+
+    [Fact]
     public async Task New_part_rejects_bad_input_and_accepts_a_valid_request()
     {
         var gps = await _newParts.CreateAsync(_counter.Id, Input(latitude: null));

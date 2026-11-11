@@ -119,7 +119,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
 
     /// <summary>
     /// Counted / all parts → sheet "Data"; not counted → sheet "Not Counted Parts" (Hyundai system layout).
-    /// Total Counted sums every counted row of the same part number in the same branch; Difference = Total Counted − System Quantity of that group.
+    /// Each inventory row stays its own line. Total Counted and Difference are that row only, so a sibling with the same part number does not mark this row counted.
     /// </summary>
     public async Task<ExportFile> PartsAsync(PartExportKind kind, ExportFilter f, AdminScope scope)
     {
@@ -144,20 +144,10 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
             return Build("Not Counted Parts", $"Not-Counted-Parts-{label}", NotCountedHeaders, NotCountedWidths,
                 data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemLocation ?? "", x.SystemQuantity, x.Br }));
 
-        // Group totals over the whole session (not only the filtered rows) so a user-filtered export still shows the real total.
-        var groups = await db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid)
-            .GroupBy(x => new { x.PartNumber, x.BranchId })
-            .Select(g => new { g.Key.PartNumber, g.Key.BranchId, Sys = g.Sum(x => x.SystemQuantity), Cnt = g.Sum(x => x.CountedQuantity ?? 0), Any = g.Any(x => x.CountedQuantity != null) })
-            .ToListAsync();
-        var gi = groups.ToDictionary(g => (g.PartNumber, g.BranchId));
         return Build("Data", $"{(kind == PartExportKind.Counted ? "Counted-Parts" : "Parts")}-{label}", DataHeaders, DataWidths,
-            data.Select(x =>
-            {
-                var g = gi[(x.PartNumber, x.BranchId)];
-                return new object?[] { x.PartNumber, x.Description, x.SystemLocation ?? "", x.SystemQuantity,
-                    g.Any ? g.Cnt : null, g.Any ? g.Cnt - g.Sys : null, x.CountedLocation, x.CountedQuantity, x.User, x.Br,
-                    x.CountedAt is DateTime d ? Stamp(d) : "", MapLink(x.Latitude, x.Longitude) };
-            }));
+            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemLocation ?? "", x.SystemQuantity,
+                x.CountedQuantity, x.CountedQuantity is int c ? c - x.SystemQuantity : null, x.CountedLocation, x.CountedQuantity, x.User, x.Br,
+                x.CountedAt is DateTime d ? Stamp(d) : "", MapLink(x.Latitude, x.Longitude) }));
     }
 
     /// <summary>Scanned VINs → sheet "Vins".</summary>
