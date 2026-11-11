@@ -11,7 +11,6 @@
         <div><span class="lbl">المخزن</span><div>@r.WarehouseName</div></div>
         <div><span class="lbl">الموظف</span><div>@r.EmployeeName</div></div>
         <div><span class="lbl">الجلسة</span><div>@r.SessionYear</div></div>
-        <div><span class="lbl">الموقع الجغرافي</span><div class="mono" dir="ltr">@r.Latitude.ToString("0.######"), @r.Longitude.ToString("0.######")</div></div>
         <div><span class="lbl">سبب الإرجاع</span><div>@(string.IsNullOrWhiteSpace(r.ReturnReason) ? "—" : r.ReturnReason)</div></div>
     </div>
 </div>
