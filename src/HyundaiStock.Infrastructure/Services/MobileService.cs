@@ -11,19 +11,20 @@ public sealed record MobileSession(int Id, int Year, string Name, string Status,
 public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe);
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected, string? VehicleType = null);
 public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned);
-public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt, string Status = "قيد الانتظار", int? ResultQuantity = null, DateTime? CompletedAt = null);
+public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt, string Status = "قيد الانتظار", int? ResultQuantity = null, DateTime? CompletedAt = null, int? WarehouseId = null, int? BranchId = null, string? BranchName = null);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
 public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt, bool CanEdit = false);
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
 
-public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
+public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public bool Confirm { get; set; } }
+public sealed record CountedSnapshot(int? CountedQuantity, string? CountedLocation, DateTime? CountedAt);
 public sealed class ScanInput { public string? Vin { get; set; } public int? WarehouseId { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class VinCorrectionInput { public int? ScannedVinId { get; set; } public string? NewVin { get; set; } public string? Reason { get; set; } }
 public sealed class QtyRequestInput { public int? PartId { get; set; } public int? NewQuantity { get; set; } public string? Reason { get; set; } }
 public sealed class ChangePasswordInput { public string? CurrentPassword { get; set; } public string? NewPassword { get; set; } }
-public sealed class RecountInput { public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
+public sealed class RecountInput { public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public bool Confirm { get; set; } }
 
-public sealed record MobileResult<T>(T? Data, string? Error, int Status = 200);
+public sealed record MobileResult<T>(T? Data, string? Error, int Status = 200, object? Detail = null);
 
 public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPasswordService pw)
 {
@@ -146,19 +147,22 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
         if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
-        var resolved = await ResolveWarehouseAsync(userId, i.WarehouseId);
-        if (resolved.Error != null) return new(null, resolved.Error, resolved.Status);
-        i.WarehouseId = resolved.Id;
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
+        if (whs.Count == 0) return new(null, "لا يوجد مستودع مرتبط بحسابك", 400);
         InventoryPart? part;
         if (i.PartId is int pid)
         {
             part = await db.InventoryParts.FirstOrDefaultAsync(x => x.Id == pid && x.SessionId == s.Id);
             if (part == null) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
+            // The row already names its warehouse. Do not ask again when the client omitted one.
+            if (i.WarehouseId is null && part.WarehouseId is int own && whs.Contains(own)) i.WarehouseId = own;
         }
         else
         {
+            var resolved = await ResolveWarehouseAsync(userId, i.WarehouseId);
+            if (resolved.Error != null) return new(null, resolved.Error, resolved.Status);
+            i.WarehouseId = resolved.Id;
             var pn = i.PartNumber?.Trim();
             if (string.IsNullOrEmpty(pn) || pn.Length > 64) return new(null, "رقم القطعة أو partId مطلوب", 400);
             if (i.WarehouseId is not int wid) return new(null, "المستودع مطلوب", 400);
@@ -180,6 +184,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (part.WarehouseId == null && i.WarehouseId is int cw && whs.Contains(cw)) part.WarehouseId = cw;
         if (part.WarehouseId == null)
             part.WarehouseId = await db.Warehouses.Where(z => whs.Contains(z.Id) && z.BranchId == part.BranchId).OrderBy(z => z.Id).Select(z => (int?)z.Id).FirstOrDefaultAsync();
+        if (part.CountedQuantity != null && !i.Confirm)
+            return new(null, "هذه القطعة معدودة مسبقًا", 409, new CountedSnapshot(part.CountedQuantity, part.CountedLocation, part.CountedAt));
         var loc = i.Location?.Trim(); if (loc?.Length > 64) loc = loc[..64];
         if (part.Id != 0)
         {
@@ -269,7 +275,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     {
         var q = db.RecountRequests.AsNoTracking().Where(x => x.AssignedUserId == userId && (includeCompleted || x.Status == RecountStatus.Pending) && x.InventoryPart!.Session!.Status == SessionStatus.InProgress)
             .OrderBy(x => x.CreatedAt).Select(x => new MobileRecount(x.Id, x.InventoryPartId, x.InventoryPart!.PartNumber, x.InventoryPart.Description, x.InventoryPart.SystemLocation,
-                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد المعالجة", x.ResultQuantity, x.CompletedAt));
+                x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : "", x.RequestedByAdmin!.Name, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد المعالجة", x.ResultQuantity, x.CompletedAt,
+                x.InventoryPart.WarehouseId, x.InventoryPart.BranchId, x.InventoryPart.Branch != null ? x.InventoryPart.Branch.Name : null));
         return Task.FromResult(Paging.Build(q, p));
     }
 
@@ -279,7 +286,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (r == null) return new(null, "طلب إعادة العد غير موجود", 404);
         if (r.Status != RecountStatus.Pending) return new(null, "طلب إعادة العد مكتمل", 409);
         if (r.InventoryPart!.Session!.Status != SessionStatus.InProgress) return new(null, "جلسة الجرد منتهية", 409);
-        var res = await CountAsync(userId, new CountInput { PartId = r.InventoryPartId, Quantity = i.Quantity, Location = i.Location, Latitude = i.Latitude, Longitude = i.Longitude });
+        var res = await CountAsync(userId, new CountInput { PartId = r.InventoryPartId, Quantity = i.Quantity, Location = i.Location, Latitude = i.Latitude, Longitude = i.Longitude, Confirm = i.Confirm });
         if (res.Error != null) return res;
         r.Status = RecountStatus.Completed; r.ResultQuantity = i.Quantity; r.CompletedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
