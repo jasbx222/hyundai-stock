@@ -15,11 +15,13 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
     {
         ViewBag.Kind = kind == "recount" ? "recount" : "qty";
         if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope));
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
         return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
     }
 
     public async Task<IActionResult> Create()
     {
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
         ViewBag.Choices = await svc.ChoicesAsync(Scope);
         return View("Form", new QtyInput());
     }
@@ -27,6 +29,7 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
     [HttpPost]
     public async Task<IActionResult> Create(QtyInput input)
     {
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
         var err = await svc.SaveAsync(null, input, Scope);
         if (err.Count == 0) { TempData["ok"] = "تم إرسال طلب التعديل"; return RedirectToAction(nameof(Index)); }
         AddErrors(err);
@@ -36,6 +39,7 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
 
     public async Task<IActionResult> Edit(int id)
     {
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
         var r = await svc.GetAsync(id, Scope);
         if (r == null) return NotFoundPage();
         if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
@@ -52,6 +56,7 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
     [HttpPost]
     public async Task<IActionResult> Edit(int id, QtyInput input)
     {
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
         var err = await svc.SaveAsync(id, input, Scope);
         if (err.Count == 0) { TempData["ok"] = "تم تعديل الطلب"; return RedirectToAction(nameof(Index)); }
         AddErrors(err); ViewBag.Id = id;
@@ -59,9 +64,9 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
         return View("Form", input);
     }
 
-    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تم قبول الطلب");
-    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تم القبول النهائي وتحديث الكمية");
-    [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب");
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Menu.QuantityTab(Scope) ? Done(await svc.ApproveAsync(id, Scope), "تم قبول الطلب") : ForbidPage();
+    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Menu.QuantityTab(Scope) ? Done(await svc.FinalApproveAsync(id, Scope), "تم القبول النهائي وتحديث الكمية") : ForbidPage();
+    [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Menu.QuantityTab(Scope) ? Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب") : ForbidPage();
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.SparePartsManager, AdminRole.VehicleWarehouseManager)]
@@ -80,7 +85,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
     {
         var d = await svc.GetAsync(id, Scope);
         if (d == null) return NotFoundPage();
-        ViewBag.Tab = tab;
+        ViewBag.Tab = Menu.QuantityTab(Scope) || tab != "corrections" ? tab : "recounts";
         return View(d);
     }
 
@@ -112,7 +117,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
 
     public async Task<IActionResult> QuantityForm(int id)
     {
-        if (Scope.HidesStockFigures) return ForbidPage();
+        if (!Menu.QuantityTab(Scope) || Scope.HidesStockFigures) return ForbidPage();
         var d = await svc.GetAsync(id, Scope);
         if (d == null) return NotFound();
         ViewBag.Users = await svc.CandidateUsersAsync(id);
@@ -122,7 +127,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
     [HttpPost]
     public async Task<IActionResult> Quantity(int id, int? newQuantity, string? reason, string? audience, int? audienceUserId, int? audienceBranchId, int? audienceWarehouseId, string? returnUrl)
     {
-        if (Scope.HidesStockFigures) return ForbidPage();
+        if (!Menu.QuantityTab(Scope) || Scope.HidesStockFigures) return ForbidPage();
         var err = await requests.SaveAsync(null, new QtyInput { InventoryPartId = id, NewQuantity = newQuantity, Reason = reason, Audience = audience, AudienceUserId = audienceUserId, AudienceBranchId = audienceBranchId, AudienceWarehouseId = audienceWarehouseId }, Scope);
         return Done(err.Count == 0 ? OpResult.Success() : OpResult.Fail(string.Join("\n", err.Values)), "تم إرسال طلب تحديث الكمية", returnUrl);
     }

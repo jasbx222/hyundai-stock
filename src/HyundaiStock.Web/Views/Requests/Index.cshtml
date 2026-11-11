@@ -2,10 +2,10 @@
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>طلبات التعديل</h1></div>
-    <div class="acts">@if (s.CanFirstApproveQty || s.CanFinalApproveQty) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
+    <div class="acts">@if (Menu.QuantityTab(s)) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
 </div>
 <div class="tabs" role="tablist" style="margin-bottom:12px">
-    <a href="/Requests" class="on" role="tab">تصحيح الكمية</a>
+    @if (Menu.QuantityTab(s)) { <a href="/Requests" class="on" role="tab">تصحيح الكمية</a> }
     <a href="/Requests?kind=recount" role="tab">إعادة العد</a>
 </div>
 <div class="card" style="overflow:hidden">
