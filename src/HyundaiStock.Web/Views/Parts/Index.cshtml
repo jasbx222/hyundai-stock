@@ -23,7 +23,7 @@
                 <td>@(p.BranchName ?? "—")</td><td>@Ui.Who(p.UserName)</td>
                 <td><div class="ra">
                     <a class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" href="/Parts/Details/@p.Id">@Ui.Icon("eye", 16)</a>
-                    @if (!me.HidesStockFigures && (me.CanFirstApproveQty || me.CanFinalApproveQty)) {
+                    @if (Menu.QuantityTab(me)) {
                     <button type="button" class="btn sm" data-remote="/Parts/QuantityForm/@p.Id">@Ui.Icon("edit", 16) تعديل الكمية</button>
                     }
                     @if (me.CanRequestRecount) {

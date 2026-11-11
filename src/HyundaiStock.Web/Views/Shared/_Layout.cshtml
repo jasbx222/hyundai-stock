@@ -30,7 +30,7 @@ else
     if (Menu.Org(s)) sys.Add(("branches", "branch", "الفروع", "/Branches", "فروع الشركة وأرقامها في نظام هيونداي"));
     if (Menu.Org(s)) sys.Add(("warehouses", "box", "المخازن", "/Warehouses", "مخازن كل فرع وأرقامها"));
     var inv = new List<(string key, string icon, string text, string url, string tip)>();
-    if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests?kind=recount", "طلبات إعادة العد وتصحيح الكمية"));
+    if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests?kind=recount", Menu.QuantityTab(s) ? "طلبات إعادة العد وتصحيح الكمية" : "طلبات إعادة العد"));
     if (Menu.NewParts(s)) inv.Add(("newparts", "plus", "طلبات إضافة قطعة", "/NewParts", "طلبات إضافة قطعة غير موجودة في جلسة الجرد"));
     if (Menu.Parts(s)) inv.Add(("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"));
     if (Menu.Finance(s)) inv.Add(("finance", "export", "فروقات المخزون المالية", "/Finance", "كمية النظام والمعدودة والسعر والقيمة المالية"));

@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; }
 <div class="ph"><div><h1>طلبات التعديل</h1></div></div>
 <div class="tabs" role="tablist" style="margin-bottom:12px">
-    <a href="/Requests" role="tab">تصحيح الكمية</a>
+    @if (Menu.QuantityTab((AdminScope)Context.Items[AdminScopeFilter.Key]!)) { <a href="/Requests" role="tab">تصحيح الكمية</a> }
     <a href="/Requests?kind=recount" class="on" role="tab">إعادة العد</a>
 </div>
 <div class="card" style="overflow:hidden">
