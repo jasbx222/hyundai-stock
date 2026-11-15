@@ -13,7 +13,7 @@ public sealed record RecountListRow(int Id, string PartNumber, string RequestedB
 public sealed record ChangeLogRow(int Id, string Field, string? OldValue, string? NewValue, string ChangedBy, string Source, DateTime CreatedAt);
 public sealed record RecountRow(int Id, string UserName, string RequestedBy, RecountStatus Status, int? ResultQuantity, DateTime CreatedAt, DateTime? CompletedAt);
 public sealed record QtyRow(int Id, string PartNumber, string PartDescription, int? OldQuantity, int NewQuantity, string Reason, string RequestedBy, ApprovalLevel Level, RequestStatus Status, DateTime CreatedAt, int? InventoryPartId, string SentTo = "");
-public sealed record VinRow(int Id, string Vin, int SessionYear, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt);
+public sealed record VinRow(int Id, string Vin, int SessionYear, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt, string? Dealer = null, int? ManufactureYear = null);
 public sealed record VinReqRow(int Id, string CurrentVin, string NewVin, string Reason, string RequestedBy, string? ApprovedBy, RequestStatus Status, DateTime CreatedAt, DateTime? ApprovedAt);
 public sealed record SessionRow(int Id, int Year, SessionStatus Status, string StartedBy, DateTime StartedAt, DateTime? EndedAt, string FileName, int Parts, int Vins);
 
@@ -48,6 +48,12 @@ public sealed class SessionLookup(AppDbContext db)
     public Task<StocktakingSession?> CurrentAsync() => db.Sessions.AsNoTracking().Where(x => x.Status == SessionStatus.InProgress).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync();
     public Task<StocktakingSession?> LatestAsync() => db.Sessions.AsNoTracking().OrderBy(x => x.Status).ThenByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync();
     public Task<List<NamedItem>> OptionsAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).Select(x => new NamedItem(x.Id, x.Year.ToString(), null)).ToListAsync();
+    /// <summary>Stocktaking years that have a session, newest first. Feeds the year filter on every page.</summary>
+    public Task<List<int>> YearsAsync() => db.Sessions.AsNoTracking().Select(x => x.Year).Distinct().OrderByDescending(x => x).ToListAsync();
+    /// <summary>The session of the given year (one per year), or the latest session when no year is chosen. A year with no session returns null.</summary>
+    public async Task<StocktakingSession?> ForYearAsync(int? year) => year is int y
+        ? await db.Sessions.AsNoTracking().Where(x => x.Year == y).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync()
+        : await LatestAsync();
 }
 
 public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockNotifier? notify = null)
@@ -61,9 +67,9 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
         return q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
     }
 
-    public async Task<(PagedResult<PartRow> page, StocktakingSession? session)> ListAsync(PageQuery p, AdminScope s, string? view = null)
+    public async Task<(PagedResult<PartRow> page, StocktakingSession? session)> ListAsync(PageQuery p, AdminScope s, string? view = null, int? year = null)
     {
-        var latest = await sessions.LatestAsync();
+        var latest = await sessions.ForYearAsync(year);
         var sid = latest?.Id ?? -1;
         var q = Scoped(s).Where(x => x.SessionId == sid);
         if (view == "counted") q = q.Where(x => x.CountedQuantity != null);
@@ -76,9 +82,10 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
         return (Paging.Build(rows, p), latest);
     }
 
-    public Task<PagedResult<RecountListRow>> RecountsAsync(PageQuery p, AdminScope s)
+    public Task<PagedResult<RecountListRow>> RecountsAsync(PageQuery p, AdminScope s, int? year = null)
     {
         var q = db.RecountRequests.AsNoTracking().AsQueryable();
+        if (year is int y) q = q.Where(x => x.InventoryPart!.Session!.Year == y);
         if (!s.IsUnrestricted)
         {
             if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); q = q.Where(x => x.InventoryPart!.WarehouseId != null && ids.Contains(x.InventoryPart.WarehouseId.Value)); }
@@ -169,9 +176,10 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
 
     private static bool InScope(AdminScope s, int? branchId, int? warehouseId) => s.AllowsInventory(warehouseId, branchId);
 
-    public Task<PagedResult<QtyRow>> ListAsync(PageQuery p, AdminScope s)
+    public Task<PagedResult<QtyRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
     {
         var q = Scoped(s);
+        if (year is int y) q = q.Where(x => x.InventoryPart != null && x.InventoryPart.Session!.Year == y);
         if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.PartDescription.Contains(t) || (x.RequestedByAdmin != null && x.RequestedByAdmin.Name.Contains(t)) || (x.RequestedByUser != null && x.RequestedByUser.Name.Contains(t)));
         var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new QtyRow(x.Id, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedByAdmin != null ? x.RequestedByAdmin.Name : x.RequestedByUser != null ? x.RequestedByUser.Name + " (التطبيق)" : "", x.ApprovalLevel, x.Status, x.CreatedAt, x.InventoryPartId,
             x.AudienceKind == 1 ? (x.AudienceUser != null ? x.AudienceUser.Name : "—") : x.AudienceKind == 2 ? "مستخدمو فرع " + (db.Branches.Where(b => b.Id == x.BranchId).Select(b => b.Name).FirstOrDefault() ?? "") : x.AudienceKind == 3 ? (x.Warehouse != null ? "مستخدمو مخزن " + x.Warehouse.Name : "مستخدمو المخزن") : "—"));
@@ -445,6 +453,8 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
         {
             db.PartChangeLogs.Add(new PartChangeLog { InventoryPartId = part.Id, Field = "الكمية المحسوبة", OldValue = part.CountedQuantity?.ToString(), NewValue = r.NewQuantity.ToString(), ChangedBy = s.Name, Source = $"طلب تصحيح #{r.Id}" });
             part.CountedQuantity = r.NewQuantity;
+            // A held surplus count on a part nobody had counted: credit the counter who sent it.
+            if (part.CountedByUserId == null && r.RequestedByUserId is int uid) { part.CountedByUserId = uid; part.CountedAt = now; }
         }
         db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.FinalApproved, FromStatus = "PendingAccountantApproval", ToStatus = "Approved", ActorAdminId = s.Id, ActorRole = s.Role.ToString(), BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = part?.Id ?? r.InventoryPartId });
         try { await db.SaveChangesAsync(); await tx.CommitAsync(); }
@@ -485,11 +495,14 @@ public sealed class VinService(AppDbContext db)
         return q.Where(x => branches.Contains(x.BranchId));
     }
 
-    public Task<PagedResult<VinRow>> ListAsync(PageQuery p, AdminScope s)
+    public Task<PagedResult<VinRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
     {
         var q = Scoped(s);
+        if (year is int y) q = q.Where(x => x.Session!.Year == y);
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t) || x.User!.Name.Contains(t) || x.Warehouse!.Name.Contains(t));
-        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinRow(x.Id, x.Vin, x.Session!.Year, x.User!.Name, x.Warehouse!.Name, x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt));
+        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinRow(x.Id, x.Vin, x.Session!.Year, x.User!.Name, x.Warehouse!.Name, x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
+            db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Dealer).FirstOrDefault(),
+            db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault()));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
@@ -523,9 +536,10 @@ public sealed class VinRequestService(AppDbContext db)
         return q.Where(x => branches.Contains(x.ScannedVin!.BranchId));
     }
 
-    public Task<PagedResult<VinReqRow>> ListAsync(PageQuery p, AdminScope s)
+    public Task<PagedResult<VinReqRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
     {
         var q = Scoped(s);
+        if (year is int y) q = q.Where(x => x.ScannedVin!.Session!.Year == y);
         if (p.Term is string t) q = q.Where(x => x.CurrentVin.Contains(t) || x.NewVin.Contains(t) || x.RequestedByUser!.Name.Contains(t));
         var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinReqRow(x.Id, x.CurrentVin, x.NewVin, x.Reason, x.RequestedByUser!.Name,
             x.ApprovedByAdmin != null ? x.ApprovedByAdmin.Name : null, x.Status, x.CreatedAt, x.ApprovedAt));

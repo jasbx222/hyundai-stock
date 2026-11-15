@@ -1,0 +1,14 @@
+@model string
+@inject SessionLookup Sessions
+@{
+    // Year filter shared by every list page. One session per year, so the year picks the session.
+    var years = await Sessions.YearsAsync();
+    var current = Context.Request.Query["year"].ToString();
+}
+<form method="get">
+    @foreach (var kv in Context.Request.Query.Where(x => x.Key is not ("year" or "page"))) { <input type="hidden" name="@kv.Key" value="@kv.Value" /> }
+    <label class="sel"><select name="year" onchange="this.form.submit()" aria-label="سنة الجرد">
+        <option value="">@Model</option>
+        @foreach (var y in years) { <option value="@y" selected="@(current == y.ToString())">جرد @y</option> }
+    </select>@Ui.Icon("chev", 14)</label>
+</form>

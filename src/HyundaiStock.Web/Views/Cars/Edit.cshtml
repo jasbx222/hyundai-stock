@@ -6,7 +6,7 @@
     @Html.AntiForgeryToken()
     @if (ms.ErrorOf("") is string ge) { <div class="alert er" style="margin-bottom:18px">@Ui.Icon("alert", 18)<span>@ge</span></div> }
     <div class="fg2">
-        <div><label class="lbl" for="vin">VIN<i> *</i></label><div class="@ms.Cls("vin")"><input id="vin" name="vin" value="@vin" class="mono" dir="ltr" style="text-align:right;text-transform:uppercase" maxlength="17" minlength="17" required /></div>@ms.Err("vin")</div>
+        <div><label class="lbl" for="vin">رقم الشاصي<i> *</i></label><div class="@ms.Cls("vin")"><input id="vin" name="vin" value="@vin" class="mono" dir="ltr" style="text-align:right;text-transform:uppercase" maxlength="17" minlength="17" required /></div>@ms.Err("vin")</div>
         <div><label class="lbl" for="warehouseId">المستودع<i> *</i></label><div class="field"><select id="warehouseId" name="warehouseId" required>@foreach (var w in whs) { <option value="@w.Id" selected="@(w.Id == wid)">@w.Name</option> }</select></div>@ms.Err("warehouseId")</div>
         <div><label class="lbl">الفرع<i> *</i></label><div class="field"><input value="@Model.Branch?.Name" readonly tabindex="-1" aria-readonly="true" /></div><div class="hint">يتحدد حسب المستودع</div></div>
         <div><label class="lbl">الموقع</label><div class="field"><input class="mono" dir="ltr" style="text-align:right" readonly tabindex="-1" value="@(Model.Latitude.HasValue ? $"{Model.Latitude.Value.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}, {Model.Longitude!.Value.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}" : "—")" /></div></div>

@@ -54,7 +54,7 @@ public static class Menu
 {
     public static bool Users(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
     public static bool Admins(AdminScope s) => s.IsSuper;
-    public static bool Sessions(AdminScope s) => s.IsSuper;
+    public static bool Sessions(AdminScope s) => s.CanStartSession;
     public static bool VinRequests(AdminScope s) => s.Role is AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.VehicleWarehouseManager;
     public static bool ManageOrg(AdminScope s) => s.IsSuper;
     public static bool Org(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
@@ -62,7 +62,7 @@ public static class Menu
     public static bool Requests(AdminScope s) => s.Role is not (AdminRole.SparePartsManager or AdminRole.VehicleWarehouseManager);
     public static bool QuantityTab(AdminScope s) => s.Role == AdminRole.MainAdmin;
     public static bool Cars(AdminScope s) => s.Role != AdminRole.SparePartsManager;
-    public static bool NewParts(AdminScope s) => s.CanReviewNewPart || s.CanFinalApproveNewPart;
+    public static bool NewParts(AdminScope s) => s.CanReviewNewPart;
     public static bool Finance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
     public static bool PartActions(AdminScope s) => s.CanFirstApproveQty;
     public static bool LegacyExport(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;

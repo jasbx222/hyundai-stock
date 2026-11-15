@@ -11,12 +11,12 @@ namespace HyundaiStock.Web.Controllers;
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class RequestsController(QuantityRequestService svc, PartService parts) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? kind, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? kind, int? year, int page = 1)
     {
         ViewBag.Kind = kind == "recount" ? "recount" : "qty";
-        if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope));
+        if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, year));
         if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
     }
 
     public async Task<IActionResult> Create()
@@ -72,10 +72,10 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.SparePartsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class PartsController(PartService svc, QuantityRequestService requests) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? view, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? view, int? year, int page = 1)
     {
         var selected = view is "counted" or "diff" ? view : null;
-        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope, selected);
+        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope, selected, year);
         ViewBag.Session = session;
         ViewBag.View = selected;
         return View(p);
@@ -136,12 +136,12 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int page = 1)
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1)
     {
         ViewBag.Branches = await branches.AllAsync(Scope);
         ViewBag.Users = await users.AllAsync(Scope);
         ViewBag.Admins = Scope.IsSuper ? (await admins.ListAsync(new PageQuery(1, 100), Scope)).Items.Select(a => new NamedItem(a.Id, a.Name)).ToList() : new List<NamedItem> { new(Scope.Id, Scope.Name) };
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
     }
 
     public async Task<IActionResult> Edit(int id)
@@ -169,12 +169,12 @@ public sealed class CarsController(VinService svc, WarehouseService warehouses, 
 [Roles(AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.VehicleWarehouseManager)]
 public sealed class VinRequestsController(VinRequestService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
     [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.DecideAsync(id, true, Scope), "تمت الموافقة على تصحيح VIN");
     [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.DecideAsync(id, false, Scope), "تم رفض طلب تصحيح VIN");
 }
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.AccountsManager)]
 public sealed class SessionsController(SessionService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search)));
@@ -195,7 +195,7 @@ public sealed class SessionsController(SessionService svc) : DashboardController
         finally { foreach (var st in streams) await st.DisposeAsync(); }
     }
 
-    [HttpPost] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");
+    [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");
 
     public async Task<IActionResult> File(int id)
     {

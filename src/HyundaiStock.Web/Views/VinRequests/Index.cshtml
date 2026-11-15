@@ -1,19 +1,19 @@
 @model PagedResult<VinReqRow>
-@{ ViewData["Title"] = "طلبات تصحيح VIN"; ViewData["Nav"] = "vinrequests"; }
-<div class="ph"><div><h1>طلبات تصحيح VIN</h1></div></div>
+@{ ViewData["Title"] = "طلبات تصحيح رقم الشاصي"; ViewData["Nav"] = "vinrequests"; }
+<div class="ph"><div><h1>طلبات تصحيح رقم الشاصي</h1></div></div>
 <div class="card vt" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
-    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات تصحيح VIN من التطبيق.", "vin")) }
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات تصحيح رقم الشاصي من التطبيق.", "vin")) }
     else {
     <div class="hscroll"><table>
-        <thead><tr><th>الرقم</th><th>VIN الحالي</th><th>VIN الجديد</th><th>السبب</th><th>طلب بواسطة</th><th>تمت الموافقة بواسطة</th><th>الحالة</th><th>تاريخ الطلب</th><th>تاريخ الموافقة</th><th>الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>رقم الشاصي الحالي</th><th>رقم الشاصي الجديد</th><th>السبب</th><th>طلب بواسطة</th><th>تمت الموافقة بواسطة</th><th>الحالة</th><th>تاريخ الطلب</th><th>تاريخ الموافقة</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
             <tr><td><span class="idx">#@r.Id.ToString("0000")</span></td><td><span class="mono" dir="ltr">@r.CurrentVin</span></td><td><span class="mono" dir="ltr"><b>@r.NewVin</b></span></td>
                 <td class="clip" title="@r.Reason">@r.Reason</td><td>@Ui.Who(r.RequestedBy)</td><td>@Ui.Who(r.ApprovedBy)</td><td>@Ui.Vin(r.Status)</td><td>@Ui.Day(r.CreatedAt)</td><td>@Ui.Day(r.ApprovedAt)</td>
                 <td>@if (r.Status == RequestStatus.Pending) {
                     <div class="ra">
-                        <button type="button" class="btn sm okb" data-confirm data-action="/VinRequests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" title="الموافقة على التصحيح؟" data-title="الموافقة على التصحيح؟" data-text="سيتغير رقم VIN من @r.CurrentVin إلى @r.NewVin." data-ok="الموافقة">@Ui.Icon("check", 16) الموافقة</button>
+                        <button type="button" class="btn sm okb" data-confirm data-action="/VinRequests/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" title="الموافقة على التصحيح؟" data-title="الموافقة على التصحيح؟" data-text="سيتغير رقم الشاصي من @r.CurrentVin إلى @r.NewVin." data-ok="الموافقة">@Ui.Icon("check", 16) الموافقة</button>
                         <button type="button" class="btn sm dg" data-confirm data-action="/VinRequests/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" title="رفض الطلب؟" data-title="رفض الطلب؟" data-text="سيتم رفض طلب التصحيح." data-ok="رفض">@Ui.Icon("x", 16) رفض</button>
                     </div>
                 } else { <span class="muted">—</span> }</td></tr>

@@ -32,6 +32,8 @@ public sealed record AdminScope(int Id, string Name, AdminRole Role, int? Branch
 {
     public bool IsSuper => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin;
     public bool IsMain => Role == AdminRole.MainAdmin;
+    /// <summary>Main admin, super admin and the accounts manager may start a session. Ending one stays with main and super admin.</summary>
+    public bool CanStartSession => IsSuper || Role == AdminRole.AccountsManager;
     /// <summary>All Branches is an explicit flag. A null BranchId never grants it, and it does not grant session or admin management.</summary>
     public bool SeesAllBranches => IsSuper || (AllBranches && Role is AdminRole.Admin or AdminRole.SparePartsManager or AdminRole.Accountant or AdminRole.AccountsManager or AdminRole.VehicleWarehouseManager);
     public bool IsUnrestricted => SeesAllBranches;
@@ -50,7 +52,6 @@ public sealed record AdminScope(int Id, string Name, AdminRole Role, int? Branch
     public bool CanFinalApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanRequestRecount => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanReviewNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager;
-    public bool CanFinalApproveNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
 
     public bool AllowsBranch(int? branchId)
     {
