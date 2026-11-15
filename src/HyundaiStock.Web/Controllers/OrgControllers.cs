@@ -124,7 +124,7 @@ public sealed class UsersController(UserService svc, BranchService branches, War
         var u = await svc.GetAsync(id, Scope);
         if (u == null) return NotFoundPage();
         await Lookups(); ViewBag.Id = id;
-        return View("Form", new UserInput { Name = u.Name, PhoneNumber = u.PhoneNumber, BranchIds = u.BranchIds, WarehouseIds = u.WarehouseIds });
+        return View("Form", new UserInput { Name = u.Name, PhoneNumber = u.PhoneNumber, BranchIds = u.BranchIds, WarehouseIds = u.WarehouseIds, CanPickDuplicateRow = u.CanPickDuplicateRow });
     }
 
     [HttpPost]

@@ -62,4 +62,7 @@ public static class Ui
         new HtmlString($"<div class=\"who\"><div class=\"av\">{System.Net.WebUtility.HtmlEncode(Initial(name))}</div><span>{System.Net.WebUtility.HtmlEncode(name)}</span></div>");
     public static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "؟" : name.Trim()[..1];
     public static string Idx(int id) => id.ToString("00");
+    /// <summary>Carries the page's current filter into an export link: "&key=value" for each non-empty key.</summary>
+    public static string FilterQuery(Microsoft.AspNetCore.Http.HttpRequest r, params string[] keys) =>
+        string.Concat(keys.Where(k => !string.IsNullOrWhiteSpace(r.Query[k])).Select(k => "&" + k + "=" + Uri.EscapeDataString(r.Query[k].ToString())));
 }

@@ -83,6 +83,8 @@ public class AppUser : Entity
     public string PhoneNumber { get; set; } = "";
     public string PasswordHash { get; set; } = "";
     public bool IsActive { get; set; } = true;
+    /// <summary>When one part number has several rows, this user sees every row and picks one. Without it the default row is counted.</summary>
+    public bool CanPickDuplicateRow { get; set; }
     public int? CreatedByAdminId { get; set; }
     public Admin? CreatedByAdmin { get; set; }
     public ICollection<AppUserBranch> Branches { get; set; } = new List<AppUserBranch>();
@@ -163,8 +165,13 @@ public class ExpectedVin : Entity
 {
     public int SessionId { get; set; }
     public StocktakingSession? Session { get; set; }
+    /// <summary>Chassis number (رقم الشاصي). Stored as the 17-character VIN.</summary>
     public string Vin { get; set; } = "";
     public string? Model { get; set; }
+    /// <summary>Agent (الوكيل) from the session file. Optional.</summary>
+    public string? Dealer { get; set; }
+    /// <summary>Manufacture year (سنة الصنع) from the session file. Optional.</summary>
+    public int? ManufactureYear { get; set; }
     public int? WarehouseId { get; set; }
     public Warehouse? Warehouse { get; set; }
     public int? BranchId { get; set; }

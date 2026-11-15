@@ -6,7 +6,7 @@
     <a href="/Requests?kind=recount" class="on" role="tab">إعادة العد</a>
 </div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو الاسم")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو الاسم")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات إعادة العد.", "refresh")) }
     else {
     <div class="hscroll"><table>
