@@ -1,6 +1,6 @@
 @model PagedResult<RecountListRow>
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; }
-<div class="ph"><div><h1>طلبات التعديل</h1></div></div>
+<div class="ph"><div><h1>طلبات التعديل</h1></div><div class="acts"><a class="btn" href="/Requests/Export?kind=recount@(Ui.FilterQuery(Context.Request, "search", "year"))" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
 <div class="tabs" role="tablist" style="margin-bottom:12px">
     @if (Menu.QuantityTab((AdminScope)Context.Items[AdminScopeFilter.Key]!)) { <a href="/Requests" role="tab">تصحيح الكمية</a> }
     <a href="/Requests?kind=recount" class="on" role="tab">إعادة العد</a>

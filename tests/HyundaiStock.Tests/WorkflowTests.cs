@@ -288,6 +288,44 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
+    public async Task ApprovedParts_ListsOnlyApprovedAndExportsThem()
+    {
+        var approved = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-1"))).Data!.Id;
+        await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-2"));
+        Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
+
+        var page = await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), null);
+        var row = Assert.Single(page.Items);
+        Assert.Equal("APR-1", row.PartNumber);
+        Assert.NotNull(row.ApprovedAt);
+        Assert.NotNull(row.InventoryPartId);
+        Assert.Empty((await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), _session.Year - 1)).Items);
+
+        var file = await _newParts.ApprovedExportAsync(SpareScope(), null, _session.Year);
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content));
+        var ws = wb.Worksheet("New Parts");
+        Assert.Equal(2, ws.LastRowUsed()!.RowNumber());
+        Assert.Equal("APR-1", ws.Cell(2, 2).GetString());
+    }
+
+    [Fact]
+    public async Task ListExports_ReturnEveryRowOfThePageQuery()
+    {
+        for (int i = 0; i < 12; i++) _db.AppUsers.Add(new AppUser { Name = $"مستخدم {i}", PhoneNumber = $"0775000{i:0000}", PasswordHash = "x", IsActive = true });
+        await _db.SaveChangesAsync();
+        var xl = new ListExports(new BranchService(_db), new WarehouseService(_db), new AdminService(_db, _pw), new UserService(_db, _pw), _qty, _parts, _vin, _sessionSvc);
+        var users = await xl.UsersAsync(null, Super());
+        using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(users.Content)))
+            Assert.True(wb.Worksheet("Users").LastRowUsed()!.RowNumber() > 11);
+        foreach (var f in new[] { await xl.AdminsAsync(null, Super()), await xl.BranchesAsync(null, Super()), await xl.WarehousesAsync(null, null, Super()),
+            await xl.QuantityRequestsAsync(null, null, Super()), await xl.RecountsAsync(null, null, Super()), await xl.VinRequestsAsync(null, null, Super()), await xl.SessionsAsync(null) })
+        {
+            using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(f.Content));
+            Assert.True(wb.Worksheets.First().LastRowUsed()!.RowNumber() >= 1);
+        }
+    }
+
+    [Fact]
     public async Task Lists_YearFilter_PicksThatYearsSession()
     {
         var (thisYear, s1) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Year);

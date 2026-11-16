@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "جلسات الجرد"; ViewData["Nav"] = "sessions"; var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>جلسات الجرد</h1></div>
-    <div class="acts"><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
+    <div class="acts"><a class="btn" href="/Sessions/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
 </div>
 <div class="card" style="overflow:hidden">
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }

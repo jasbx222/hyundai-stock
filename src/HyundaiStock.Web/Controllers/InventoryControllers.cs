@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace HyundaiStock.Web.Controllers;
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
-public sealed class RequestsController(QuantityRequestService svc, PartService parts) : DashboardController
+public sealed class RequestsController(QuantityRequestService svc, PartService parts, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, string? kind, int? year, int page = 1)
     {
@@ -17,6 +17,13 @@ public sealed class RequestsController(QuantityRequestService svc, PartService p
         if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, year));
         if (!Menu.QuantityTab(Scope)) return ForbidPage();
         return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
+    }
+
+    public async Task<IActionResult> Export(string? search, string? kind, int? year)
+    {
+        if (kind == "recount") return Excel(await xl.RecountsAsync(search, year, Scope));
+        if (!Menu.QuantityTab(Scope)) return ForbidPage();
+        return Excel(await xl.QuantityRequestsAsync(search, year, Scope));
     }
 
     public async Task<IActionResult> Create()
@@ -167,17 +174,19 @@ public sealed class CarsController(VinService svc, WarehouseService warehouses, 
 }
 
 [Roles(AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.VehicleWarehouseManager)]
-public sealed class VinRequestsController(VinRequestService svc) : DashboardController
+public sealed class VinRequestsController(VinRequestService svc, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
+    public async Task<IActionResult> Export(string? search, int? year) => Excel(await xl.VinRequestsAsync(search, year, Scope));
     [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.DecideAsync(id, true, Scope), "تمت الموافقة على تصحيح VIN");
     [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.DecideAsync(id, false, Scope), "تم رفض طلب تصحيح VIN");
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.AccountsManager)]
-public sealed class SessionsController(SessionService svc) : DashboardController
+public sealed class SessionsController(SessionService svc, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search)));
+    public async Task<IActionResult> Export(string? search) => Excel(await xl.SessionsAsync(search));
 
     [HttpPost]
     [RequestSizeLimit(25 * 1024 * 1024)]
