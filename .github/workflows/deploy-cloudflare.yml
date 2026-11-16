@@ -95,6 +95,7 @@ jobs:
             SEED_ADMIN_PHONE
             SEED_ADMIN_PASSWORD
             FCM_SERVER_KEY
+            FCM_SERVICE_ACCOUNT_JSON
         env:
           DB_CONNECTION_STRING: ${{ secrets.HYUNDAI_DB_CONNECTION_STRING }}
           JWT_KEY: ${{ secrets.HYUNDAI_JWT_KEY }}
@@ -102,3 +103,4 @@ jobs:
           SEED_ADMIN_PHONE: ${{ secrets.HYUNDAI_SEED_ADMIN_PHONE }}
           SEED_ADMIN_PASSWORD: ${{ secrets.HYUNDAI_SEED_ADMIN_PASSWORD }}
           FCM_SERVER_KEY: ${{ secrets.HYUNDAI_FCM_SERVER_KEY }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.HYUNDAI_FCM_SERVICE_ACCOUNT_JSON }}

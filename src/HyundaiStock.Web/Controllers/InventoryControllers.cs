@@ -143,8 +143,13 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, int page = 1)
+    public async Task<IActionResult> Index(string? search, int? year, string? view, int page = 1)
     {
+        if (view == "missing")
+        {
+            ViewBag.View = view;
+            return View("Missing", await svc.MissingAsync(new PageQuery(page, 10, search), Scope, year));
+        }
         ViewBag.Branches = await branches.AllAsync(Scope);
         ViewBag.Users = await users.AllAsync(Scope);
         ViewBag.Admins = Scope.IsSuper ? (await admins.ListAsync(new PageQuery(1, 100), Scope)).Items.Select(a => new NamedItem(a.Id, a.Name)).ToList() : new List<NamedItem> { new(Scope.Id, Scope.Name) };

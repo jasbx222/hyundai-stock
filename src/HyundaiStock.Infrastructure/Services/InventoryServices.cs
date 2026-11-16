@@ -13,7 +13,8 @@ public sealed record RecountListRow(int Id, string PartNumber, string RequestedB
 public sealed record ChangeLogRow(int Id, string Field, string? OldValue, string? NewValue, string ChangedBy, string Source, DateTime CreatedAt);
 public sealed record RecountRow(int Id, string UserName, string RequestedBy, RecountStatus Status, int? ResultQuantity, DateTime CreatedAt, DateTime? CompletedAt);
 public sealed record QtyRow(int Id, string PartNumber, string PartDescription, int? OldQuantity, int NewQuantity, string Reason, string RequestedBy, ApprovalLevel Level, RequestStatus Status, DateTime CreatedAt, int? InventoryPartId, string SentTo = "");
-public sealed record VinRow(int Id, string Vin, int SessionYear, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt, string? Dealer = null, int? ManufactureYear = null);
+public sealed record VinRow(int Id, string Vin, int SessionYear, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt, string? VehicleType = null, int? ManufactureYear = null);
+public sealed record MissingVinRow(int Id, string Vin, string? VehicleType, int? ManufactureYear, string? WarehouseName, string? BranchName, int SessionYear, DateTime CreatedAt);
 public sealed record VinReqRow(int Id, string CurrentVin, string NewVin, string Reason, string RequestedBy, string? ApprovedBy, RequestStatus Status, DateTime CreatedAt, DateTime? ApprovedAt);
 public sealed record SessionRow(int Id, int Year, SessionStatus Status, string StartedBy, DateTime StartedAt, DateTime? EndedAt, string FileName, int Parts, int Vins);
 
@@ -71,7 +72,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
     {
         var latest = await sessions.ForYearAsync(year);
         var sid = latest?.Id ?? -1;
-        var q = Scoped(s).Where(x => x.SessionId == sid);
+        var q = Scoped(s).Where(x => x.SessionId == sid && !db.NewPartRequests.Any(r => r.InventoryPartId == x.Id));
         if (view == "counted") q = q.Where(x => x.CountedQuantity != null);
         else if (view == "diff") q = q.Where(x => x.CountedQuantity != null && x.CountedQuantity != x.SystemQuantity);
         if (p.Term is string t) q = q.Where(x => x.PartNumber.Contains(t));
@@ -484,7 +485,7 @@ public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessio
     }
 }
 
-public sealed class VinService(AppDbContext db)
+public sealed class VinService(AppDbContext db, SessionLookup sessions)
 {
     public IQueryable<ScannedVin> Scoped(AdminScope s)
     {
@@ -501,9 +502,25 @@ public sealed class VinService(AppDbContext db)
         if (year is int y) q = q.Where(x => x.Session!.Year == y);
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t) || x.User!.Name.Contains(t) || x.Warehouse!.Name.Contains(t));
         var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinRow(x.Id, x.Vin, x.Session!.Year, x.User!.Name, x.Warehouse!.Name, x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
-            db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Dealer).FirstOrDefault(),
+            db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Model).FirstOrDefault(),
             db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault()));
         return Task.FromResult(Paging.Build(rows, p));
+    }
+
+    /// <summary>Vehicle differences: VINs of the session file that nobody has scanned yet.</summary>
+    public async Task<PagedResult<MissingVinRow>> MissingAsync(PageQuery p, AdminScope s, int? year = null)
+    {
+        var session = await sessions.ForYearAsync(year);
+        var sid = session?.Id ?? -1;
+        var q = db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == sid && !db.ScannedVins.Any(v => v.SessionId == x.SessionId && v.Vin == x.Vin));
+        if (!s.IsUnrestricted)
+        {
+            if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); q = q.Where(x => x.WarehouseId != null && ids.Contains(x.WarehouseId.Value)); }
+            else { var branches = s.Branches.ToList(); q = q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value)); }
+        }
+        if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t) || (x.Model != null && x.Model.Contains(t)));
+        var rows = q.OrderBy(x => x.Vin).Select(x => new MissingVinRow(x.Id, x.Vin, x.Model, x.ManufactureYear, x.Warehouse != null ? x.Warehouse.Name : null, x.Branch != null ? x.Branch.Name : null, session!.Year, x.CreatedAt));
+        return Paging.Build(rows, p);
     }
 
     public Task<ScannedVin?> GetAsync(int id, AdminScope s) => Scoped(s).Include(x => x.User).Include(x => x.Session).Include(x => x.Branch).Include(x => x.Warehouse).FirstOrDefaultAsync(x => x.Id == id);

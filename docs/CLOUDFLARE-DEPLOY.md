@@ -65,7 +65,7 @@ dedicated SQL login for the app instead of using the server admin.
    | `HYUNDAI_DB_CONNECTION_STRING` | connection string from step 2 |
    | `HYUNDAI_JWT_KEY` | ≥ 32 random bytes (e.g. `openssl rand -hex 32`). Keep it stable: changing it logs every phone out |
    | `HYUNDAI_SEED_ADMIN_NAME` / `_PHONE` / `_PASSWORD` | Main admin created on an empty database (phone `07[5-8]XXXXXXXX`, password ≥ 6) |
-   | `HYUNDAI_FCM_SERVER_KEY` | optional, push notifications |
+   | `HYUNDAI_FCM_SERVICE_ACCOUNT_JSON` | optional, push notifications: the whole Firebase service-account JSON (Firebase Console → Project settings → Service accounts → Generate new private key) |
 
 5. Merge the PR (or run the workflow manually). The first deploy takes a few
    minutes while Cloudflare provisions the image. The site is then live at

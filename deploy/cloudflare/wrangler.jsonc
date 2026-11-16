@@ -40,5 +40,5 @@
   }
   // Runtime secrets (set by the GitHub workflow from repository secrets, never committed):
   //   DB_CONNECTION_STRING, JWT_KEY, SEED_ADMIN_NAME, SEED_ADMIN_PHONE,
-  //   SEED_ADMIN_PASSWORD, FCM_SERVER_KEY (optional)
+  //   SEED_ADMIN_PASSWORD, FCM_SERVICE_ACCOUNT_JSON (push, optional)
 }

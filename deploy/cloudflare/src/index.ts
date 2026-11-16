@@ -10,6 +10,7 @@ export interface Env {
   SEED_ADMIN_PHONE?: string;
   SEED_ADMIN_PASSWORD?: string;
   FCM_SERVER_KEY?: string;
+  FCM_SERVICE_ACCOUNT_JSON?: string;
 }
 
 const PORT = 8080;
@@ -37,6 +38,8 @@ export class HyundaiBackend extends Container<Env> {
     put("Seed__MainAdminPhone", env.SEED_ADMIN_PHONE);
     put("Seed__MainAdminPassword", env.SEED_ADMIN_PASSWORD);
     put("Notifications__FcmServerKey", env.FCM_SERVER_KEY);
+    // Push notifications use FCM HTTP v1: the backend reads the Firebase service-account JSON from this variable.
+    put("FCM_SERVICE_ACCOUNT_JSON", env.FCM_SERVICE_ACCOUNT_JSON);
     this.envVars = vars;
   }
 
