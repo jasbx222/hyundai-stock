@@ -116,9 +116,9 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     private static readonly double[] DataWidths = { 14.21, 12.34, 18.16, 16.99, 15.59, 11.19, 18.11, 18.11, 9.14, 9.14, 9.14, 9.14 };
     public static readonly string[] NotCountedHeaders = { "Part Number", "Description", "Location In Stock", "System Quantity", "Branch" };
     private static readonly double[] NotCountedWidths = { 27.61, 54.76, 23.18, 16.99, 9.14 };
-    public static readonly string[] VinsHeaders = { "VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link", "Dealer", "Manufacture Year" };
+    public static readonly string[] VinsHeaders = { "VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link", "Vehicle Type", "Manufacture Year" };
     private static readonly double[] VinsWidths = { 9.14, 12.38, 9.14, 9.14, 9.14, 9.14, 10.98, 9.84, 18, 14 };
-    public static readonly string[] CarsNotFoundHeaders = { "VIN", "Warehouse", "Branch", "Date Added", "Dealer", "Manufacture Year" };
+    public static readonly string[] CarsNotFoundHeaders = { "VIN", "Warehouse", "Branch", "Date Added", "Vehicle Type", "Manufacture Year" };
     private static readonly double[] CarsNotFoundWidths = { 23.72, 28.08, 9.14, 22.43, 18, 14 };
     public static readonly string[] WarehousesHeaders = { "WarehouseNo.", "Name", "Branch" };
     private static readonly double[] WarehousesWidths = { 16.48, 28.08, 9.14 };
@@ -131,7 +131,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     {
         var (sid, label) = await ResolveSession(f);
         var b = await BranchFilter(f, scope);
-        var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid);
+        var q = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid && !db.NewPartRequests.Any(r => r.InventoryPartId == x.Id));
         if (b is int bb) q = q.Where(x => x.BranchId == bb);
         if (f.WarehouseId is int w)
         {
@@ -171,7 +171,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (f.WarehouseId is int w) q = q.Where(x => x.WarehouseId == w);
         if (f.UserId is int u) q = q.Where(x => x.UserId == u);
         var data = await q.OrderByDescending(x => x.CreatedAt).Select(x => new { x.Vin, U = x.User!.Name, W = x.Warehouse!.Name, B = x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
-            D = db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Dealer).FirstOrDefault(),
+            D = db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Model).FirstOrDefault(),
             Y = db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault() }).ToListAsync();
         return Build("Vins", $"Vins-{(allSessions && f.SessionId == null && f.Year == null ? "all" : label)}", VinsHeaders, VinsWidths,
             data.Select(x => new object?[] { x.Vin, x.W, x.B, x.U, Stamp(x.CreatedAt), x.Latitude, x.Longitude, MapLink(x.Latitude, x.Longitude), x.D ?? "", x.Y }));
@@ -188,10 +188,10 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (missingOnly) q = q.Where(x => !db.ScannedVins.Any(s => s.SessionId == x.SessionId && s.Vin == x.Vin));
         var data = await q.OrderBy(x => x.Vin).Select(x => new
         {
-            x.Vin, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "", x.CreatedAt, x.Dealer, x.ManufactureYear
+            x.Vin, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "", x.CreatedAt, x.Model, x.ManufactureYear
         }).ToListAsync();
         return Build(missingOnly ? "Cars Not Found" : "Cars", $"{(missingOnly ? "Cars-Not-Found" : "Cars")}-{label}", CarsNotFoundHeaders, CarsNotFoundWidths,
-            data.Select(x => new object?[] { x.Vin, x.W, x.B, Stamp(x.CreatedAt), x.Dealer ?? "", x.ManufactureYear }));
+            data.Select(x => new object?[] { x.Vin, x.W, x.B, Stamp(x.CreatedAt), x.Model ?? "", x.ManufactureYear }));
     }
 
     public async Task<ExportFile> BranchesAsync(AdminScope scope)
