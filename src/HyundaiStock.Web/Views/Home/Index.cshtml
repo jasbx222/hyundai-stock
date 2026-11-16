@@ -5,6 +5,7 @@
 }
 <div class="ph"><div><h1>لوحة التحكم</h1>
     <p class="muted">@(m.SessionYear is int y ? (m.SessionOpen ? $"ملخص جلسة جرد {y} (قيد التنفيذ)، بدأت {Ui.Date(m.SessionStartedAt)}" : $"ملخص آخر جلسة جرد ({y}، منتهية)") : "لا توجد جلسة جرد بعد. ابدأ جلسة من صفحة جلسات الجرد.")</p></div>
+    <div class="acts">@await Html.PartialAsync("_YearFilter", "الجلسة الحالية")</div>
     @if (m.SessionOpen) { <span class="sess" title="توجد جلسة جرد مفتوحة يمكن للمستخدمين الإرسال إليها">@Ui.Icon("session", 16) جلسة @m.SessionYear مفتوحة</span> }
 </div>
 

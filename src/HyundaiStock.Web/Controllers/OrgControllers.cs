@@ -7,9 +7,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace HyundaiStock.Web.Controllers;
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin)]
-public sealed class BranchesController(BranchService svc) : DashboardController
+public sealed class BranchesController(BranchService svc, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    public async Task<IActionResult> Export(string? search) => Excel(await xl.BranchesAsync(search, Scope));
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
     public async Task<IActionResult> Save(int? id, string? name, int? number) => Done(await svc.SaveAsync(id, name, number), id == null ? "تمت إضافة الفرع" : "تم تعديل الفرع");
@@ -19,7 +20,7 @@ public sealed class BranchesController(BranchService svc) : DashboardController
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin)]
-public sealed class WarehousesController(WarehouseService svc, BranchService branches) : DashboardController
+public sealed class WarehousesController(WarehouseService svc, BranchService branches, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int? branchId, int page = 1)
     {
@@ -27,6 +28,8 @@ public sealed class WarehousesController(WarehouseService svc, BranchService bra
         ViewBag.BranchId = branchId;
         return View(await svc.ListAsync(new PageQuery(page, 10, search), branchId, Scope));
     }
+
+    public async Task<IActionResult> Export(string? search, int? branchId) => Excel(await xl.WarehousesAsync(search, branchId, Scope));
 
     [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
     public async Task<IActionResult> Save(int? id, string? name, int branchId, int? number, int? type = null) => Done(await svc.SaveAsync(id, name, type, branchId, number), id == null ? "تمت إضافة المخزن" : "تم تعديل المخزن");
@@ -36,13 +39,15 @@ public sealed class WarehousesController(WarehouseService svc, BranchService bra
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)]
-public sealed class AdminsController(AdminService svc, BranchService branches, WarehouseService warehouses) : DashboardController
+public sealed class AdminsController(AdminService svc, BranchService branches, WarehouseService warehouses, ListExports xl) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, int page = 1)
     {
         ViewBag.Branches = await branches.AllAsync();
         return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
     }
+
+    public async Task<IActionResult> Export(string? search) => Excel(await xl.AdminsAsync(search, Scope));
 
     public async Task<IActionResult> Create()
     {
@@ -98,7 +103,7 @@ public sealed class AdminsController(AdminService svc, BranchService branches, W
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin)]
-public sealed class UsersController(UserService svc, BranchService branches, WarehouseService warehouses) : DashboardController
+public sealed class UsersController(UserService svc, BranchService branches, WarehouseService warehouses, ListExports xl) : DashboardController
 {
     private async Task Lookups()
     {
@@ -107,6 +112,7 @@ public sealed class UsersController(UserService svc, BranchService branches, War
     }
 
     public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope));
+    public async Task<IActionResult> Export(string? search) => Excel(await xl.UsersAsync(search, Scope));
 
     public async Task<IActionResult> Create() { await Lookups(); return View("Form", new UserInput()); }
 
@@ -124,7 +130,7 @@ public sealed class UsersController(UserService svc, BranchService branches, War
         var u = await svc.GetAsync(id, Scope);
         if (u == null) return NotFoundPage();
         await Lookups(); ViewBag.Id = id;
-        return View("Form", new UserInput { Name = u.Name, PhoneNumber = u.PhoneNumber, BranchIds = u.BranchIds, WarehouseIds = u.WarehouseIds });
+        return View("Form", new UserInput { Name = u.Name, PhoneNumber = u.PhoneNumber, BranchIds = u.BranchIds, WarehouseIds = u.WarehouseIds, CanPickDuplicateRow = u.CanPickDuplicateRow });
     }
 
     [HttpPost]

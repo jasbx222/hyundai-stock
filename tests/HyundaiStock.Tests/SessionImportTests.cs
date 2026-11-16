@@ -38,6 +38,22 @@ public sealed class SessionImportTests
     }
 
     [Fact]
+    public void SessionImport_Vins_ReadsDealerAndManufactureYear()
+    {
+        using var stream = Workbook(new[] { "رقم الشاصي", "نوع المركبة", "الوكيل", "سنة الصنع" },
+            new object[] { "TMAJB81D4TJ653724", "Tucson", "وكيل بغداد", 2025 },
+            new object[] { "TMAJB81D4TJ653725", "Elantra", "", "" },
+            new object[] { "TMAJB81D4TJ653726", "Elantra", "وكيل", "قديم" });
+        var result = new ExcelImportService().Read(stream, Array.Empty<Warehouse>(), Branches);
+        Assert.Equal(2, result.Vins.Count);
+        Assert.Equal("وكيل بغداد", result.Vins[0].Dealer);
+        Assert.Equal(2025, result.Vins[0].ManufactureYear);
+        Assert.Null(result.Vins[1].Dealer);
+        Assert.Null(result.Vins[1].ManufactureYear);
+        Assert.Contains(result.Errors, x => x.Contains("سطر 4") && x.Contains("سنة الصنع"));
+    }
+
+    [Fact]
     public void Arabic_headers_extra_columns_and_numeric_codes_work()
     {
         using var stream = Workbook(new[] { "رقم القطعة", "الوصف", "الموقع", "الكمية النظامية", "رقم الفرع", "إضافي" },

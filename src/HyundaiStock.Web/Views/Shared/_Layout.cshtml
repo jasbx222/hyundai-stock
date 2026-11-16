@@ -32,10 +32,11 @@ else
     var inv = new List<(string key, string icon, string text, string url, string tip)>();
     if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests?kind=recount", Menu.QuantityTab(s) ? "طلبات إعادة العد وتصحيح الكمية" : "طلبات إعادة العد"));
     if (Menu.NewParts(s)) inv.Add(("newparts", "plus", "طلبات إضافة قطعة", "/NewParts", "طلبات إضافة قطعة غير موجودة في جلسة الجرد"));
+    if (Menu.ApprovedParts(s)) inv.Add(("approvedparts", "plus", "القطع الجديدة", "/ApprovedParts", "القطع المضافة للجرد بعد موافقة مدير قطع الغيار على طلب الإضافة"));
     if (Menu.Parts(s)) inv.Add(("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"));
     if (Menu.Finance(s)) inv.Add(("finance", "export", "فروقات المخزون المالية", "/Finance", "كمية النظام والمعدودة والسعر والقيمة المالية"));
     if (Menu.Cars(s)) inv.Add(("cars", "car", "المركبات", "/Cars", "المركبات الممسوحة برقم الشاصي من التطبيق"));
-    if (Menu.VinRequests(s)) inv.Add(("vinrequests", "vin", "طلبات تصحيح VIN", "/VinRequests", "طلبات تصحيح رقم الشاصي المرسلة من التطبيق"));
+    if (Menu.VinRequests(s)) inv.Add(("vinrequests", "vin", "طلبات تصحيح رقم الشاصي", "/VinRequests", "طلبات تصحيح رقم الشاصي المرسلة من التطبيق"));
     if (Menu.Sessions(s)) inv.Add(("sessions", "session", "جلسات الجرد", "/Sessions", "بدء جلسة جرد برفع ملفات Excel وإنهاؤها وتحميلها"));
     <div class="app">
         <button type="button" class="navbtn" id="navbtn" aria-controls="sidenav" aria-expanded="false" aria-label="القائمة">@Ui.Icon("menu", 20)</button>

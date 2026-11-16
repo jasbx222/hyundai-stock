@@ -111,6 +111,9 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("CanPickDuplicateRow")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("CreatedByAdminId")
                         .HasColumnType("int");
 
@@ -256,6 +259,13 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Dealer")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ManufactureYear")
+                        .HasColumnType("int");
 
                     b.Property<string>("Model")
                         .HasMaxLength(100)

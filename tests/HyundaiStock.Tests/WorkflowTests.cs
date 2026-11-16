@@ -99,14 +99,61 @@ public sealed class WorkflowTests : IDisposable
         var previous = Assert.IsType<CountedSnapshot>(blocked.Detail);
         Assert.Equal(2, previous.CountedQuantity);
         Assert.Equal(1, await _db.InventoryParts.CountAsync());
-        var ok = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        var ok = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(ok.Error);
-        Assert.Equal(4, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.Equal(1, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
 
         var missing = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = "NO-SUCH", WarehouseId = _warehouseRow.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(404, missing.Status);
         Assert.Equal("رمز القطعة غير موجود بالنظام", missing.Error);
         Assert.Equal(1, await _db.InventoryParts.CountAsync());
+    }
+
+    [Fact]
+    public async Task Counts_Surplus_IsHeldUntilBothApprovals()
+    {
+        // _part: system 2, counted 2. A count of 5 is above the system quantity.
+        var held = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Location = "B-2", Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Null(held.Error);
+        Assert.Equal(202, held.Status);
+        Assert.Equal(MobileService.SurplusHeldMessage, held.Message);
+        Assert.True(held.Data!.PendingApproval);
+        Assert.Equal(2, held.Data.CountedQuantity);
+        Assert.Equal(2, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        var req = await _db.QuantityCorrections.AsNoTracking().SingleAsync(x => x.InventoryPartId == _part.Id);
+        Assert.Equal(5, req.NewQuantity);
+        Assert.Equal(2, req.OldQuantity);
+        Assert.Equal(_counter.Id, req.RequestedByUserId);
+
+        var again = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 6, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Equal(409, again.Status);
+
+        Assert.True((await _qty.ApproveAsync(req.Id, WmScope())).Ok);
+        Assert.Equal(2, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.True((await _qty.FinalApproveAsync(req.Id, AccScope())).Ok);
+        Assert.Equal(5, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.False((await _mobile.PartAsync(_counter.Id, _part.Id)).Data!.PendingApproval);
+
+        var equal = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Equal(200, equal.Status);
+        Assert.Equal(2, equal.Data!.CountedQuantity);
+    }
+
+    [Fact]
+    public async Task Counts_Surplus_OnUncountedPartCreditsTheCounterOnApproval()
+    {
+        var open = new InventoryPart { SessionId = _session.Id, PartNumber = "SUR-1", Description = "قطعة", SystemQuantity = 1, WarehouseId = _warehouseRow.Id, BranchId = _branch.Id };
+        _db.InventoryParts.Add(open);
+        await _db.SaveChangesAsync();
+        var held = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = open.Id, Quantity = 3, Latitude = 33.3, Longitude = 44.3 });
+        Assert.Equal(202, held.Status);
+        Assert.Null((await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == open.Id)).CountedQuantity);
+        var req = await _db.QuantityCorrections.AsNoTracking().SingleAsync(x => x.InventoryPartId == open.Id);
+        Assert.True((await _qty.ApproveAsync(req.Id, WmScope())).Ok);
+        Assert.True((await _qty.FinalApproveAsync(req.Id, AccScope())).Ok);
+        var after = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == open.Id);
+        Assert.Equal(3, after.CountedQuantity);
+        Assert.Equal(_counter.Id, after.CountedByUserId);
     }
 
     [Fact]
@@ -117,20 +164,36 @@ public sealed class WorkflowTests : IDisposable
         _db.InventoryParts.AddRange(counted, open);
         await _db.SaveChangesAsync();
 
+        // Without the pick grant the counter sees only the default row (the uncounted one) and cannot count the other by id.
         var list = await _mobile.PartsAsync(_counter.Id, new PageQuery(1, 20), _warehouseRow.Id, null, code: "DUP-1");
         Assert.Null(list.Error);
-        var rows = list.Data!.Items.Where(x => x.PartNumber == "DUP-1").OrderBy(x => x.Id).ToList();
+        var only = Assert.Single(list.Data!.Items);
+        Assert.Equal(open.Id, only.Id);
+        Assert.Equal(2, only.RowNo);
+        Assert.Equal(2, only.RowCount);
+        var denied = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = counted.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Equal(403, denied.Status);
+        Assert.Equal(MobileService.RowPickDenied, denied.Error);
+
+        // With the grant every row is listed and numbered.
+        _counter.CanPickDuplicateRow = true;
+        await _db.SaveChangesAsync();
+        var picked = await _mobile.PartsAsync(_counter.Id, new PageQuery(1, 20), _warehouseRow.Id, null, code: "DUP-1");
+        var rows = picked.Data!.Items.OrderBy(x => x.Id).ToList();
         Assert.Equal(2, rows.Count);
+        Assert.Equal(new[] { 1, 2 }, rows.Select(x => x.RowNo).ToArray());
         Assert.Equal(3, rows.Single(x => x.Id == counted.Id).CountedQuantity);
         Assert.Null(rows.Single(x => x.Id == open.Id).CountedQuantity);
+        _counter.CanPickDuplicateRow = false;
+        await _db.SaveChangesAsync();
 
-        var saved = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = "DUP-1", WarehouseId = _warehouseRow.Id, Quantity = 4, Location = "A-1", Latitude = 33.3, Longitude = 44.3 });
+        var saved = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = "DUP-1", WarehouseId = _warehouseRow.Id, Quantity = 1, Location = "A-1", Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(saved.Error);
         Assert.Equal(open.Id, saved.Data!.Id);
-        Assert.Equal(4, saved.Data.CountedQuantity);
+        Assert.Equal(1, saved.Data.CountedQuantity);
         Assert.Equal(2, await _db.InventoryParts.CountAsync(x => x.PartNumber == "DUP-1"));
         Assert.Equal(3, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == counted.Id)).CountedQuantity);
-        Assert.Equal(4, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == open.Id)).CountedQuantity);
+        Assert.Equal(1, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == open.Id)).CountedQuantity);
     }
 
     [Fact]
@@ -161,17 +224,15 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task Approval_chain_creates_one_inventory_row_and_blocks_the_wrong_role()
+    public async Task NewParts_Approve_SparePartsApprovalIsFinal()
     {
         var created = await _newParts.CreateAsync(_counter.Id, Input());
         var id = created.Data!.Id;
-        Assert.False((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
-        Assert.False((await _newParts.FinalApproveAsync(id, SpareScope())).Ok);
-        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
         Assert.False((await _newParts.ApproveAsync(id, AccScope())).Ok);
-        Assert.False((await _newParts.FinalApproveAsync(id, OtherAcc())).Ok);
-        Assert.True((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
-        Assert.False((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
+        Assert.Equal(1, await _db.InventoryParts.CountAsync());
+        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.False((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.False((await _newParts.ReturnAsync(id, "متأخر", SpareScope())).Ok);
 
         var line = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.PartNumber == "ZZ-9");
         Assert.Equal(0, line.SystemQuantity);
@@ -186,12 +247,110 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task Super_admin_can_final_approve_after_the_first_stage()
+    public async Task NewParts_Approve_SuperAdminApprovesInOneStep()
     {
         var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "SUP-1"))).Data!.Id;
         Assert.True((await _newParts.ApproveAsync(id, Super())).Ok);
-        Assert.True((await _newParts.FinalApproveAsync(id, Super())).Ok);
         Assert.Equal(1, await _db.InventoryParts.CountAsync(x => x.PartNumber == "SUP-1"));
+    }
+
+    [Fact]
+    public async Task NewParts_Approve_LegacyAccountantRowIsFinishedBySpareParts()
+    {
+        var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "OLD-1"))).Data!.Id;
+        await _db.NewPartRequests.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, NewPartRequestStatus.PendingAccountant));
+        Assert.False((await _newParts.ApproveAsync(id, AccScope())).Ok);
+        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.Equal(1, await _db.InventoryParts.CountAsync(x => x.PartNumber == "OLD-1"));
+    }
+
+    [Fact]
+    public async Task NewParts_Export_FollowsStatusAndYearFilter()
+    {
+        var approved = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "EXP-1"))).Data!.Id;
+        await _newParts.CreateAsync(_counter.Id, Input(partNumber: "EXP-2"));
+        Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
+
+        var file = await _newParts.ExportAsync(SpareScope(), null, NewPartRequestStatus.Approved, _session.Year);
+        using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content)))
+        {
+            var ws = wb.Worksheet("New Parts");
+            Assert.Equal(2, ws.LastRowUsed()!.RowNumber());
+            Assert.Equal("EXP-1", ws.Cell(2, 2).GetString());
+            Assert.Equal(_branch.Name, ws.Cell(2, 6).GetString());
+        }
+        var all = await _newParts.ExportAsync(SpareScope(), "EXP", null, null);
+        using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(all.Content)))
+            Assert.Equal(3, wb.Worksheet("New Parts").LastRowUsed()!.RowNumber());
+        var otherYear = await _newParts.ExportAsync(SpareScope(), null, null, _session.Year - 1);
+        using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(otherYear.Content)))
+            Assert.Equal(1, wb.Worksheet("New Parts").LastRowUsed()!.RowNumber());
+    }
+
+    [Fact]
+    public async Task ApprovedParts_ListsOnlyApprovedAndExportsThem()
+    {
+        var approved = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-1"))).Data!.Id;
+        await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-2"));
+        Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
+
+        var page = await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), null);
+        var row = Assert.Single(page.Items);
+        Assert.Equal("APR-1", row.PartNumber);
+        Assert.NotNull(row.ApprovedAt);
+        Assert.NotNull(row.InventoryPartId);
+        Assert.Empty((await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), _session.Year - 1)).Items);
+
+        var file = await _newParts.ApprovedExportAsync(SpareScope(), null, _session.Year);
+        using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content));
+        var ws = wb.Worksheet("New Parts");
+        Assert.Equal(2, ws.LastRowUsed()!.RowNumber());
+        Assert.Equal("APR-1", ws.Cell(2, 2).GetString());
+    }
+
+    [Fact]
+    public async Task ListExports_ReturnEveryRowOfThePageQuery()
+    {
+        for (int i = 0; i < 12; i++) _db.AppUsers.Add(new AppUser { Name = $"مستخدم {i}", PhoneNumber = $"0775000{i:0000}", PasswordHash = "x", IsActive = true });
+        await _db.SaveChangesAsync();
+        var xl = new ListExports(new BranchService(_db), new WarehouseService(_db), new AdminService(_db, _pw), new UserService(_db, _pw), _qty, _parts, _vin, _sessionSvc);
+        var users = await xl.UsersAsync(null, Super());
+        using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(users.Content)))
+            Assert.True(wb.Worksheet("Users").LastRowUsed()!.RowNumber() > 11);
+        foreach (var f in new[] { await xl.AdminsAsync(null, Super()), await xl.BranchesAsync(null, Super()), await xl.WarehousesAsync(null, null, Super()),
+            await xl.QuantityRequestsAsync(null, null, Super()), await xl.RecountsAsync(null, null, Super()), await xl.VinRequestsAsync(null, null, Super()), await xl.SessionsAsync(null) })
+        {
+            using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(f.Content));
+            Assert.True(wb.Worksheets.First().LastRowUsed()!.RowNumber() >= 1);
+        }
+    }
+
+    [Fact]
+    public async Task Lists_YearFilter_PicksThatYearsSession()
+    {
+        var (thisYear, s1) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Year);
+        Assert.Equal(_session.Id, s1!.Id);
+        Assert.Single(thisYear.Items);
+        var (none, s2) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, 1999);
+        Assert.Null(s2);
+        Assert.Empty(none.Items);
+        var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "YR-1"))).Data!.Id;
+        Assert.Single((await _newParts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Year)).Items, x => x.Id == id);
+        Assert.Empty((await _newParts.ListAsync(new PageQuery(1, 10), Super(), null, 1999)).Items);
+    }
+
+    [Fact]
+    public async Task Sessions_Start_AccountsManagerMayStartAccountantMayNot()
+    {
+        var manager = new AdminScope(_accountant.Id, _accountant.Name, AdminRole.AccountsManager, null);
+        Assert.True(manager.CanStartSession);
+        Assert.False(AccScope().CanStartSession);
+        Assert.False(SpareScope().CanStartSession);
+        var denied = await _sessionSvc.StartAsync(2031, new MemoryStream(new byte[] { 1 }), "x.xlsx", 1, AccScope());
+        Assert.False(denied.Ok);
+        Assert.Contains("مدير الحسابات", denied.Error);
+        var allowed = await _sessionSvc.StartAsync(2031, new MemoryStream(new byte[] { 1 }), "x.xlsx", 1, manager);
+        Assert.DoesNotContain("مدير الحسابات", allowed.Error ?? "");
     }
 
     [Fact]
@@ -221,7 +380,7 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(NewPartRequestStatus.SessionClosed, (await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id)).Status);
         var again = await _newParts.CreateAsync(_counter.Id, Input(partNumber: "CLS-2"));
         Assert.Equal(409, again.Status);
-        Assert.False((await _newParts.FinalApproveAsync(id, Super())).Ok);
+        Assert.False((await _newParts.ApproveAsync(id, Super())).Ok);
         Assert.Equal(1, await _db.InventoryParts.CountAsync());
     }
 
@@ -302,7 +461,6 @@ public sealed class WorkflowTests : IDisposable
         Assert.Null(result.Data.ReturnReason);
         Assert.Equal(1, await _db.NewPartRequests.CountAsync());
         Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
-        Assert.True((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
         Assert.Equal(7, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.PartNumber == "FIXED-9")).CountedQuantity);
         Assert.Equal(409, (await _newParts.ResubmitAsync(_counter.Id, id, Input())).Status);
     }
@@ -503,7 +661,7 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task One_warehouse_is_resolved_and_its_branch_is_taken_from_the_warehouse()
     {
-        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 4, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(counted.Error);
         var scanned = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD1111111111111", Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(scanned.Error);
@@ -514,10 +672,10 @@ public sealed class WorkflowTests : IDisposable
         await _db.SaveChangesAsync();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = second.Id });
         await _db.SaveChangesAsync();
-        var byPart = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        var byPart = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(byPart.Error);
         var saved = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id);
-        Assert.Equal(5, saved.CountedQuantity);
+        Assert.Equal(2, saved.CountedQuantity);
         Assert.Equal(_warehouseRow.Id, saved.WarehouseId);
         var byCode = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = _part.PartNumber, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(400, byCode.Status);

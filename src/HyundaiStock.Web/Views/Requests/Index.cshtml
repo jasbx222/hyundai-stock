@@ -2,14 +2,14 @@
 @{ ViewData["Title"] = "طلبات التعديل"; ViewData["Nav"] = "requests"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>طلبات التعديل</h1></div>
-    <div class="acts">@if (Menu.QuantityTab(s)) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
+    <div class="acts"><a class="btn" href="/Requests/Export?@Ui.FilterQuery(Context.Request, "search", "year").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a>@if (Menu.QuantityTab(s)) { <a class="btn p" href="/Requests/Create">@Ui.Icon("plus", 16) إضافة طلب</a> }</div>
 </div>
 <div class="tabs" role="tablist" style="margin-bottom:12px">
     @if (Menu.QuantityTab(s)) { <a href="/Requests" class="on" role="tab">تصحيح الكمية</a> }
     <a href="/Requests?kind=recount" role="tab">إعادة العد</a>
 </div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "ستظهر هنا الطلبات المضافة." : "جرّب رقم قطعة آخر.", "edit")) }
     else {
     <div class="hscroll"><table>

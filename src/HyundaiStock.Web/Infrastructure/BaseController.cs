@@ -1,4 +1,5 @@
 using HyundaiStock.Infrastructure.Common;
+using HyundaiStock.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,6 +29,8 @@ public abstract class DashboardController : Controller
     {
         foreach (var (k, v) in errors) ModelState.AddModelError(k, v);
     }
+
+    protected IActionResult Excel(ExportFile f) => File(f.Content, ExportFile.ContentType, f.FileName);
 
     protected IActionResult NotFoundPage() { Response.StatusCode = 404; return View("~/Views/Shared/NotFound.cshtml"); }
     protected IActionResult ForbidPage() { Response.StatusCode = 403; return View("~/Views/Shared/Forbidden.cshtml"); }

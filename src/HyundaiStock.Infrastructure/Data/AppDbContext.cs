@@ -110,7 +110,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
         b.Entity<ExpectedVin>(e =>
         {
-            e.Property(x => x.Vin).HasMaxLength(17).IsRequired(); e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.Vin).HasMaxLength(17).IsRequired(); e.Property(x => x.Model).HasMaxLength(100); e.Property(x => x.Dealer).HasMaxLength(100);
             e.HasIndex(x => new { x.SessionId, x.Vin });
             e.HasOne(x => x.Session).WithMany(x => x.ExpectedVins).HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);

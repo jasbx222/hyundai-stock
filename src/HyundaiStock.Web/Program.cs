@@ -50,6 +50,7 @@ builder.Services.AddScoped<VinService>();
 builder.Services.AddScoped<VinRequestService>();
 builder.Services.AddScoped<SessionService>();
 builder.Services.AddScoped<ExportService>();
+builder.Services.AddScoped<ListExports>();
 builder.Services.AddScoped<MobileService>();
 builder.Services.AddHttpClient("fcm", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddScoped<IStockNotifier, StockNotifier>();

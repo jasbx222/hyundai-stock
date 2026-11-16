@@ -1,8 +1,8 @@
 @model PagedResult<SessionRow>
-@{ ViewData["Title"] = "جلسات الجرد"; ViewData["Nav"] = "sessions"; }
+@{ ViewData["Title"] = "جلسات الجرد"; ViewData["Nav"] = "sessions"; var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>جلسات الجرد</h1></div>
-    <div class="acts"><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
+    <div class="acts"><a class="btn" href="/Sessions/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
 </div>
 <div class="card" style="overflow:hidden">
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }
@@ -16,11 +16,13 @@
                 <td><span class="chip">@Ui.Icon("sheet", 14) <span class="mono">@x.FileName</span></span></td>
                 <td><div class="ra">
                     <a class="btn sm g" href="/Sessions/File/@x.Id" title="عرض الملف" aria-label="عرض الملف">@Ui.Icon("file", 16)</a>
+                    @if (Menu.LegacyExport(me)) {
                     <a class="btn sm g" href="/Exports/Parts?kind=all&sessionId=@x.Id" title="تصدير قطع الغيار" aria-label="تصدير قطع الغيار">@Ui.Icon("part", 16)</a>
                     <a class="btn sm g" href="/Exports/Cars?sessionId=@x.Id" title="تصدير VINs" aria-label="تصدير VINs">@Ui.Icon("vin", 16)</a>
                     <a class="btn sm g" href="/Exports/Parts?kind=uncounted&sessionId=@x.Id" title="تصدير غير محسوب" aria-label="تصدير غير محسوب">@Ui.Icon("layers", 16)</a>
                     <a class="btn sm g" href="/Exports/Vins?missing=true&sessionId=@x.Id" title="تصدير VINs غير موجودة" aria-label="تصدير VINs غير موجودة">@Ui.Icon("alert", 16)</a>
-                    @if (live) {
+                    }
+                    @if (live && me.IsSuper) {
                         <span class="sep"></span>
                         <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
                     }
@@ -33,7 +35,7 @@
 </div>
 <div class="ov" id="start-m" role="dialog" aria-modal="true"><div class="modal"><form method="post" action="/Sessions/Start" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
-    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام VIN</p></div></div>
+    <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام الشاصي</p></div></div>
     <div class="mb">
         <label class="lbl" for="session-year">سنة الجرد</label>
         <div class="field"><input id="session-year" name="year" type="number" min="2000" max="2100" required value="@Ui.Local(DateTime.UtcNow).Year" dir="ltr" /></div>

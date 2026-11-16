@@ -26,6 +26,12 @@ public sealed class ExportFilter
     public int? WarehouseId { get; set; }
     public int? UserId { get; set; }
     public int? AdminId { get; set; }
+    /// <summary>Stocktaking year picked on the page. Used when no session id is given.</summary>
+    public int? Year { get; set; }
+    /// <summary>Search text from the page, so the file matches what the page shows.</summary>
+    public string? Search { get; set; }
+    /// <summary>Parts page view: "counted" or "diff".</summary>
+    public string? View { get; set; }
 }
 
 public sealed record ExportFile(byte[] Content, string FileName)
@@ -46,7 +52,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
 
     private async Task<(int sessionId, string label)> ResolveSession(ExportFilter f)
     {
-        StocktakingSession? s = f.SessionId is int id ? await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id) : await sessions.LatestAsync();
+        StocktakingSession? s = f.SessionId is int id ? await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id) : await sessions.ForYearAsync(f.Year);
         return s == null ? (-1, "بدون-جلسة") : (s.Id, s.Year.ToString());
     }
 
@@ -68,7 +74,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     /// with thin borders, fixed column widths, General number format, no freeze pane, no autofilter.
     /// Strings are always written as text so part numbers keep their leading zeros.
     /// </summary>
-    private static ExportFile Build(string sheet, string fileBase, string[] headers, double[] widths, IEnumerable<object?[]> rows)
+    public static ExportFile Build(string sheet, string fileBase, string[] headers, double[] widths, IEnumerable<object?[]> rows)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add(sheet.Length > 31 ? sheet[..31] : sheet);
@@ -110,10 +116,10 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     private static readonly double[] DataWidths = { 14.21, 12.34, 18.16, 16.99, 15.59, 11.19, 18.11, 18.11, 9.14, 9.14, 9.14, 9.14 };
     public static readonly string[] NotCountedHeaders = { "Part Number", "Description", "Location In Stock", "System Quantity", "Branch" };
     private static readonly double[] NotCountedWidths = { 27.61, 54.76, 23.18, 16.99, 9.14 };
-    public static readonly string[] VinsHeaders = { "VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link" };
-    private static readonly double[] VinsWidths = { 9.14, 12.38, 9.14, 9.14, 9.14, 9.14, 10.98, 9.84 };
-    public static readonly string[] CarsNotFoundHeaders = { "VIN", "Warehouse", "Branch", "Date Added" };
-    private static readonly double[] CarsNotFoundWidths = { 23.72, 28.08, 9.14, 22.43 };
+    public static readonly string[] VinsHeaders = { "VIN", "Warehouse", "Branch", "User", "Date", "Latitude", "Longitude", "Map Link", "Dealer", "Manufacture Year" };
+    private static readonly double[] VinsWidths = { 9.14, 12.38, 9.14, 9.14, 9.14, 9.14, 10.98, 9.84, 18, 14 };
+    public static readonly string[] CarsNotFoundHeaders = { "VIN", "Warehouse", "Branch", "Date Added", "Dealer", "Manufacture Year" };
+    private static readonly double[] CarsNotFoundWidths = { 23.72, 28.08, 9.14, 22.43, 18, 14 };
     public static readonly string[] WarehousesHeaders = { "WarehouseNo.", "Name", "Branch" };
     private static readonly double[] WarehousesWidths = { 16.48, 28.08, 9.14 };
 
@@ -133,6 +139,9 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
             q = q.Where(x => x.WarehouseId == w || (x.WarehouseId == null && x.BranchId == wb));
         }
         if (f.UserId is int u) q = q.Where(x => x.CountedByUserId == u);
+        if (!string.IsNullOrWhiteSpace(f.Search)) { var t = f.Search.Trim(); q = q.Where(x => x.PartNumber.Contains(t)); }
+        if (f.View == "counted") q = q.Where(x => x.CountedQuantity != null);
+        else if (f.View == "diff") q = q.Where(x => x.CountedQuantity != null && x.CountedQuantity != x.SystemQuantity);
         if (kind == PartExportKind.Counted) q = q.Where(x => x.CountedQuantity != null);
         if (kind == PartExportKind.Uncounted) q = q.Where(x => x.CountedQuantity == null);
         var data = await q.OrderBy(x => x.BranchId).ThenBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new
@@ -156,13 +165,16 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         var (sid, label) = await ResolveSession(f);
         var b = await BranchFilter(f, scope);
         var q = db.ScannedVins.AsNoTracking().AsQueryable();
-        if (!allSessions || f.SessionId != null) q = q.Where(x => x.SessionId == sid);
+        if (!allSessions || f.SessionId != null || f.Year != null) q = q.Where(x => x.SessionId == sid);
+        if (!string.IsNullOrWhiteSpace(f.Search)) { var t = f.Search.Trim(); q = q.Where(x => x.Vin.Contains(t) || x.User!.Name.Contains(t) || x.Warehouse!.Name.Contains(t)); }
         if (b is int bb) q = q.Where(x => x.BranchId == bb);
         if (f.WarehouseId is int w) q = q.Where(x => x.WarehouseId == w);
         if (f.UserId is int u) q = q.Where(x => x.UserId == u);
-        var data = await q.OrderByDescending(x => x.CreatedAt).Select(x => new { x.Vin, U = x.User!.Name, W = x.Warehouse!.Name, B = x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt }).ToListAsync();
-        return Build("Vins", $"Vins-{(allSessions && f.SessionId == null ? "all" : label)}", VinsHeaders, VinsWidths,
-            data.Select(x => new object?[] { x.Vin, x.W, x.B, x.U, Stamp(x.CreatedAt), x.Latitude, x.Longitude, MapLink(x.Latitude, x.Longitude) }));
+        var data = await q.OrderByDescending(x => x.CreatedAt).Select(x => new { x.Vin, U = x.User!.Name, W = x.Warehouse!.Name, B = x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
+            D = db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Dealer).FirstOrDefault(),
+            Y = db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault() }).ToListAsync();
+        return Build("Vins", $"Vins-{(allSessions && f.SessionId == null && f.Year == null ? "all" : label)}", VinsHeaders, VinsWidths,
+            data.Select(x => new object?[] { x.Vin, x.W, x.B, x.U, Stamp(x.CreatedAt), x.Latitude, x.Longitude, MapLink(x.Latitude, x.Longitude), x.D ?? "", x.Y }));
     }
 
     /// <summary>Expected VINs; missing only → sheet "Cars Not Found" (Date Added = when the VIN was imported).</summary>
@@ -176,10 +188,10 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (missingOnly) q = q.Where(x => !db.ScannedVins.Any(s => s.SessionId == x.SessionId && s.Vin == x.Vin));
         var data = await q.OrderBy(x => x.Vin).Select(x => new
         {
-            x.Vin, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "", x.CreatedAt
+            x.Vin, W = x.Warehouse != null ? x.Warehouse.Name : "", B = x.Branch != null ? x.Branch.Name : "", x.CreatedAt, x.Dealer, x.ManufactureYear
         }).ToListAsync();
         return Build(missingOnly ? "Cars Not Found" : "Cars", $"{(missingOnly ? "Cars-Not-Found" : "Cars")}-{label}", CarsNotFoundHeaders, CarsNotFoundWidths,
-            data.Select(x => new object?[] { x.Vin, x.W, x.B, Stamp(x.CreatedAt) }));
+            data.Select(x => new object?[] { x.Vin, x.W, x.B, Stamp(x.CreatedAt), x.Dealer ?? "", x.ManufactureYear }));
     }
 
     public async Task<ExportFile> BranchesAsync(AdminScope scope)
@@ -286,7 +298,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
             }
         }
         Sheet("Parts", ExcelImportService.PartsHeaders, new[] { 10.0, 43.33, 19.11, 22.55, 10.0 }, new object?[] { 4, "فلتر زيت", "A-01-02", "0263001080", 2 });
-        Sheet("Vins", ExcelImportService.VinsHeaders, new[] { 25.33, 13.33, 30.0 }, new object?[] { "TMAJB81D4TJ653724", 2, "Tucson" });
+        Sheet("Vins", ExcelImportService.VinsHeaders, new[] { 25.33, 13.33, 30.0, 24.0, 18.0 }, new object?[] { "TMAJB81D4TJ653724", 2, "Tucson", "هيونداي العراق", 2025 });
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();

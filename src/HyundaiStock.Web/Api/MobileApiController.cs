@@ -24,7 +24,7 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     private int UserId => int.Parse(User.FindFirst("sub")!.Value);
 
     private IActionResult From<T>(MobileResult<T> r, string? okMessage = null) =>
-        r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error, data: r.Detail)) : StatusCode(r.Status, ApiResponse.Ok(r.Data, okMessage));
+        r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error, data: r.Detail)) : StatusCode(r.Status, ApiResponse.Ok(r.Data, r.Message ?? okMessage));
 
     /// <summary>تسجيل دخول مستخدم التطبيق برقم الهاتف وكلمة المرور، ويرجع JWT.</summary>
     [HttpPost("auth/login")]

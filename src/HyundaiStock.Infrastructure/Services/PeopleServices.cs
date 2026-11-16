@@ -7,7 +7,7 @@ namespace HyundaiStock.Infrastructure.Services;
 
 public sealed record AdminRow(int Id, string Name, string PhoneNumber, AdminRole Role, int? BranchId, string? BranchName, bool IsActive, DateTime CreatedAt, bool AllBranches);
 public sealed record UserRow(int Id, string Name, string PhoneNumber, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt);
-public sealed record UserDetails(int Id, string Name, string PhoneNumber, List<int> BranchIds, List<int> WarehouseIds, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt);
+public sealed record UserDetails(int Id, string Name, string PhoneNumber, List<int> BranchIds, List<int> WarehouseIds, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt, bool CanPickDuplicateRow = false);
 
 public sealed class AdminInput
 {
@@ -29,6 +29,8 @@ public sealed class UserInput
     public string? ConfirmPassword { get; set; }
     public List<int> BranchIds { get; set; } = new();
     public List<int> WarehouseIds { get; set; } = new();
+    /// <summary>Lets the counter pick the row when a part number repeats.</summary>
+    public bool CanPickDuplicateRow { get; set; }
 }
 
 public sealed class AdminService(AppDbContext db, IPasswordService pw)
@@ -172,7 +174,7 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
 
     public Task<UserDetails?> GetAsync(int id, AdminScope s) => Scoped(s).Where(x => x.Id == id).Select(x => new UserDetails(x.Id, x.Name, x.PhoneNumber,
         x.Branches.Select(b => b.BranchId).ToList(), x.Warehouses.Select(w => w.WarehouseId).ToList(),
-        x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt)).FirstOrDefaultAsync();
+        x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt, x.CanPickDuplicateRow)).FirstOrDefaultAsync();
 
     public Task<List<NamedItem>> AllAsync(AdminScope s) => Scoped(s).Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new NamedItem(x.Id, x.Name, null)).ToListAsync();
 
@@ -207,7 +209,7 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
             db.AppUserBranches.RemoveRange(u.Branches); db.AppUserWarehouses.RemoveRange(u.Warehouses);
         }
         else { u = new AppUser { CreatedByAdminId = s.Id, IsActive = true }; db.AppUsers.Add(u); }
-        u.Name = name!; u.PhoneNumber = phone!;
+        u.Name = name!; u.PhoneNumber = phone!; u.CanPickDuplicateRow = i.CanPickDuplicateRow;
         if (needPw) u.PasswordHash = pw.Hash(i.Password!);
         foreach (var b in branchIds) db.AppUserBranches.Add(new AppUserBranch { AppUser = u, BranchId = b });
         foreach (var w in whIds) db.AppUserWarehouses.Add(new AppUserWarehouse { AppUser = u, WarehouseId = w });

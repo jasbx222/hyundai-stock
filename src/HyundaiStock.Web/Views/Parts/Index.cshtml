@@ -1,16 +1,16 @@
 @model PagedResult<PartRow>
-@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = session != null ? $"&sessionId={session.Id}" : ""; var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
+@{ ViewData["Title"] = "قطع الغيار"; ViewData["Nav"] = "parts"; var session = ViewBag.Session as StocktakingSession; var sq = (session != null ? $"&sessionId={session.Id}" : "") + Ui.FilterQuery(Context.Request, "search", "view"); var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>قطع الغيار</h1></div>
     <div class="acts">
         @if (Menu.LegacyExport(me)) {
         <a class="btn" href="/Exports/Parts?kind=uncounted@(sq)" title="تحميل ملف Excel بالقطع التي لم تُعدّ بعد">@Ui.Icon("export", 16) تصدير الأجزاء غير المعدودة</a>
-        <a class="btn p" href="/Exports/Parts?kind=all@(sq)" title="تحميل ملف Excel بكل قطع آخر جلسة مع الفروقات">@Ui.Icon("export", 16) تصدير آخر جلسة</a>
+        <a class="btn p" href="/Exports/Parts?kind=all@(sq)" title="تحميل ملف Excel بالقطع حسب الفلتر الحالي (السنة والبحث والعرض) مع الفروقات">@Ui.Icon("export", 16) تصدير حسب الفلتر</a>
         }
     </div>
 </div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم القطعة")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم القطعة")@await Html.PartialAsync("_YearFilter", "آخر جلسة")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(session == null || string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", session == null ? "ابدأ جلسة جرد وارفع ملف Excel لتظهر القطع." : "جرّب رقم قطعة آخر.", "part")) }
     else {
     <div class="hscroll"><table>

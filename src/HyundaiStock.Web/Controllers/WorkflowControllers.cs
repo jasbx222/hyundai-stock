@@ -6,15 +6,23 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager)]
 public sealed class NewPartsController(NewPartRequestService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? status, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? status, int? year, int page = 1)
     {
-        NewPartRequestStatus? st = Enum.TryParse<NewPartRequestStatus>(status, out var parsed) ? parsed : null;
         ViewBag.Status = status;
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, st));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, ParseStatus(status), year));
     }
+
+    public async Task<IActionResult> Export(string? search, string? status, int? year)
+    {
+        var f = await svc.ExportAsync(Scope, search, ParseStatus(status), year);
+        return File(f.Content, ExportFile.ContentType, f.FileName);
+    }
+
+    private static NewPartRequestStatus? ParseStatus(string? status) =>
+        Enum.TryParse<NewPartRequestStatus>(status, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 
     public async Task<IActionResult> Details(int id)
     {
@@ -22,9 +30,16 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
         return d == null ? NotFoundPage() : View(d);
     }
 
-    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وتحويل الطلب للمالية");
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وإضافة القطعة للجرد");
     [HttpPost] public async Task<IActionResult> Return(int id, string? reason) => Done(await svc.ReturnAsync(id, reason, Scope), "تم إرجاع الطلب مع توضيح السبب");
-    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تم التثبيت وإضافة القطعة للجرد");
+}
+
+/// <summary>القطع الجديدة: parts added to the count through an approved add-part request.</summary>
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
+public sealed class ApprovedPartsController(NewPartRequestService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ApprovedListAsync(new PageQuery(page, 10, search), Scope, year));
+    public async Task<IActionResult> Export(string? search, int? year) => Excel(await svc.ApprovedExportAsync(Scope, search, year));
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Accountant, AdminRole.AccountsManager)]

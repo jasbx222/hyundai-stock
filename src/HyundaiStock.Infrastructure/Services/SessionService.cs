@@ -28,7 +28,7 @@ public sealed class ImportResult
 /// Reads session workbooks (.xlsx or .xls). Two kinds of input are accepted, detected by their headers:
 /// 1) Our template:
 ///    sheet «Parts»: Quantity | Description | Location | Serial | BranchNo.  (Serial = part number, BranchNo. = Branch.Number)
-///    sheet «Vins»:  VIN | WarehouseNo. | VehicleType  (WarehouseNo. may be empty, VehicleType = vehicle model shown in the app)
+///    sheet «Vins»:  VIN | WarehouseNo. | VehicleType | Dealer | ManufactureYear  (VIN = chassis number; WarehouseNo., Dealer and ManufactureYear may be empty)
 /// 2) Raw reports exported from the Hyundai system, uploaded as they are:
 ///    «القطع الموجودة» report: a title block with «الفرع &lt;name&gt;», then a header row
 ///       (ك.الموجودة | المتوفر | … | الوصف | الموقع | M. Class | [II] رمز القطعة | [I] رمز القطعة | ص), page footers and a totals row.
@@ -44,7 +44,7 @@ public sealed class ExcelImportService
     static ExcelImportService() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
     public static readonly string[] PartsHeaders = { "Quantity", "Description", "Location", "Serial", "BranchNo." };
-    public static readonly string[] VinsHeaders = { "VIN", "WarehouseNo.", "VehicleType" };
+    public static readonly string[] VinsHeaders = { "VIN", "WarehouseNo.", "VehicleType", "Dealer", "ManufactureYear" };
 
     private const int HeaderScanRows = 40;
     private static readonly string[] Serial = { "serial", "partnumber", "partno", "iرمزالقطعة", "رمزالقطعة", "رقمالقطعة" };
@@ -58,6 +58,8 @@ public sealed class ExcelImportService
     private static readonly string[] TypeH = { "vehicletype", "type", "نوعالمركبة", "نوعالسيارة", "model" };
     private static readonly string[] ModelH = { "model" };
     private static readonly string[] SpecsH = { "typespecs" };
+    private static readonly string[] DealerH = { "dealer", "agent", "الوكيل", "وكيل", "اسمالوكيل" };
+    private static readonly string[] MfgYearH = { "manufactureyear", "modelyear", "yearofmanufacture", "سنةالصنع", "سنةالتصنيع", "سنهالصنع" };
 
     /// <summary>Header key: lower-case letters/digits only, Arabic tatweel and alef/yaa/taa-marbuta forms unified.</summary>
     private static string Key(object? o) => Norm(new string((o?.ToString() ?? "").ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch) && ch != '\u0640').ToArray()));
@@ -166,7 +168,7 @@ public sealed class ExcelImportService
                 if (isVins)
                 {
                     any = true;
-                    int cWh = Find(h, WhNo), cModel = Find(h, ModelH), cSpecs = Find(h, SpecsH), cType = Find(h, TypeH), cBrName = Find(h, BranchName);
+                    int cWh = Find(h, WhNo), cModel = Find(h, ModelH), cSpecs = Find(h, SpecsH), cType = Find(h, TypeH), cBrName = Find(h, BranchName), cDealer = Find(h, DealerH), cMfg = Find(h, MfgYearH);
                     if (cSpecs >= 0 && cType == cSpecs) cType = -1;
                     for (int r = hr + 1; r < rows.Count; r++)
                     {
@@ -188,7 +190,14 @@ public sealed class ExcelImportService
                         if (cModel >= 0 || cSpecs >= 0)
                             type = string.Join(" - ", new[] { cModel >= 0 ? Text(row[cModel]) : "", cSpecs >= 0 ? Text(row[cSpecs]) : "" }.Where(x => x.Length > 0));
                         else type = cType >= 0 ? Text(row[cType]) : "";
-                        res.Vins.Add(new ExpectedVin { Vin = vin, Model = type.Length > 0 ? Cut(type, 100) : null, WarehouseId = w?.Id, BranchId = w?.BranchId ?? br?.Id });
+                        var dealer = cDealer >= 0 ? Text(row[cDealer]) : "";
+                        int? mfg = null;
+                        if (cMfg >= 0 && Text(row[cMfg]) is { Length: > 0 } mt)
+                        {
+                            if (!TryInt(row[cMfg], out var my) || my < 1950 || my > 2100) { res.Errors.Add($"{name} سطر {r + 1}: سنة الصنع غير صالحة «{mt}»"); continue; }
+                            mfg = my;
+                        }
+                        res.Vins.Add(new ExpectedVin { Vin = vin, Model = type.Length > 0 ? Cut(type, 100) : null, Dealer = dealer.Length > 0 ? Cut(dealer, 100) : null, ManufactureYear = mfg, WarehouseId = w?.Id, BranchId = w?.BranchId ?? br?.Id });
                     }
                 }
                 else
@@ -275,7 +284,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
     /// <summary>Starts a session from one or more files (our template, or the system's raw reports as exported).</summary>
     public async Task<OpResult> StartAsync(int year, IReadOnlyList<(Stream file, string fileName, long length)> files, AdminScope s)
     {
-        if (!s.IsSuper) return OpResult.Fail("بدء الجلسة للسوبر أدمن فقط");
+        if (!s.CanStartSession) return OpResult.Fail("بدء الجلسة للمسؤول الرئيسي والسوبر أدمن ومدير الحسابات فقط");
         if (year < 2000 || year > 2100) return OpResult.Fail("السنة غير صالحة");
         if (files.Count == 0) return OpResult.Fail("اختر ملف Excel");
         foreach (var (_, fileName, length) in files)
