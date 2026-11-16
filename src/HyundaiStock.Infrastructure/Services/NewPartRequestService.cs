@@ -86,6 +86,35 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
                 ExportService.Stamp(x.CreatedAt), x.Status == NewPartRequestStatus.Approved && x.SparePartsApprovedAt is DateTime d ? ExportService.Stamp(d) : "" }));
     }
 
+    // ---- "القطع الجديدة": only requests the spare-parts manager approved, i.e. parts that were added to the count. ----
+    public sealed record ApprovedPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, int SessionYear, string? ApprovedBy, DateTime? ApprovedAt, int? InventoryPartId);
+
+    private IQueryable<ApprovedPartRow> ApprovedRows(AdminScope s, string? term, int? year) =>
+        Filtered(s, term, NewPartRequestStatus.Approved, year).OrderByDescending(x => x.SparePartsApprovedAt).ThenByDescending(x => x.Id).Select(x => new ApprovedPartRow(
+            x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name, x.Session!.Year,
+            db.Admins.Where(a => a.Id == x.SparePartsApprovedByAdminId).Select(a => a.Name).FirstOrDefault(), x.SparePartsApprovedAt, x.InventoryPartId));
+
+    public Task<PagedResult<ApprovedPartRow>> ApprovedListAsync(PageQuery p, AdminScope s, int? year)
+    {
+        var page = Paging.Build(ApprovedRows(s, p.Term, year), p);
+        return Task.FromResult(new PagedResult<ApprovedPartRow>
+        {
+            Items = page.Items.Select(x => x with { Reference = ReferenceOf(x.Id) }).ToList(),
+            Page = page.Page, PageSize = page.PageSize, TotalCount = page.TotalCount
+        });
+    }
+
+    public static readonly string[] ApprovedHeaders = { "Reference", "Part Number", "Description", "Quantity", "Location", "Branch", "Warehouse", "Counted By", "Session", "Approved By", "Approved At" };
+
+    /// <summary>Excel of the new parts page with the same search and year filter.</summary>
+    public async Task<ExportFile> ApprovedExportAsync(AdminScope s, string? term, int? year)
+    {
+        var t = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
+        var data = await ApprovedRows(s, t, year).ToListAsync();
+        return ExportService.Build("New Parts", $"New-Parts-Approved-{year?.ToString() ?? "all"}", ApprovedHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 18, 20 },
+            data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.BranchName, x.WarehouseName, x.EmployeeName, x.SessionYear, x.ApprovedBy ?? "", x.ApprovedAt }));
+    }
+
     public async Task<NewPartDetails?> GetAsync(int id, AdminScope s)
     {
         var row = await Scoped(s).Where(x => x.Id == id).Select(x => new NewPartRow(

@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "المشرفين"; ViewData["Nav"] = "admins"; var branches = (List<NamedItem>)ViewBag.Branches; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>المشرفين</h1></div>
-    <div class="acts"><a class="btn p" href="/Admins/Create">@Ui.Icon("plus", 16) إضافة مشرف</a></div>
+    <div class="acts"><a class="btn" href="/Admins/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a><a class="btn p" href="/Admins/Create">@Ui.Icon("plus", 16) إضافة مشرف</a></div>
 </div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">@await Html.PartialAsync("_Search", "ابحث برقم الهاتف")</div>

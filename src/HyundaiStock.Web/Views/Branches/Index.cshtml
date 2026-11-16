@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "الفروع"; ViewData["Nav"] = "branches"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; var manage = Menu.ManageOrg(s); }
 <div class="ph">
     <div><h1>الفروع</h1></div>
-    <div class="acts">@if (manage) { <button class="btn p" data-modal="#branch-m" title="إضافة فرع" data-title="إضافة فرع" data-v-id="" data-v-number="" data-form-action="/Branches/Save">@Ui.Icon("plus", 16) إضافة فرع</button> }</div>
+    <div class="acts"><a class="btn" href="/Branches/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a>@if (manage) { <button class="btn p" data-modal="#branch-m" title="إضافة فرع" data-title="إضافة فرع" data-v-id="" data-v-number="" data-form-action="/Branches/Save">@Ui.Icon("plus", 16) إضافة فرع</button> }</div>
 </div>
 <div class="card" style="overflow:visible">
     <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")</div>

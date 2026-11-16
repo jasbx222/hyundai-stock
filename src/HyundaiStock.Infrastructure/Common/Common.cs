@@ -17,7 +17,9 @@ public sealed class PagedResult<T>
 public sealed record PageQuery(int Page = 1, int PageSize = 10, string? Search = null)
 {
     public int SafePage => Page < 1 ? 1 : Page;
-    public int SafeSize => PageSize is < 1 or > 100 ? 10 : PageSize;
+    /// <summary>Returns every row of the filter on one page. Used by the Excel exports so a file matches the page.</summary>
+    public bool Unpaged { get; init; }
+    public int SafeSize => Unpaged ? int.MaxValue : PageSize is < 1 or > 100 ? 10 : PageSize;
     public string? Term => string.IsNullOrWhiteSpace(Search) ? null : Search.Trim();
 }
 
@@ -102,7 +104,7 @@ public static class Paging
         var size = p.SafeSize;
         var maxPage = Math.Max(1, (int)Math.Ceiling(total / (double)size));
         if (page > maxPage) page = maxPage;
-        var items = q.Skip((page - 1) * size).Take(size).ToList();
+        var items = (size == int.MaxValue ? q : q.Skip((page - 1) * size).Take(size)).ToList();
         return new PagedResult<T> { Items = items, Page = page, PageSize = size, TotalCount = total };
     }
 }

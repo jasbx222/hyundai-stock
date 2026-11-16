@@ -34,6 +34,14 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
     [HttpPost] public async Task<IActionResult> Return(int id, string? reason) => Done(await svc.ReturnAsync(id, reason, Scope), "تم إرجاع الطلب مع توضيح السبب");
 }
 
+/// <summary>القطع الجديدة: parts added to the count through an approved add-part request.</summary>
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
+public sealed class ApprovedPartsController(NewPartRequestService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ApprovedListAsync(new PageQuery(page, 10, search), Scope, year));
+    public async Task<IActionResult> Export(string? search, int? year) => Excel(await svc.ApprovedExportAsync(Scope, search, year));
+}
+
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class FinanceController(ExportService exports, BranchService branches, WarehouseService warehouses, SessionLookup sessions) : DashboardController
 {
