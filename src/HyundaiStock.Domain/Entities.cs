@@ -242,6 +242,22 @@ public class RecountRequest : Entity
     public DateTime? CompletedAt { get; set; }
 }
 
+public enum RecountAskStatus { Pending = 0, Approved = 1, Rejected = 2 }
+
+/// <summary>The counter who counted a part asks to count it again. Approval creates a recount task for that same counter and notifies them.</summary>
+public class RecountAsk : Entity
+{
+    public int InventoryPartId { get; set; }
+    public InventoryPart? InventoryPart { get; set; }
+    public int RequestedByUserId { get; set; }
+    public AppUser? RequestedByUser { get; set; }
+    public RecountAskStatus Status { get; set; } = RecountAskStatus.Pending;
+    public int? DecidedByAdminId { get; set; }
+    public Admin? DecidedByAdmin { get; set; }
+    public DateTime? DecidedAt { get; set; }
+    public string? DecisionReason { get; set; }
+}
+
 /// <summary>A counter asked to add a part that is not in the current session. Inventory is created only on final approval.</summary>
 public class NewPartRequest : Entity
 {

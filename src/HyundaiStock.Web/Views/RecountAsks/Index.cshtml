@@ -1,0 +1,27 @@
+@model PagedResult<RecountAskRow>
+@{ ViewData["Title"] = "طلبات إعادة الجرد"; ViewData["Nav"] = "recountasks"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
+<div class="ph"><div><h1>طلبات إعادة الجرد</h1><p class="muted">الموظف الذي جرد القطعة أول مرة يطلب إعادة جردها. عند الموافقة يصله إشعار ليجردها من جديد.</p></div></div>
+<div class="card" style="overflow:hidden">
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو اسم الموظف")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات", "ستظهر هنا طلبات إعادة الجرد من الموظفين.", "recount")) }
+    else {
+    <div class="hscroll"><table>
+        <thead><tr><th>رقم القطعة</th><th>الموظف</th><th>الكمية المعدودة</th><th>الموقع</th><th>الفرع</th><th>المخزن</th><th>الحالة</th><th>التاريخ</th><th>الإجراءات</th></tr></thead>
+        <tbody>
+        @foreach (var r in Model.Items) {
+            <tr><td><span class="mono">@r.PartNumber</span><div class="muted">@r.Description</div></td><td>@Ui.Who(r.RequestedBy)</td>
+                <td class="num">@(r.CountedQuantity?.ToString() ?? "—")</td><td><span class="mono">@(r.CountedLocation ?? "—")</span></td><td>@(r.BranchName ?? "—")</td><td>@(r.WarehouseName ?? "—")</td>
+                <td>@Ui.Badge(r.Status == RecountAskStatus.Pending ? "قيد المراجعة" : r.Status == RecountAskStatus.Approved ? "تمت الموافقة" : "مرفوض", r.Status == RecountAskStatus.Pending ? "wa" : r.Status == RecountAskStatus.Approved ? "ok" : "er")</td>
+                <td>@Ui.Day(r.CreatedAt)</td>
+                <td><div class="ra">
+                    @if (r.Status == RecountAskStatus.Pending && s.CanRequestRecount) {
+                        <button type="button" class="btn sm okb" data-confirm data-action="/RecountAsks/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="الموافقة على إعادة الجرد؟" data-text="@r.PartNumber · @r.RequestedBy · سيصل إشعار للموظف ليجرد القطعة" data-ok="موافقة">@Ui.Icon("check", 16)</button>
+                        <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/RecountAsks/Reject" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="رفض الطلب؟" data-text="السبب إلزامي" data-ok="رفض">@Ui.Icon("x", 16)</button>
+                    }
+                </div></td></tr>
+        }
+        </tbody>
+    </table></div>
+    @await Html.PartialAsync("_Pager", PagerVm.Of(Model))
+    }
+</div>

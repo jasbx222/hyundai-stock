@@ -101,6 +101,10 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     [HttpPost("recounts/{id:int}/submit")]
     public async Task<IActionResult> SubmitRecount(int id, [FromBody] RecountInput input) => From(await svc.SubmitRecountAsync(UserId, id, input), "تم حفظ إعادة العد");
 
+    /// <summary>طلب إعادة جرد قطعة معدودة (لمن جردها أول مرة فقط، ويحتاج موافقة الإدارة).</summary>
+    [HttpPost("parts/{id:int}/recount-ask")]
+    public async Task<IActionResult> AskRecount(int id) => From(await svc.AskRecountAsync(UserId, id), "تم إرسال الطلب");
+
     /// <summary>إرسال طلب تعديل كمية قطعة (يُرسل إلى الإدارة للموافقة).</summary>
     [HttpPost("qty-requests")]
     public async Task<IActionResult> QtyRequest([FromBody] QtyRequestInput input) => From(await svc.QtyRequestAsync(UserId, input), "تم إرسال الطلب");

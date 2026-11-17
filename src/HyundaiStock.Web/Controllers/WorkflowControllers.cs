@@ -34,6 +34,15 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
     [HttpPost] public async Task<IActionResult> Return(int id, string? reason) => Done(await svc.ReturnAsync(id, reason, Scope), "تم إرجاع الطلب مع توضيح السبب");
 }
 
+/// <summary>طلبات إعادة الجرد: a counter asks to count a part again. Approval sends the recount task and a notification to that counter.</summary>
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
+public sealed class RecountAsksController(RecountAskService svc) : DashboardController
+{
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وأُرسل إشعار للموظف لإعادة الجرد");
+    [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب");
+}
+
 /// <summary>القطع الجديدة: parts added to the count through an approved add-part request.</summary>
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class ApprovedPartsController(NewPartRequestService svc) : DashboardController

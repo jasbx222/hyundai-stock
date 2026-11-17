@@ -15,6 +15,26 @@ public static class SqliteSchema
         var conn = db.Database.GetDbConnection();
         if (conn.State != ConnectionState.Open) await conn.OpenAsync();
 
+        if (!await Table(conn, "RecountAsks"))
+        {
+            await Sql(db, """
+                CREATE TABLE RecountAsks (
+                    Id INTEGER NOT NULL CONSTRAINT PK_RecountAsks PRIMARY KEY AUTOINCREMENT,
+                    InventoryPartId INTEGER NOT NULL,
+                    RequestedByUserId INTEGER NOT NULL,
+                    Status INTEGER NOT NULL,
+                    DecidedByAdminId INTEGER NULL,
+                    DecidedAt TEXT NULL,
+                    DecisionReason TEXT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_RecountAsks_InventoryParts_InventoryPartId FOREIGN KEY (InventoryPartId) REFERENCES InventoryParts (Id) ON DELETE CASCADE,
+                    CONSTRAINT FK_RecountAsks_AppUsers_RequestedByUserId FOREIGN KEY (RequestedByUserId) REFERENCES AppUsers (Id) ON DELETE RESTRICT,
+                    CONSTRAINT FK_RecountAsks_Admins_DecidedByAdminId FOREIGN KEY (DecidedByAdminId) REFERENCES Admins (Id) ON DELETE RESTRICT
+                )
+                """);
+            await Sql(db, "CREATE INDEX IF NOT EXISTS IX_RecountAsks_InventoryPartId_RequestedByUserId_Status ON RecountAsks (InventoryPartId, RequestedByUserId, Status)");
+        }
+
         if (!await Table(conn, "AdminBranches"))
         {
             await Sql(db, """

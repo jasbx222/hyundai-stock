@@ -108,11 +108,11 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<bool>("CanPickDuplicateRow")
                         .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("CreatedByAdminId")
                         .HasColumnType("int");
@@ -612,6 +612,47 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasIndex("Status", "WarehouseId");
 
                     b.ToTable("QuantityCorrections");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.RecountAsk", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DecidedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("InventoryPartId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequestedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByAdminId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("InventoryPartId", "RequestedByUserId", "Status");
+
+                    b.ToTable("RecountAsks");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.RecountRequest", b =>
@@ -1131,6 +1172,11 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("HyundaiStock.Domain.QuantityCorrectionRequest", b =>
                 {
+                    b.HasOne("HyundaiStock.Domain.AppUser", "AudienceUser")
+                        .WithMany()
+                        .HasForeignKey("AudienceUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HyundaiStock.Domain.InventoryPart", "InventoryPart")
                         .WithMany()
                         .HasForeignKey("InventoryPartId")
@@ -1139,11 +1185,6 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasOne("HyundaiStock.Domain.Admin", "RequestedByAdmin")
                         .WithMany()
                         .HasForeignKey("RequestedByAdminId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HyundaiStock.Domain.AppUser", "AudienceUser")
-                        .WithMany()
-                        .HasForeignKey("AudienceUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HyundaiStock.Domain.AppUser", "RequestedByUser")
@@ -1165,6 +1206,32 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Navigation("RequestedByUser");
 
                     b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("HyundaiStock.Domain.RecountAsk", b =>
+                {
+                    b.HasOne("HyundaiStock.Domain.Admin", "DecidedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("DecidedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HyundaiStock.Domain.InventoryPart", "InventoryPart")
+                        .WithMany()
+                        .HasForeignKey("InventoryPartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HyundaiStock.Domain.AppUser", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DecidedByAdmin");
+
+                    b.Navigation("InventoryPart");
+
+                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("HyundaiStock.Domain.RecountRequest", b =>

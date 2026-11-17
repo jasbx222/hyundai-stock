@@ -99,9 +99,10 @@ public sealed class WorkflowTests : IDisposable
         var previous = Assert.IsType<CountedSnapshot>(blocked.Detail);
         Assert.Equal(2, previous.CountedQuantity);
         Assert.Equal(1, await _db.InventoryParts.CountAsync());
-        var ok = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true });
-        Assert.Null(ok.Error);
-        Assert.Equal(1, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.Equal(MobileService.AlreadyCounted, blocked.Error);
+        var still = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Equal(409, still.Status);
+        Assert.Equal(2, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
 
         var missing = await _mobile.CountAsync(_counter.Id, new CountInput { PartNumber = "NO-SUCH", WarehouseId = _warehouseRow.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(404, missing.Status);
@@ -112,31 +113,32 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task Counts_Surplus_IsHeldUntilBothApprovals()
     {
-        // _part: system 2, counted 2. A count of 5 is above the system quantity.
+        // _part: system 2, not counted yet. A count of 5 is above the system quantity.
+        _part.CountedQuantity = null; await _db.SaveChangesAsync();
         var held = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 5, Location = "B-2", Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Null(held.Error);
         Assert.Equal(202, held.Status);
         Assert.Equal(MobileService.SurplusHeldMessage, held.Message);
         Assert.True(held.Data!.PendingApproval);
-        Assert.Equal(2, held.Data.CountedQuantity);
-        Assert.Equal(2, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.Null(held.Data.CountedQuantity);
+        Assert.Null((await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
         var req = await _db.QuantityCorrections.AsNoTracking().SingleAsync(x => x.InventoryPartId == _part.Id);
         Assert.Equal(5, req.NewQuantity);
-        Assert.Equal(2, req.OldQuantity);
+        Assert.Null(req.OldQuantity);
         Assert.Equal(_counter.Id, req.RequestedByUserId);
 
         var again = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 6, Latitude = 33.3, Longitude = 44.3, Confirm = true });
         Assert.Equal(409, again.Status);
 
         Assert.True((await _qty.ApproveAsync(req.Id, WmScope())).Ok);
-        Assert.Equal(2, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
+        Assert.Null((await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
         Assert.True((await _qty.FinalApproveAsync(req.Id, AccScope())).Ok);
         Assert.Equal(5, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id)).CountedQuantity);
         Assert.False((await _mobile.PartAsync(_counter.Id, _part.Id)).Data!.PendingApproval);
 
-        var equal = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3, Confirm = true });
-        Assert.Equal(200, equal.Status);
-        Assert.Equal(2, equal.Data!.CountedQuantity);
+        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        Assert.Equal(409, counted.Status);
+        Assert.Equal(MobileService.AlreadyCounted, counted.Error);
     }
 
     [Fact]
@@ -506,9 +508,9 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(_part.BranchId, pending.BranchId);
         Assert.Equal(_branch.Name, pending.BranchName);
         Assert.Equal(_warehouseRow.Id, pending.WarehouseId);
+        Assert.Null((await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3 })).Error);
         var again = await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3 });
         Assert.Equal(409, again.Status);
-        Assert.Null((await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 5, Location = "A1", Latitude = 33.3, Longitude = 44.3, Confirm = true })).Error);
         Assert.Empty((await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items);
         var completed = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10), true)).Items.Single();
         Assert.Equal("مكتمل", completed.Status); Assert.Equal(5, completed.ResultQuantity); Assert.NotNull(completed.CompletedAt);
@@ -661,7 +663,8 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task One_warehouse_is_resolved_and_its_branch_is_taken_from_the_warehouse()
     {
-        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        _part.CountedQuantity = null; await _db.SaveChangesAsync();
+        var counted = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(counted.Error);
         var scanned = await _mobile.ScanVinAsync(_counter.Id, new ScanInput { Vin = "KMHD1111111111111", Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(scanned.Error);
@@ -672,7 +675,8 @@ public sealed class WorkflowTests : IDisposable
         await _db.SaveChangesAsync();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = second.Id });
         await _db.SaveChangesAsync();
-        var byPart = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3, Confirm = true });
+        var again = await _db.InventoryParts.SingleAsync(x => x.Id == _part.Id); again.CountedQuantity = null; await _db.SaveChangesAsync();
+        var byPart = await _mobile.CountAsync(_counter.Id, new CountInput { PartId = _part.Id, Quantity = 2, Latitude = 33.3, Longitude = 44.3 });
         Assert.Null(byPart.Error);
         var saved = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.Id == _part.Id);
         Assert.Equal(2, saved.CountedQuantity);
@@ -783,6 +787,66 @@ public sealed class WorkflowTests : IDisposable
 
         var mismatch = await qty.SaveAsync(null, new QtyInput { InventoryPartId = _part.Id, NewQuantity = 6, Audience = "warehouse", AudienceWarehouseId = otherWh.Id }, Super());
         Assert.Contains("المخزن لا يطابق مخزن القطعة", mismatch.Values);
+    }
+
+    [Fact]
+    public async Task RecountAsk_OnlyTheFirstCounterAsks_AdminApproves_AndTheCounterIsNotified()
+    {
+        var other = new AppUser { Name = "عداد آخر", PhoneNumber = "07744444444", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        _db.AppUsers.Add(other); await _db.SaveChangesAsync();
+        _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = other.Id, WarehouseId = _warehouseRow.Id });
+        _part.CountedByUserId = _counter.Id; await _db.SaveChangesAsync();
+
+        Assert.Equal(403, (await _mobile.AskRecountAsync(other.Id, _part.Id)).Status);
+        var asked = await _mobile.AskRecountAsync(_counter.Id, _part.Id);
+        Assert.Equal(201, asked.Status);
+        Assert.Equal(409, (await _mobile.AskRecountAsync(_counter.Id, _part.Id)).Status);
+
+        var notified = new List<int>();
+        var asks = new RecountAskService(_db, new RecountCapture(notified));
+        Assert.False((await asks.ApproveAsync(asked.Data!.Id, OtherAcc())).Ok);
+        Assert.True((await asks.ApproveAsync(asked.Data.Id, WmScope())).Ok);
+        Assert.Equal(new[] { _counter.Id }, notified);
+        var task = await _db.RecountRequests.SingleAsync();
+        Assert.Equal(_counter.Id, task.AssignedUserId);
+        Assert.False((await asks.ApproveAsync(asked.Data.Id, WmScope())).Ok);
+    }
+
+    [Fact]
+    public async Task RecountAsk_Reject_NeedsReason_AndUncountedPartCannotBeAsked()
+    {
+        var uncounted = new InventoryPart { SessionId = _session.Id, PartNumber = "NEW-9", Description = "x", SystemQuantity = 1, WarehouseId = _warehouseRow.Id, BranchId = _branch.Id };
+        _db.InventoryParts.Add(uncounted); _part.CountedByUserId = _counter.Id; await _db.SaveChangesAsync();
+        Assert.Equal(409, (await _mobile.AskRecountAsync(_counter.Id, uncounted.Id)).Status);
+        var asked = await _mobile.AskRecountAsync(_counter.Id, _part.Id);
+        var asks = new RecountAskService(_db);
+        Assert.False((await asks.RejectAsync(asked.Data!.Id, " ", WmScope())).Ok);
+        Assert.True((await asks.RejectAsync(asked.Data.Id, "العد صحيح", WmScope())).Ok);
+        Assert.Equal(RecountAskStatus.Rejected, (await _db.RecountAsks.AsNoTracking().SingleAsync()).Status);
+        Assert.Empty(await _db.RecountRequests.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Recount_AtAnotherLocation_CreatesANewLine_AndKeepsTheFirstCount()
+    {
+        _part.CountedByUserId = _counter.Id; _part.CountedLocation = "A1"; await _db.SaveChangesAsync();
+        Assert.True((await _parts.RequestRecountAsync(_part.Id, _counter.Id, WmScope())).Ok);
+        var id = (await _mobile.RecountsAsync(_counter.Id, new PageQuery(1, 10))).Items.Single().Id;
+        var done = await _mobile.SubmitRecountAsync(_counter.Id, id, new RecountInput { Quantity = 7, Location = "B9", Latitude = 33.3, Longitude = 44.3 });
+        Assert.Null(done.Error);
+        var lines = await _db.InventoryParts.AsNoTracking().Where(x => x.PartNumber == "ABC-1").OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(2, lines[0].CountedQuantity); Assert.Equal("A1", lines[0].CountedLocation);
+        Assert.Equal(7, lines[1].CountedQuantity); Assert.Equal("B9", lines[1].CountedLocation);
+        Assert.Equal(_counter.Id, lines[1].CountedByUserId);
+        Assert.Empty(await _db.QuantityCorrections.ToListAsync());
+    }
+
+    private sealed class RecountCapture(List<int> sent) : IStockNotifier
+    {
+        public Task SessionStartedAsync(int sessionId) => Task.CompletedTask;
+        public Task RecountAssignedAsync(int userId, int recountId, string partNumber) { sent.Add(userId); return Task.CompletedTask; }
+        public Task QuantityRequestedAsync(IReadOnlyCollection<int> userIds, int requestId, string partNumber) => Task.CompletedTask;
     }
 
     private sealed class CaptureNotifier(List<int> sent) : IStockNotifier

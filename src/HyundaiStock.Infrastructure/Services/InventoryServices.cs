@@ -164,6 +164,74 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
     }
 }
 
+public sealed record RecountAskRow(int Id, string PartNumber, string Description, string RequestedBy, string? BranchName, string? WarehouseName, string? CountedLocation, int? CountedQuantity, RecountAskStatus Status, string? DecidedBy, DateTime CreatedAt, int SessionYear);
+
+/// <summary>Counters ask to recount a part they already counted. Approval hands the part back to that counter as a recount task and notifies them.</summary>
+public sealed class RecountAskService(AppDbContext db, IStockNotifier? notify = null)
+{
+    private IQueryable<RecountAsk> Scoped(AdminScope s)
+    {
+        var q = db.RecountAsks.AsNoTracking().AsQueryable();
+        if (s.IsUnrestricted) return q;
+        if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); return q.Where(x => x.InventoryPart!.WarehouseId != null && ids.Contains(x.InventoryPart.WarehouseId.Value)); }
+        var branches = s.Branches.ToList();
+        return q.Where(x => x.InventoryPart!.BranchId != null && branches.Contains(x.InventoryPart.BranchId.Value));
+    }
+
+    public Task<PagedResult<RecountAskRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
+    {
+        var q = Scoped(s);
+        if (year is int y) q = q.Where(x => x.InventoryPart!.Session!.Year == y);
+        if (p.Term is string t) q = q.Where(x => x.InventoryPart!.PartNumber.Contains(t) || x.RequestedByUser!.Name.Contains(t));
+        var rows = q.OrderBy(x => x.Status).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => new RecountAskRow(x.Id, x.InventoryPart!.PartNumber, x.InventoryPart.Description, x.RequestedByUser!.Name,
+                x.InventoryPart.Branch != null ? x.InventoryPart.Branch.Name : null, x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : null,
+                x.InventoryPart.CountedLocation, x.InventoryPart.CountedQuantity, x.Status, x.DecidedByAdmin != null ? x.DecidedByAdmin.Name : null, x.CreatedAt, x.InventoryPart.Session!.Year));
+        return Task.FromResult(Paging.Build(rows, p));
+    }
+
+    public async Task<OpResult> ApproveAsync(int id, AdminScope s)
+    {
+        if (!s.CanRequestRecount) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
+        var ask = await Scoped(s).Include(x => x.InventoryPart).ThenInclude(p => p!.Session).FirstOrDefaultAsync(x => x.Id == id);
+        if (ask == null) return OpResult.Fail("الطلب غير موجود");
+        if (ask.Status != RecountAskStatus.Pending) return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً");
+        var part = ask.InventoryPart!;
+        if (part.Session!.Status != SessionStatus.InProgress) return OpResult.Fail("جلسة الجرد منتهية");
+        if (await db.RecountRequests.AnyAsync(x => x.InventoryPartId == part.Id && x.AssignedUserId == ask.RequestedByUserId && x.Status == RecountStatus.Pending))
+            return OpResult.Fail("يوجد طلب إعادة عد مفتوح لنفس المستخدم");
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var now = DateTime.UtcNow;
+        var n = await db.RecountAsks.Where(x => x.Id == id && x.Status == RecountAskStatus.Pending)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, RecountAskStatus.Approved).SetProperty(x => x.DecidedByAdminId, s.Id).SetProperty(x => x.DecidedAt, now));
+        if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً"); }
+        var rec = new RecountRequest { InventoryPartId = part.Id, AssignedUserId = ask.RequestedByUserId, RequestedByAdminId = s.Id };
+        db.RecountRequests.Add(rec);
+        await db.SaveChangesAsync(); await tx.CommitAsync();
+        if (notify != null)
+        {
+            try { await notify.RecountAssignedAsync(rec.AssignedUserId, rec.Id, part.PartNumber); }
+            catch { /* delivery never rolls back the approval */ }
+        }
+        return OpResult.Success(rec.Id);
+    }
+
+    public async Task<OpResult> RejectAsync(int id, string? reason, AdminScope s)
+    {
+        if (!s.CanRequestRecount) return OpResult.Fail("ليس لديك صلاحية لتنفيذ هذه العملية");
+        var why = reason?.Trim();
+        if (string.IsNullOrEmpty(why)) return OpResult.Fail("السبب مطلوب");
+        if (why.Length > 1000) why = why[..1000];
+        if (Validators.HasMarkup(why)) return OpResult.Fail(Validators.MarkupError);
+        var ask = await Scoped(s).FirstOrDefaultAsync(x => x.Id == id);
+        if (ask == null) return OpResult.Fail("الطلب غير موجود");
+        var now = DateTime.UtcNow;
+        var n = await db.RecountAsks.Where(x => x.Id == id && x.Status == RecountAskStatus.Pending)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, RecountAskStatus.Rejected).SetProperty(x => x.DecidedByAdminId, s.Id).SetProperty(x => x.DecidedAt, now).SetProperty(x => x.DecisionReason, why));
+        return n == 1 ? OpResult.Success() : OpResult.Fail("تم التعامل مع هذا الطلب مسبقاً");
+    }
+}
+
 public sealed class QuantityRequestService(AppDbContext db, SessionLookup sessions, ILogger<QuantityRequestService>? logger = null, IStockNotifier? notify = null)
 {
     private IQueryable<QuantityCorrectionRequest> Scoped(AdminScope s)

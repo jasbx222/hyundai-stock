@@ -63,6 +63,7 @@ public static class Menu
     public static bool QuantityTab(AdminScope s) => s.Role == AdminRole.MainAdmin;
     public static bool Cars(AdminScope s) => s.Role != AdminRole.SparePartsManager;
     public static bool NewParts(AdminScope s) => s.CanReviewNewPart;
+    public static bool RecountAsks(AdminScope s) => s.CanRequestRecount;
     public static bool ApprovedParts(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager or AdminRole.Accountant or AdminRole.AccountsManager;
     public static bool Finance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
     public static bool PartActions(AdminScope s) => s.CanFirstApproveQty;

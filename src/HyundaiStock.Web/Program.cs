@@ -45,6 +45,7 @@ builder.Services.AddScoped<WarehouseService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<PartService>();
+builder.Services.AddScoped<RecountAskService>();
 builder.Services.AddScoped<QuantityRequestService>();
 builder.Services.AddScoped<VinService>();
 builder.Services.AddScoped<VinRequestService>();

@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ScannedVin> ScannedVins => Set<ScannedVin>();
     public DbSet<QuantityCorrectionRequest> QuantityCorrections => Set<QuantityCorrectionRequest>();
     public DbSet<RecountRequest> RecountRequests => Set<RecountRequest>();
+    public DbSet<RecountAsk> RecountAsks => Set<RecountAsk>();
     public DbSet<VinCorrectionRequest> VinCorrections => Set<VinCorrectionRequest>();
     public DbSet<AdminBranch> AdminBranches => Set<AdminBranch>();
     public DbSet<AdminWarehouse> AdminWarehouses => Set<AdminWarehouse>();
@@ -175,6 +176,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.InventoryPart).WithMany().HasForeignKey(x => x.InventoryPartId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.AssignedUser).WithMany().HasForeignKey(x => x.AssignedUserId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.RequestedByAdmin).WithMany().HasForeignKey(x => x.RequestedByAdminId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<RecountAsk>(e =>
+        {
+            e.Property(x => x.DecisionReason).HasMaxLength(1000);
+            e.HasIndex(x => new { x.InventoryPartId, x.RequestedByUserId, x.Status });
+            e.HasOne(x => x.InventoryPart).WithMany().HasForeignKey(x => x.InventoryPartId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.DecidedByAdmin).WithMany().HasForeignKey(x => x.DecidedByAdminId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<VinCorrectionRequest>(e =>
         {

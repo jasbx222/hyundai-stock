@@ -31,6 +31,7 @@ else
     if (Menu.Org(s)) sys.Add(("warehouses", "box", "المخازن", "/Warehouses", "مخازن كل فرع وأرقامها"));
     var inv = new List<(string key, string icon, string text, string url, string tip)>();
     if (Menu.Requests(s)) inv.Add(("requests", "edit", "طلبات التعديل", "/Requests?kind=recount", Menu.QuantityTab(s) ? "طلبات إعادة العد وتصحيح الكمية" : "طلبات إعادة العد"));
+    if (Menu.RecountAsks(s)) inv.Add(("recountasks", "recount", "طلبات إعادة الجرد", "/RecountAsks", "طلبات الموظفين لإعادة جرد قطعة معدودة"));
     if (Menu.NewParts(s)) inv.Add(("newparts", "plus", "طلبات إضافة قطعة", "/NewParts", "طلبات إضافة قطعة غير موجودة في جلسة الجرد"));
     if (Menu.ApprovedParts(s)) inv.Add(("approvedparts", "plus", "القطع الجديدة", "/ApprovedParts", "القطع المضافة للجرد بعد موافقة مدير قطع الغيار على طلب الإضافة"));
     if (Menu.Parts(s)) inv.Add(("parts", "part", "قطع الغيار", "/Parts", "قطع الجلسة: كمية النظام والكمية المعدودة والفروقات"));

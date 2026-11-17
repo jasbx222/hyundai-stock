@@ -18,6 +18,7 @@ public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, st
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
 
 public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public bool Confirm { get; set; } }
+public sealed record MobileRecountAsk(int Id, int PartId, string PartNumber, string Status, DateTime CreatedAt);
 public sealed record CountedSnapshot(int? CountedQuantity, string? CountedLocation, DateTime? CountedAt);
 public sealed class ScanInput { public string? Vin { get; set; } public int? WarehouseId { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class VinCorrectionInput { public int? ScannedVinId { get; set; } public string? NewVin { get; set; } public string? Reason { get; set; } }
@@ -163,7 +164,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i) => CountAsync(userId, i, assignedRow: false);
 
-    private async Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i, bool assignedRow)
+    private async Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i, bool assignedRow, bool newLine = false)
     {
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
@@ -213,11 +214,12 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (part.WarehouseId == null && i.WarehouseId is int cw && whs.Contains(cw)) part.WarehouseId = cw;
         if (part.WarehouseId == null)
             part.WarehouseId = await db.Warehouses.Where(z => whs.Contains(z.Id) && z.BranchId == part.BranchId).OrderBy(z => z.Id).Select(z => (int?)z.Id).FirstOrDefaultAsync();
-        if (part.CountedQuantity != null && !i.Confirm)
-            return new(null, "هذه القطعة معدودة مسبقًا", 409, new CountedSnapshot(part.CountedQuantity, part.CountedLocation, part.CountedAt));
+        // A counted part is never counted again from the normal count screen. The counter who counted it asks for a recount, and an admin approves it.
+        if (part.CountedQuantity != null && !assignedRow)
+            return new(null, AlreadyCounted, 409, new CountedSnapshot(part.CountedQuantity, part.CountedLocation, part.CountedAt));
         var loc = i.Location?.Trim(); if (loc?.Length > 64) loc = loc[..64];
         // A count above the system quantity is not written to the inventory. It becomes a quantity request and is added only after approval.
-        if (i.Quantity > part.SystemQuantity) return await HoldSurplusAsync(user, part, i.Quantity.Value, loc);
+        if (!newLine && i.Quantity > part.SystemQuantity) return await HoldSurplusAsync(user, part, i.Quantity.Value, loc);
         if (part.Id != 0)
         {
             if (part.CountedQuantity != i.Quantity)
@@ -230,6 +232,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         await db.SaveChangesAsync();
         return await PartAsync(userId, part.Id);
     }
+
+    public const string AlreadyCounted = "هذه القطعة معدودة سابقًا، يرجى جرد قطعة أخرى";
 
     public const string SurplusHeldMessage = "تم استلام العد، وسيُضاف للجرد بعد الموافقة";
 
@@ -341,11 +345,44 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (r == null) return new(null, "طلب إعادة العد غير موجود", 404);
         if (r.Status != RecountStatus.Pending) return new(null, "طلب إعادة العد مكتمل", 409);
         if (r.InventoryPart!.Session!.Status != SessionStatus.InProgress) return new(null, "جلسة الجرد منتهية", 409);
-        var res = await CountAsync(userId, new CountInput { PartId = r.InventoryPartId, Quantity = i.Quantity, Location = i.Location, Latitude = i.Latitude, Longitude = i.Longitude, Confirm = i.Confirm }, assignedRow: true);
-        if (res.Error != null) return res;
+        var counted = r.InventoryPart!;
+        var loc = i.Location?.Trim();
+        // A different location is a new line of the same part, so the first count stays as it was.
+        var newLine = counted.CountedQuantity != null && !string.IsNullOrEmpty(loc) && !string.Equals(counted.CountedLocation ?? "", loc, StringComparison.OrdinalIgnoreCase);
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var targetId = r.InventoryPartId;
+        if (newLine)
+        {
+            var line = new InventoryPart { SessionId = counted.SessionId, PartNumber = counted.PartNumber, Description = counted.Description, SystemQuantity = 0, SystemLocation = counted.SystemLocation, BranchId = counted.BranchId, WarehouseId = counted.WarehouseId };
+            db.InventoryParts.Add(line);
+            await db.SaveChangesAsync();
+            targetId = line.Id;
+        }
+        var res = await CountAsync(userId, new CountInput { PartId = targetId, Quantity = i.Quantity, Location = i.Location, Latitude = i.Latitude, Longitude = i.Longitude, Confirm = i.Confirm }, assignedRow: true, newLine: newLine);
+        if (res.Error != null) { await tx.RollbackAsync(); return res; }
         r.Status = RecountStatus.Completed; r.ResultQuantity = i.Quantity; r.CompletedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(); await tx.CommitAsync();
         return res;
+    }
+
+    /// <summary>The counter who counted a part asks to count it again. Only that counter may ask, and an admin must approve.</summary>
+    public async Task<MobileResult<MobileRecountAsk>> AskRecountAsync(int userId, int partId)
+    {
+        var s = await sessions.CurrentAsync();
+        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
+        var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
+        var part = await db.InventoryParts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == partId && x.SessionId == s.Id);
+        if (part == null || !CanSee(part, whs, brs)) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
+        if (part.CountedQuantity == null) return new(null, "القطعة لم تُعدّ بعد، يمكنك جردها مباشرة", 409);
+        if (part.CountedByUserId != userId) return new(null, "فقط من جرد القطعة أول مرة يمكنه طلب إعادة جردها", 403);
+        if (await db.RecountAsks.AnyAsync(x => x.InventoryPartId == partId && x.RequestedByUserId == userId && x.Status == RecountAskStatus.Pending))
+            return new(null, "طلبك قيد المراجعة", 409);
+        if (await db.RecountRequests.AnyAsync(x => x.InventoryPartId == partId && x.AssignedUserId == userId && x.Status == RecountStatus.Pending))
+            return new(null, "لديك طلب إعادة عد مفتوح لهذه القطعة", 409);
+        var ask = new RecountAsk { InventoryPartId = partId, RequestedByUserId = userId };
+        db.RecountAsks.Add(ask);
+        await db.SaveChangesAsync();
+        return new(new MobileRecountAsk(ask.Id, partId, part.PartNumber, "بانتظار الموافقة", ask.CreatedAt), null, 201, null, "تم إرسال طلب إعادة الجرد، سيصلك إشعار عند الموافقة");
     }
 
     public async Task<MobileResult<MobileQtyRequest>> QtyRequestAsync(int userId, QtyRequestInput i)
