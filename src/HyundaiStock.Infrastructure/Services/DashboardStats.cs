@@ -47,6 +47,7 @@ public sealed class HomeStats
         var parts = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid);
         if (!all) parts = wm ? parts.Where(x => x.WarehouseId != null && whIds.Contains(x.WarehouseId.Value)) : parts.Where(x => x.BranchId != null && branchIds.Contains(x.BranchId.Value));
         var counted = parts.Where(x => x.CountedQuantity != null);
+        var hideVehicles = s.Role == AdminRole.SparePartsManager;
         var exp = db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == sid);
         var scan = db.ScannedVins.AsNoTracking().Where(x => x.SessionId == sid);
         if (!all && !wm) { exp = exp.Where(x => x.BranchId != null && branchIds.Contains(x.BranchId.Value)); scan = scan.Where(x => branchIds.Contains(x.BranchId)); }
@@ -54,14 +55,15 @@ public sealed class HomeStats
 
         var branches = await db.Branches.AsNoTracking().Where(x => all || branchIds.Contains(x.Id) || (wm && x.Warehouses.Any(w => whIds.Contains(w.Id)))).Select(x => new { x.Id, x.Name }).ToListAsync();
         var partBy = await parts.GroupBy(x => x.BranchId).Select(g => new { g.Key, N = g.Count(), C = g.Count(x => x.CountedQuantity != null) }).ToListAsync();
-        var expBy = await exp.GroupBy(x => x.BranchId).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
-        var scanBy = await scan.GroupBy(x => x.BranchId).Select(g => new { g.Key, N = g.Count() }).ToListAsync();
+        var expBy = hideVehicles ? new Dictionary<int, int>() : await exp.GroupBy(x => x.BranchId).Select(g => new { g.Key, N = g.Count() }).Where(x => x.Key != null).ToDictionaryAsync(x => x.Key!.Value, x => x.N);
+        var scanBy = hideVehicles ? new Dictionary<int, int>() : await scan.GroupBy(x => x.BranchId).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
 
         var recent = new List<ActivityItem>();
         recent.AddRange(await counted.Where(x => x.CountedAt != null).OrderByDescending(x => x.CountedAt).Take(6)
             .Select(x => new ActivityItem("part", "عدّ قطعة " + x.PartNumber, x.Description, x.CountedByUser != null ? x.CountedByUser.Name : "", x.CountedAt ?? default)).ToListAsync());
-        recent.AddRange(await scan.OrderByDescending(x => x.CreatedAt).Take(6)
-            .Select(x => new ActivityItem("car", "مسح مركبة " + x.Vin, x.Warehouse != null ? x.Warehouse.Name : "", x.User != null ? x.User.Name : "", x.CreatedAt)).ToListAsync());
+        if (!hideVehicles)
+            recent.AddRange(await scan.OrderByDescending(x => x.CreatedAt).Take(6)
+                .Select(x => new ActivityItem("car", "مسح مركبة " + x.Vin, x.Warehouse != null ? x.Warehouse.Name : "", x.User != null ? x.User.Name : "", x.CreatedAt)).ToListAsync());
 
         return new HomeStats
         {
@@ -77,16 +79,16 @@ public sealed class HomeStats
             MatchedParts = await counted.CountAsync(x => x.CountedQuantity == x.SystemQuantity),
             Shortage = await counted.CountAsync(x => x.CountedQuantity < x.SystemQuantity),
             Surplus = await counted.CountAsync(x => x.CountedQuantity > x.SystemQuantity),
-            ExpectedVins = await exp.CountAsync(),
-            ScannedVins = await scan.CountAsync(),
-            ScannedExpected = await scan.CountAsync(x => db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin)),
+            ExpectedVins = hideVehicles ? 0 : await exp.CountAsync(),
+            ScannedVins = hideVehicles ? 0 : await scan.CountAsync(),
+            ScannedExpected = hideVehicles ? 0 : await scan.CountAsync(x => db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin)),
             PendingQty = await db.QuantityCorrections.CountAsync(x => x.Status == RequestStatus.Pending && (all || (wm ? x.WarehouseId != null && whIds.Contains(x.WarehouseId.Value) : x.BranchId != null && branchIds.Contains(x.BranchId.Value)))),
             PendingVin = await db.VinCorrections.CountAsync(x => x.Status == RequestStatus.Pending && (all || (wm ? whIds.Contains(x.ScannedVin!.WarehouseId) : branchIds.Contains(x.ScannedVin!.BranchId)))),
             PendingRecounts = await db.RecountRequests.CountAsync(x => x.Status == RecountStatus.Pending && (all || (wm ? x.InventoryPart!.WarehouseId != null && whIds.Contains(x.InventoryPart.WarehouseId.Value) : x.InventoryPart!.BranchId != null && branchIds.Contains(x.InventoryPart.BranchId.Value)))),
             Recounts = await db.RecountRequests.CountAsync(x => all || (wm ? x.InventoryPart!.WarehouseId != null && whIds.Contains(x.InventoryPart.WarehouseId.Value) : x.InventoryPart!.BranchId != null && branchIds.Contains(x.InventoryPart.BranchId.Value))),
             ByBranch = branches.Select(x => new BranchProgress(x.Name,
                 partBy.FirstOrDefault(p => p.Key == x.Id)?.N ?? 0, partBy.FirstOrDefault(p => p.Key == x.Id)?.C ?? 0,
-                expBy.FirstOrDefault(p => p.Key == x.Id)?.N ?? 0, scanBy.FirstOrDefault(p => p.Key == x.Id)?.N ?? 0))
+                expBy.GetValueOrDefault(x.Id), scanBy.GetValueOrDefault(x.Id)))
                 .OrderByDescending(x => x.Parts + x.Vins).ToList(),
             Recent = recent.OrderByDescending(x => x.At).Take(8).ToList(),
         };

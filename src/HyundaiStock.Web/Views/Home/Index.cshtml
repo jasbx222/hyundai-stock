@@ -21,12 +21,6 @@
         <div class="v">@N(m.ScannedExpected) <small>من @N(m.ExpectedVins)</small></div>
         <div class="s">نسبة الإنجاز @m.VinPercent% · إجمالي الممسوح @N(m.ScannedVins)</div>
     </a>
-    } else {
-    <div class="card kpi" title="عدد المركبات الممسوحة ضمن النطاق">
-        <div class="l">@Ui.Icon("car", 18) المركبات الممسوحة</div>
-        <div class="v">@N(m.ScannedExpected) <small>من @N(m.ExpectedVins)</small></div>
-        <div class="s">نسبة الإنجاز @m.VinPercent%</div>
-    </div>
     }
     <a class="card kpi" href="/Parts?view=diff" title="القطع المعدودة التي تختلف عن كمية النظام فقط">
         <div class="l">@Ui.Icon("alert", 18) الفروقات</div>
@@ -55,22 +49,22 @@
         @if (m.ByBranch.Count == 0) { <p class="muted">لا توجد بيانات.</p> }
         else {
         <div class="hscroll"><table class="tbl" style="width:100%">
-            <thead><tr><th>الفرع</th><th title="القطع المعدودة من إجمالي قطع الفرع">قطع الغيار</th><th title="نسبة القطع المعدودة">الإنجاز</th><th title="المركبات الممسوحة / الواردة في الملف">المركبات</th></tr></thead>
+            <thead><tr><th>الفرع</th><th title="القطع المعدودة من إجمالي قطع الفرع">قطع الغيار</th><th title="نسبة القطع المعدودة">الإنجاز</th>@if (Menu.Cars(me)) { <th title="المركبات الممسوحة / الواردة في الملف">المركبات</th> }</tr></thead>
             <tbody>
             @foreach (var b in m.ByBranch) {
                 var pc = b.Parts == 0 ? 0 : (int)Math.Round(b.Counted * 100.0 / b.Parts);
                 <tr><td>@b.Name</td><td class="mono">@N(b.Counted) / @N(b.Parts)</td>
                     <td><div title="@pc%" style="height:8px;border-radius:4px;background:var(--bd);min-width:80px"><div style="height:8px;border-radius:4px;background:var(--ok);width:@(pc)%"></div></div></td>
-                    <td class="mono">@N(b.Scanned) / @N(b.Vins)</td></tr>
+                    @if (Menu.Cars(me)) { <td class="mono">@N(b.Scanned) / @N(b.Vins)</td> }</tr>
             }
             </tbody>
         </table></div>
         }
     </div>
     <div class="card" style="padding:20px">
-        <h3 style="margin:0 0 12px" title="آخر عمليات العد والمسح من التطبيق">آخر النشاطات</h3>
-        @if (m.Recent.Count == 0) { <p class="muted">ستظهر هنا آخر عمليات العدّ والمسح من التطبيق.</p> }
-        @foreach (var a in m.Recent) {
+        <h3 style="margin:0 0 12px" title="@(Menu.Cars(me) ? "آخر عمليات العد والمسح من التطبيق" : "آخر عمليات عدّ القطع من التطبيق")">آخر النشاطات</h3>
+        @if (!m.Recent.Any(a => Menu.Cars(me) || a.Kind != "car")) { <p class="muted">@(Menu.Cars(me) ? "ستظهر هنا آخر عمليات العدّ والمسح من التطبيق." : "ستظهر هنا آخر عمليات عدّ القطع من التطبيق.")</p> }
+        @foreach (var a in m.Recent.Where(a => Menu.Cars(me) || a.Kind != "car")) {
             <div class="actrow">
                 <span title="@(a.Kind == "car" ? "مسح مركبة" : "عدّ قطعة")">@Ui.Icon(a.Kind, 18)</span>
                 <div style="flex:1;min-width:0"><b style="font-size:14px">@a.Title</b><div class="muted" style="font-size:12px">@a.Detail@(a.By.Length > 0 ? " · " + a.By : "")</div></div>

@@ -212,35 +212,34 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         return Build("Warehouses", "Warehouses", WarehousesHeaders, WarehousesWidths, data.Select(x => new object?[] { x.Number, x.Name, x.B }));
     }
 
-    public sealed record FinanceRow(int Id, string PartNumber, string Description, int SystemQuantity, int? CountedQuantity, int? Difference, decimal Price, decimal? FinancialDifference, string? Branch, string? Warehouse, int Year);
+    public sealed record FinanceRow(int Id, string PartNumber, string Description, int SystemQuantity, int? CountedQuantity, int? Difference, decimal Price, decimal? FinancialDifference, string? Branch, string? Warehouse, int Year, string? RecountedBy);
 
     public async Task<(PagedResult<FinanceRow>? Page, string? Error, bool Forbidden)> FinanceListAsync(FinanceFilter f, PageQuery p, AdminScope s)
     {
         var built = await FinanceSource(f, s);
         if (built.Query == null) return (null, built.Error, built.Forbidden);
-        var rows = FinanceOrder(built.Query, f.Sort).Select(x => new FinanceRow(x.Id, x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity,
-            x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity, x.Price,
-            x.CountedQuantity == null ? null : decimal.Round((x.CountedQuantity.Value - x.SystemQuantity) * x.Price, 2, MidpointRounding.AwayFromZero),
-            x.Branch != null ? x.Branch.Name : null, x.Warehouse != null ? x.Warehouse.Name : null, x.Session!.Year));
-        return (Paging.Build(rows, p), null, false);
+        return (Paging.Build(FinanceRows(FinanceOrder(built.Query, f.Sort)), p), null, false);
     }
 
     public async Task<(ExportFile? File, string? Error, bool Forbidden)> FinanceFileAsync(FinanceFilter f, AdminScope s)
     {
         var built = await FinanceSource(f, s);
         if (built.Query == null) return (null, built.Error, built.Forbidden);
-        var data = await FinanceOrder(built.Query, f.Sort).Select(x => new { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Price, B = x.Branch != null ? x.Branch.Name : "", W = x.Warehouse != null ? x.Warehouse.Name : "", Y = x.Session!.Year }).ToListAsync();
+        var data = await FinanceRows(FinanceOrder(built.Query, f.Sort)).ToListAsync();
         var file = Build("Variance", "Financial-Variance",
-            new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Price", "Financial Difference", "Branch", "Warehouse", "Session" },
-            new[] { 22d, 40, 16, 16, 14, 14, 18, 18, 18, 12 },
-            data.Select(x =>
-            {
-                int? d = x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity;
-                decimal? m = d == null ? null : decimal.Round(d.Value * x.Price, 2, MidpointRounding.AwayFromZero);
-                return new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, d, x.Price, m, x.B, x.W, x.Y };
-            }));
+            new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Price", "Financial Difference", "Branch", "Warehouse", "Session", "Recounted By" },
+            new[] { 22d, 40, 16, 16, 14, 14, 18, 18, 18, 12, 22 },
+            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Difference, x.Price, x.FinancialDifference, x.Branch ?? "", x.Warehouse ?? "", x.Year, x.RecountedBy ?? "" }));
         return (file, null, false);
     }
+
+    private IQueryable<FinanceRow> FinanceRows(IQueryable<InventoryPart> q) => q.Select(x => new FinanceRow(x.Id, x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity,
+        x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity, x.Price,
+        x.CountedQuantity == null ? null : decimal.Round((x.CountedQuantity.Value - x.SystemQuantity) * x.Price, 2, MidpointRounding.AwayFromZero),
+        x.Branch != null ? x.Branch.Name : null, x.Warehouse != null ? x.Warehouse.Name : null, x.Session!.Year,
+        db.RecountRequests.Where(r => r.InventoryPartId == x.Id && r.Status == RecountStatus.Completed)
+            .OrderByDescending(r => r.CompletedAt).ThenByDescending(r => r.Id)
+            .Select(r => r.AssignedUser!.Name).FirstOrDefault()));
 
     private async Task<(IQueryable<InventoryPart>? Query, string? Error, bool Forbidden)> FinanceSource(FinanceFilter f, AdminScope s)
     {

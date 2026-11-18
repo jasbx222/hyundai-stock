@@ -6,6 +6,7 @@
     var branches = (List<NamedItem>)ViewBag.Branches;
     var warehouses = (List<NamedItem>)ViewBag.Warehouses;
     var sessions = (List<NamedItem>)ViewBag.Sessions;
+    var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!;
     string q = $"sessionId={f.SessionId}&branchId={f.BranchId}&warehouseId={f.WarehouseId}&partNumber={Uri.EscapeDataString(f.PartNumber ?? "")}&description={Uri.EscapeDataString(f.Description ?? "")}&difference={f.Difference}&sort={f.Sort}";
 }
 <div class="ph"><div><h1>فروقات المخزون المالية</h1></div><div class="acts"><a class="btn p" href="/Finance/Export?@q">@Ui.Icon("export", 16) تصدير</a></div></div>
@@ -34,12 +35,14 @@
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "لا توجد قطع مطابقة للتصفية.", "part")) }
     else {
     <div class="hscroll"><table>
-        <thead><tr><th>رقم القطعة</th><th>الوصف</th><th>النظام</th><th>المعدود</th><th>الفرق</th><th>السعر</th><th>القيمة</th><th>الفرع</th><th>المخزن</th><th>الجلسة</th></tr></thead>
+        <thead><tr><th>رقم القطعة</th><th>الوصف</th><th>النظام</th><th>المعدود</th><th>الفرق</th><th>السعر</th><th>القيمة</th><th>الفرع</th><th>المخزن</th><th>الجلسة</th><th title="المستخدم الذي أكمل إعادة عد هذه القطعة">أعاد العد</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
             <tr><td class="mono">@r.PartNumber</td><td class="clip">@r.Description</td><td class="num">@r.SystemQuantity</td><td class="num">@(r.CountedQuantity?.ToString() ?? "—")</td>
                 <td>@Ui.Diff(r.CountedQuantity, r.SystemQuantity)</td><td class="num" dir="ltr">@r.Price.ToString("0.00")</td>
-                <td class="num" dir="ltr">@(r.FinancialDifference?.ToString("0.00") ?? "—")</td><td>@(r.Branch ?? "—")</td><td>@(r.Warehouse ?? "—")</td><td>@r.Year</td></tr>
+                <td class="num" dir="ltr">@(r.FinancialDifference?.ToString("0.00") ?? "—")</td><td>@(r.Branch ?? "—")</td><td>@(r.Warehouse ?? "—")</td><td>@r.Year</td>
+                <td>@Ui.Who(r.RecountedBy)</td>
+                <td>@if (r.Difference is int d && d != 0 && me.CanRequestRecount) { <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@r.Id" title="إرسال القطعة إلى مستخدم لإعادة عدّها">@Ui.Icon("refresh", 16) إعادة العد</button> }</td></tr>
         }
         </tbody>
     </table></div>

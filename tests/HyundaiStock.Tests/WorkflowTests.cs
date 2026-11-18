@@ -440,6 +440,17 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(3, row.Difference);
         Assert.Equal(30m, row.FinancialDifference);
 
+        Assert.Null(row.RecountedBy);
+        _db.RecountRequests.Add(new RecountRequest { InventoryPartId = _part.Id, AssignedUserId = _counter.Id, RequestedByAdminId = _accountant.Id, Status = RecountStatus.Completed, ResultQuantity = 5, CompletedAt = DateTime.UtcNow.AddMinutes(-5) });
+        var earlier = new AppUser { Name = "عداد سابق", PhoneNumber = "07755555555", PasswordHash = _pw.Hash("secret"), IsActive = true };
+        _db.AppUsers.Add(earlier);
+        await _db.SaveChangesAsync();
+        _db.RecountRequests.Add(new RecountRequest { InventoryPartId = _part.Id, AssignedUserId = earlier.Id, RequestedByAdminId = _accountant.Id, Status = RecountStatus.Completed, ResultQuantity = 4, CompletedAt = DateTime.UtcNow.AddHours(-2) });
+        await _db.SaveChangesAsync();
+        page = await _export.FinanceListAsync(new FinanceFilter { SessionId = _session.Id, Difference = "surplus" }, new PageQuery(1, 10), AccScope());
+        row = Assert.Single(page.Page!.Items);
+        Assert.Equal(_counter.Name, row.RecountedBy);
+
         var denied = await _export.FinanceListAsync(new FinanceFilter { SessionId = _session.Id, BranchId = _other.Id }, new PageQuery(1, 10), AccScope());
         Assert.True(denied.Forbidden);
         var file = await _export.FinanceFileAsync(new FinanceFilter { SessionId = _session.Id }, AccScope());
@@ -734,6 +745,34 @@ public sealed class WorkflowTests : IDisposable
             await notifier.SessionStartedAsync(_session.Id);
         }
         finally { Environment.SetEnvironmentVariable("FCM_SERVER_KEY", previous); }
+    }
+
+    [Fact]
+    public async Task Home_hides_vehicle_counts_and_scans_from_spare_parts_manager()
+    {
+        const string vin = "KMHXX00XXXX000001";
+        _db.ExpectedVins.Add(new ExpectedVin { SessionId = _session.Id, Vin = vin, BranchId = _branch.Id, WarehouseId = _warehouseRow.Id });
+        _db.ScannedVins.Add(new ScannedVin { SessionId = _session.Id, Vin = vin, UserId = _counter.Id, WarehouseId = _warehouseRow.Id, BranchId = _branch.Id });
+        _part.CountedAt = DateTime.UtcNow;
+        _part.CountedByUserId = _counter.Id;
+        await _db.SaveChangesAsync();
+
+        var spare = await HomeStats.BuildAsync(_db, _sessions, SpareScope());
+        Assert.Equal(0, spare.ExpectedVins);
+        Assert.Equal(0, spare.ScannedVins);
+        Assert.Equal(0, spare.ScannedExpected);
+        Assert.Equal(0, spare.VinPercent);
+        Assert.All(spare.ByBranch, b => Assert.Equal(0, b.Vins + b.Scanned));
+        Assert.DoesNotContain(spare.Recent, a => a.Kind == "car" || a.Title.Contains(vin, StringComparison.Ordinal));
+        Assert.Contains(spare.Recent, a => a.Kind == "part");
+        Assert.True(spare.Parts > 0);
+
+        var main = await HomeStats.BuildAsync(_db, _sessions, Super());
+        Assert.Equal(1, main.ExpectedVins);
+        Assert.Equal(1, main.ScannedVins);
+        Assert.Equal(1, main.ScannedExpected);
+        Assert.Contains(main.Recent, a => a.Kind == "car" && a.Title.Contains(vin, StringComparison.Ordinal));
+        Assert.Contains(main.ByBranch, b => b.Name == _branch.Name && b.Vins == 1 && b.Scanned == 1);
     }
 
     private NewPartInput Input(string partNumber = "ZZ-9", int? quantity = 3, int? branchId = null, int? warehouseId = null, double? latitude = 33.31, double? longitude = 44.36) => new()
