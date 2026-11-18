@@ -42,7 +42,7 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
         return Ok(ApiResponse.Ok(new TokenDto(token, "Bearer", exp, await svc.ProfileAsync(u.Id) ?? (object)new { })));
     }
 
-    /// <summary>بيانات المستخدم الحالي ومستودعاته.</summary>
+    /// <summary>بيانات المستخدم الحالي ومستودعاته ونوع الجرد المسموح (countType: parts | vehicles | both).</summary>
     [HttpGet("me")]
     public async Task<IActionResult> Me() => Ok(ApiResponse.Ok(await svc.ProfileAsync(UserId)));
 
@@ -66,7 +66,7 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     [HttpGet("parts/{id:int}")]
     public async Task<IActionResult> Part(int id) => From(await svc.PartAsync(UserId, id));
 
-    /// <summary>تسجيل عدّ قطعة (بالمعرّف، أو برقم القطعة والمستودع لقطعة غير مدرجة) مع الموقع والـ GPS.</summary>
+    /// <summary>تسجيل عدّ قطعة مع الموقع والـ GPS. القطعة المعدودة يعيد عدّها نفس الموظف فقط؛ غيره يستلم 409 باسم من عدّها. الزيادة والنقص ينحفظان مباشرة ويظهران بالمالية.</summary>
     [HttpPost("counts")]
     public async Task<IActionResult> Count([FromBody] CountInput input) => From(await svc.CountAsync(UserId, input), "تم حفظ العد");
 
@@ -76,7 +76,7 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
 
     /// <summary>نوع المركبة لرقم VIN (من ملف الجلسة) قبل تسجيلها.</summary>
     [HttpGet("vins/lookup")]
-    public async Task<IActionResult> LookupVin([FromQuery] string? vin) => From(await svc.LookupVinAsync(vin));
+    public async Task<IActionResult> LookupVin([FromQuery] string? vin) => From(await svc.LookupVinAsync(UserId, vin));
 
     /// <summary>المركبات التي مسحها المستخدم في الجلسة الحالية.</summary>
     [HttpGet("vins")]
@@ -104,18 +104,6 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
     /// <summary>طلب إعادة جرد قطعة معدودة (لمن جردها أول مرة فقط، ويحتاج موافقة الإدارة).</summary>
     [HttpPost("parts/{id:int}/recount-ask")]
     public async Task<IActionResult> AskRecount(int id) => From(await svc.AskRecountAsync(UserId, id), "تم إرسال الطلب");
-
-    /// <summary>إرسال طلب تعديل كمية قطعة (يُرسل إلى الإدارة للموافقة).</summary>
-    [HttpPost("qty-requests")]
-    public async Task<IActionResult> QtyRequest([FromBody] QtyRequestInput input) => From(await svc.QtyRequestAsync(UserId, input), "تم إرسال الطلب");
-
-    [HttpPut("qty-requests/{id:int}")]
-    public async Task<IActionResult> EditQtyRequest(int id, [FromBody] QtyRequestInput input) => From(await svc.EditQtyRequestAsync(UserId, id, input), "تم تعديل الطلب");
-
-    /// <summary>طلبات تعديل الكمية الخاصة بالمستخدم.</summary>
-    [HttpGet("qty-requests")]
-    public async Task<IActionResult> MyQtyRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
-        => Ok(ApiResponse.Ok(PageDto<MobileQtyRequest>.From(await svc.MyQtyRequestsAsync(UserId, new PageQuery(page, pageSize)))));
 
     /// <summary>إرسال طلب إضافة قطعة غير موجودة في جلسة الجرد. لا يُنشئ قطعة قبل الموافقة النهائية.</summary>
     [HttpPost("new-part-requests")]

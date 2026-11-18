@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace HyundaiStock.Infrastructure.Services;
 
 public sealed record AdminRow(int Id, string Name, string PhoneNumber, AdminRole Role, int? BranchId, string? BranchName, bool IsActive, DateTime CreatedAt, bool AllBranches);
-public sealed record UserRow(int Id, string Name, string PhoneNumber, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt);
-public sealed record UserDetails(int Id, string Name, string PhoneNumber, List<int> BranchIds, List<int> WarehouseIds, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt, bool CanPickDuplicateRow = false);
+public sealed record UserRow(int Id, string Name, string PhoneNumber, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt, CountType CountType = CountType.Both);
+public sealed record UserDetails(int Id, string Name, string PhoneNumber, List<int> BranchIds, List<int> WarehouseIds, List<string> Branches, List<string> Warehouses, bool IsActive, DateTime CreatedAt, bool CanPickDuplicateRow = false, CountType CountType = CountType.Both);
 
 public sealed class AdminInput
 {
@@ -31,6 +31,8 @@ public sealed class UserInput
     public List<int> WarehouseIds { get; set; } = new();
     /// <summary>Lets the counter pick the row when a part number repeats.</summary>
     public bool CanPickDuplicateRow { get; set; }
+    /// <summary>Allowed count type in the app: spare parts, vehicles, or both.</summary>
+    public CountType CountType { get; set; } = CountType.Both;
 }
 
 public sealed class AdminService(AppDbContext db, IPasswordService pw)
@@ -168,13 +170,13 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
         if (p.Term is string t) q = q.Where(x => x.Name.Contains(t) || x.PhoneNumber.Contains(t)
             || x.Branches.Any(b => b.Branch!.Name.Contains(t)) || x.Warehouses.Any(w => w.Warehouse!.Name.Contains(t)));
         var rows = q.OrderBy(x => x.Id).Select(x => new UserRow(x.Id, x.Name, x.PhoneNumber,
-            x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt));
+            x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt, x.CountType));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
     public Task<UserDetails?> GetAsync(int id, AdminScope s) => Scoped(s).Where(x => x.Id == id).Select(x => new UserDetails(x.Id, x.Name, x.PhoneNumber,
         x.Branches.Select(b => b.BranchId).ToList(), x.Warehouses.Select(w => w.WarehouseId).ToList(),
-        x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt, x.CanPickDuplicateRow)).FirstOrDefaultAsync();
+        x.Branches.Select(b => b.Branch!.Name).ToList(), x.Warehouses.Select(w => w.Warehouse!.Name).ToList(), x.IsActive, x.CreatedAt, x.CanPickDuplicateRow, x.CountType)).FirstOrDefaultAsync();
 
     public Task<List<NamedItem>> AllAsync(AdminScope s) => Scoped(s).Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new NamedItem(x.Id, x.Name, null)).ToListAsync();
 
@@ -199,6 +201,7 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
         if (branchIds.Count == 0 || validB.Count != branchIds.Count) err["BranchIds"] = "اختر فرع واحد على الأقل";
         var validW = await db.Warehouses.Where(x => whIds.Contains(x.Id) && branchIds.Contains(x.BranchId)).Select(x => x.Id).ToListAsync();
         if (whIds.Count == 0 || validW.Count != whIds.Count) err["WarehouseIds"] = "اختر مستودع واحد على الأقل من الفروع المختارة";
+        if (!Enum.IsDefined(i.CountType)) err["CountType"] = "اختر نوع الجرد";
         if (err.Count > 0) return err;
 
         AppUser? u;
@@ -209,7 +212,7 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
             db.AppUserBranches.RemoveRange(u.Branches); db.AppUserWarehouses.RemoveRange(u.Warehouses);
         }
         else { u = new AppUser { CreatedByAdminId = s.Id, IsActive = true }; db.AppUsers.Add(u); }
-        u.Name = name!; u.PhoneNumber = phone!; u.CanPickDuplicateRow = i.CanPickDuplicateRow;
+        u.Name = name!; u.PhoneNumber = phone!; u.CanPickDuplicateRow = i.CanPickDuplicateRow; u.CountType = i.CountType;
         if (needPw) u.PasswordHash = pw.Hash(i.Password!);
         foreach (var b in branchIds) db.AppUserBranches.Add(new AppUserBranch { AppUser = u, BranchId = b });
         foreach (var w in whIds) db.AppUserWarehouses.Add(new AppUserWarehouse { AppUser = u, WarehouseId = w });

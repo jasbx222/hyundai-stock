@@ -342,3 +342,312 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [Warehouses] ADD [Number] int NULL;
+GO
+
+ALTER TABLE [Branches] ADD [Number] int NULL;
+GO
+
+CREATE UNIQUE INDEX [IX_Warehouses_Number] ON [Warehouses] ([Number]) WHERE [Number] IS NOT NULL;
+GO
+
+CREATE UNIQUE INDEX [IX_Branches_Number] ON [Branches] ([Number]) WHERE [Number] IS NOT NULL;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261028115304_BranchWarehouseNumbers', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [DecisionReason] nvarchar(1000) NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [FinalApprovedAt] datetime2 NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [FirstApprovedAt] datetime2 NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [RejectedAt] datetime2 NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [WarehouseId] int NULL;
+GO
+
+CREATE TABLE [AdminBranches] (
+    [AdminId] int NOT NULL,
+    [BranchId] int NOT NULL,
+    CONSTRAINT [PK_AdminBranches] PRIMARY KEY ([AdminId], [BranchId]),
+    CONSTRAINT [FK_AdminBranches_Admins_AdminId] FOREIGN KEY ([AdminId]) REFERENCES [Admins] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_AdminBranches_Branches_BranchId] FOREIGN KEY ([BranchId]) REFERENCES [Branches] ([Id]) ON DELETE NO ACTION
+);
+GO
+
+CREATE TABLE [AdminWarehouses] (
+    [AdminId] int NOT NULL,
+    [WarehouseId] int NOT NULL,
+    CONSTRAINT [PK_AdminWarehouses] PRIMARY KEY ([AdminId], [WarehouseId]),
+    CONSTRAINT [FK_AdminWarehouses_Admins_AdminId] FOREIGN KEY ([AdminId]) REFERENCES [Admins] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_AdminWarehouses_Warehouses_WarehouseId] FOREIGN KEY ([WarehouseId]) REFERENCES [Warehouses] ([Id]) ON DELETE NO ACTION
+);
+GO
+
+CREATE TABLE [NewPartRequests] (
+    [Id] int NOT NULL IDENTITY,
+    [PartNumber] nvarchar(64) NOT NULL,
+    [NormalizedPartNumber] nvarchar(64) NOT NULL,
+    [Description] nvarchar(400) NOT NULL,
+    [Quantity] int NOT NULL,
+    [Location] nvarchar(64) NOT NULL,
+    [WarehouseId] int NOT NULL,
+    [BranchId] int NOT NULL,
+    [SessionId] int NOT NULL,
+    [RequestedByUserId] int NOT NULL,
+    [Latitude] float NOT NULL,
+    [Longitude] float NOT NULL,
+    [Status] int NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    [SparePartsApprovedByAdminId] int NULL,
+    [SparePartsApprovedAt] datetime2 NULL,
+    [AccountantApprovedByAdminId] int NULL,
+    [AccountantApprovedAt] datetime2 NULL,
+    [ReturnReason] nvarchar(1000) NULL,
+    [CancelledAt] datetime2 NULL,
+    [InventoryPartId] int NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    CONSTRAINT [PK_NewPartRequests] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_NewPartRequests_AppUsers_RequestedByUserId] FOREIGN KEY ([RequestedByUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_NewPartRequests_Branches_BranchId] FOREIGN KEY ([BranchId]) REFERENCES [Branches] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_NewPartRequests_InventoryParts_InventoryPartId] FOREIGN KEY ([InventoryPartId]) REFERENCES [InventoryParts] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_NewPartRequests_Sessions_SessionId] FOREIGN KEY ([SessionId]) REFERENCES [Sessions] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_NewPartRequests_Warehouses_WarehouseId] FOREIGN KEY ([WarehouseId]) REFERENCES [Warehouses] ([Id]) ON DELETE NO ACTION
+);
+GO
+
+CREATE TABLE [WorkflowAudits] (
+    [Id] int NOT NULL IDENTITY,
+    [Subject] nvarchar(32) NOT NULL,
+    [SubjectId] int NOT NULL,
+    [Action] nvarchar(32) NOT NULL,
+    [FromStatus] nvarchar(64) NULL,
+    [ToStatus] nvarchar(64) NOT NULL,
+    [ActorAdminId] int NULL,
+    [ActorUserId] int NULL,
+    [ActorRole] nvarchar(64) NOT NULL,
+    [Reason] nvarchar(1000) NULL,
+    [SessionId] int NULL,
+    [WarehouseId] int NULL,
+    [BranchId] int NULL,
+    [InventoryPartId] int NULL,
+    [NewPartRequestId] int NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    CONSTRAINT [PK_WorkflowAudits] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_WorkflowAudits_Admins_ActorAdminId] FOREIGN KEY ([ActorAdminId]) REFERENCES [Admins] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_WorkflowAudits_AppUsers_ActorUserId] FOREIGN KEY ([ActorUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_WorkflowAudits_NewPartRequests_NewPartRequestId] FOREIGN KEY ([NewPartRequestId]) REFERENCES [NewPartRequests] ([Id]) ON DELETE NO ACTION
+);
+GO
+
+CREATE INDEX [IX_QuantityCorrections_Status_BranchId] ON [QuantityCorrections] ([Status], [BranchId]);
+GO
+
+CREATE INDEX [IX_QuantityCorrections_Status_WarehouseId] ON [QuantityCorrections] ([Status], [WarehouseId]);
+GO
+
+CREATE INDEX [IX_QuantityCorrections_WarehouseId] ON [QuantityCorrections] ([WarehouseId]);
+GO
+
+CREATE INDEX [IX_AdminBranches_BranchId] ON [AdminBranches] ([BranchId]);
+GO
+
+CREATE INDEX [IX_AdminWarehouses_WarehouseId] ON [AdminWarehouses] ([WarehouseId]);
+GO
+
+CREATE INDEX [IX_NewPartRequests_BranchId] ON [NewPartRequests] ([BranchId]);
+GO
+
+CREATE INDEX [IX_NewPartRequests_InventoryPartId] ON [NewPartRequests] ([InventoryPartId]);
+GO
+
+CREATE INDEX [IX_NewPartRequests_RequestedByUserId_CreatedAt] ON [NewPartRequests] ([RequestedByUserId], [CreatedAt]);
+GO
+
+CREATE INDEX [IX_NewPartRequests_SessionId_Status] ON [NewPartRequests] ([SessionId], [Status]);
+GO
+
+CREATE UNIQUE INDEX [IX_NewPartRequests_SessionId_WarehouseId_NormalizedPartNumber] ON [NewPartRequests] ([SessionId], [WarehouseId], [NormalizedPartNumber]) WHERE [Status] IN (0, 1, 2);
+GO
+
+CREATE INDEX [IX_NewPartRequests_Status_BranchId_CreatedAt] ON [NewPartRequests] ([Status], [BranchId], [CreatedAt]);
+GO
+
+CREATE INDEX [IX_NewPartRequests_WarehouseId] ON [NewPartRequests] ([WarehouseId]);
+GO
+
+CREATE INDEX [IX_WorkflowAudits_ActorAdminId] ON [WorkflowAudits] ([ActorAdminId]);
+GO
+
+CREATE INDEX [IX_WorkflowAudits_ActorUserId] ON [WorkflowAudits] ([ActorUserId]);
+GO
+
+CREATE INDEX [IX_WorkflowAudits_NewPartRequestId] ON [WorkflowAudits] ([NewPartRequestId]);
+GO
+
+CREATE INDEX [IX_WorkflowAudits_Subject_SubjectId_CreatedAt] ON [WorkflowAudits] ([Subject], [SubjectId], [CreatedAt]);
+GO
+
+ALTER TABLE [QuantityCorrections] ADD CONSTRAINT [FK_QuantityCorrections_Warehouses_WarehouseId] FOREIGN KEY ([WarehouseId]) REFERENCES [Warehouses] ([Id]) ON DELETE NO ACTION;
+GO
+
+UPDATE QuantityCorrections
+SET WarehouseId = (SELECT p.WarehouseId FROM InventoryParts AS p WHERE p.Id = QuantityCorrections.InventoryPartId)
+WHERE WarehouseId IS NULL AND InventoryPartId IS NOT NULL
+AND EXISTS (SELECT 1 FROM InventoryParts AS p WHERE p.Id = QuantityCorrections.InventoryPartId AND p.WarehouseId IS NOT NULL);
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261106125420_ApprovalWorkflows', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [Admins] ADD [AllBranches] bit NOT NULL DEFAULT CAST(0 AS bit);
+GO
+
+CREATE TABLE [DeviceRegistrations] (
+    [Id] int NOT NULL IDENTITY,
+    [AppUserId] int NOT NULL,
+    [Token] nvarchar(512) NOT NULL,
+    [Platform] nvarchar(32) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [UpdatedAt] datetime2 NOT NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    CONSTRAINT [PK_DeviceRegistrations] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_DeviceRegistrations_AppUsers_AppUserId] FOREIGN KEY ([AppUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX [IX_DeviceRegistrations_AppUserId] ON [DeviceRegistrations] ([AppUserId]);
+GO
+
+CREATE UNIQUE INDEX [IX_DeviceRegistrations_Token] ON [DeviceRegistrations] ([Token]) WHERE [Token] IS NOT NULL;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261108190000_RolesScopeDevices', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [AudienceKind] int NULL;
+GO
+
+ALTER TABLE [QuantityCorrections] ADD [AudienceUserId] int NULL;
+GO
+
+CREATE INDEX [IX_QuantityCorrections_AudienceUserId] ON [QuantityCorrections] ([AudienceUserId]);
+GO
+
+ALTER TABLE [QuantityCorrections] ADD CONSTRAINT [FK_QuantityCorrections_AppUsers_AudienceUserId] FOREIGN KEY ([AudienceUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE NO ACTION;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261109080000_QuantityAudience', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [ExpectedVins] ADD [Dealer] nvarchar(100) NULL;
+GO
+
+ALTER TABLE [ExpectedVins] ADD [ManufactureYear] int NULL;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261115090000_VehicleDealerYear', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [AppUsers] ADD [CanPickDuplicateRow] bit NOT NULL DEFAULT CAST(0 AS bit);
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261115100000_DuplicateRowPick', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+CREATE TABLE [RecountAsks] (
+    [Id] int NOT NULL IDENTITY,
+    [InventoryPartId] int NOT NULL,
+    [RequestedByUserId] int NOT NULL,
+    [Status] int NOT NULL,
+    [DecidedByAdminId] int NULL,
+    [DecidedAt] datetime2 NULL,
+    [DecisionReason] nvarchar(1000) NULL,
+    [CreatedAt] datetime2 NOT NULL,
+    CONSTRAINT [PK_RecountAsks] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_RecountAsks_Admins_DecidedByAdminId] FOREIGN KEY ([DecidedByAdminId]) REFERENCES [Admins] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_RecountAsks_AppUsers_RequestedByUserId] FOREIGN KEY ([RequestedByUserId]) REFERENCES [AppUsers] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_RecountAsks_InventoryParts_InventoryPartId] FOREIGN KEY ([InventoryPartId]) REFERENCES [InventoryParts] ([Id]) ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX [IX_RecountAsks_DecidedByAdminId] ON [RecountAsks] ([DecidedByAdminId]);
+GO
+
+CREATE INDEX [IX_RecountAsks_InventoryPartId_RequestedByUserId_Status] ON [RecountAsks] ([InventoryPartId], [RequestedByUserId], [Status]);
+GO
+
+CREATE INDEX [IX_RecountAsks_RequestedByUserId] ON [RecountAsks] ([RequestedByUserId]);
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261117171939_RecountAsks', N'8.0.11');
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [AppUsers] ADD [CountType] int NOT NULL DEFAULT 3;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261118090000_UserCountType', N'8.0.11');
+GO
+
+COMMIT;
+GO
+

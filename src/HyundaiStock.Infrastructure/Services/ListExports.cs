@@ -8,7 +8,7 @@ namespace HyundaiStock.Infrastructure.Services;
 /// returned unpaged, so the file always matches what the page shows.
 /// </summary>
 public sealed class ListExports(BranchService branches, WarehouseService warehouses, AdminService admins, UserService users,
-    QuantityRequestService qty, PartService parts, VinRequestService vinRequests, SessionService sessions)
+    PartService parts, VinRequestService vinRequests, SessionService sessions)
 {
     private static PageQuery All(string? search) => new(1, 10, search) { Unpaged = true };
     private static double[] Widths(int n, double w = 20) => Enumerable.Repeat(w, n).ToArray();
@@ -17,9 +17,9 @@ public sealed class ListExports(BranchService branches, WarehouseService warehou
     public async Task<ExportFile> UsersAsync(string? search, AdminScope s)
     {
         var rows = (await users.ListAsync(All(search), s)).Items;
-        string[] h = { "Name", "Phone", "Branches", "Warehouses", "Status", "Created At" };
-        return ExportService.Build("Users", "Users", h, new[] { 24.0, 16, 30, 40, 12, 20 },
-            rows.Select(x => new object?[] { x.Name, x.PhoneNumber, string.Join("، ", x.Branches), string.Join("، ", x.Warehouses), Active(x.IsActive), x.CreatedAt }));
+        string[] h = { "Name", "Phone", "Branches", "Warehouses", "Count Type", "Status", "Created At" };
+        return ExportService.Build("Users", "Users", h, new[] { 24.0, 16, 30, 40, 22, 12, 20 },
+            rows.Select(x => new object?[] { x.Name, x.PhoneNumber, string.Join("، ", x.Branches), string.Join("، ", x.Warehouses), Labels.CountTypeLabel(x.CountType), Active(x.IsActive), x.CreatedAt }));
     }
 
     public async Task<ExportFile> AdminsAsync(string? search, AdminScope s)
@@ -42,14 +42,6 @@ public sealed class ListExports(BranchService branches, WarehouseService warehou
         var rows = (await warehouses.ListAsync(All(search), branchId, s)).Items;
         string[] h = { "WarehouseNo.", "Name", "Branch", "Type" };
         return ExportService.Build("Warehouses", "Warehouses", h, new[] { 16.48, 28.08, 24, 12 }, rows.Select(x => new object?[] { x.Number, x.Name, x.BranchName, Labels.Type(x.Type) }));
-    }
-
-    public async Task<ExportFile> QuantityRequestsAsync(string? search, int? year, AdminScope s)
-    {
-        var rows = (await qty.ListAsync(All(search), s, year)).Items;
-        string[] h = { "Part Number", "Description", "Old Quantity", "New Quantity", "Reason", "Requested By", "Sent To", "Status", "Date" };
-        return ExportService.Build("Quantity Requests", "Quantity-Requests", h, new[] { 18.0, 36, 14, 14, 30, 22, 26, 16, 20 },
-            rows.Select(x => new object?[] { x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason, x.RequestedBy, x.SentTo, Labels.Qty(x.Status), x.CreatedAt }));
     }
 
     public async Task<ExportFile> RecountsAsync(string? search, int? year, AdminScope s)

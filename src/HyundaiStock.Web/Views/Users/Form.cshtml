@@ -20,6 +20,11 @@
                 @foreach (var w in whs) { <label data-parent="@w.ParentId"><input type="checkbox" name="WarehouseIds" value="@w.Id" data-name="@w.Name" checked="@Model.WarehouseIds.Contains(w.Id)" /> @w.Name</label> }
                 <p class="muted" data-no-wh>اختر فرع أولاً لعرض مخازنه</p>
             </div></details>@ms.Err("WarehouseIds")</div>
+        <div style="grid-column:1/-1"><label class="lbl" for="CountType">نوع الجرد المسموح<i> *</i></label><div class="@ms.Cls("CountType")"><select id="CountType" name="CountType">
+                <option value="1" selected="@(Model.CountType == CountType.Parts)">قطع الغيار فقط</option>
+                <option value="2" selected="@(Model.CountType == CountType.Vehicles)">السيارات فقط</option>
+                <option value="3" selected="@(Model.CountType == CountType.Both)">قطع الغيار والسيارات</option>
+            </select></div>@ms.Err("CountType")<div class="hint">التطبيق يعرض للمستخدم أيقونة الجرد المسموحة فقط، والخادم يرفض أي جرد غير مسموح.</div></div>
         <div style="grid-column:1/-1"><label class="allpick"><input type="checkbox" name="CanPickDuplicateRow" value="true" checked="@Model.CanPickDuplicateRow" /><span><b>اختيار السطر عند تكرار رقم القطعة</b></span></label>
             <div class="hint">إذا تكرر رقم القطعة بأكثر من سطر، يشوف المستخدم كل الأسطر برقم السطر والموقع ويختار واحد. بدون هذي الصلاحية يُجرد السطر الافتراضي (أول سطر غير معدود).</div></div>
     </div>

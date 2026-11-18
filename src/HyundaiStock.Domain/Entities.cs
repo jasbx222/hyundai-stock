@@ -6,6 +6,8 @@ public enum SessionStatus { InProgress = 0, Completed = 1 }
 public enum RequestStatus { Pending = 0, Approved = 1, Rejected = 2 }
 public enum ApprovalLevel { None = 0, First = 1, Final = 2 }
 public enum RecountStatus { Pending = 0, Completed = 1 }
+/// <summary>What a mobile user may count. Existing users get Both.</summary>
+public enum CountType { Parts = 1, Vehicles = 2, Both = 3 }
 
 /// <summary>Missing-part request. Terminal states are Approved, Cancelled and SessionClosed.</summary>
 public enum NewPartRequestStatus
@@ -85,6 +87,8 @@ public class AppUser : Entity
     public bool IsActive { get; set; } = true;
     /// <summary>When one part number has several rows, this user sees every row and picks one. Without it the default row is counted.</summary>
     public bool CanPickDuplicateRow { get; set; }
+    /// <summary>Allowed count type: spare parts, vehicles (VIN scans), or both. Enforced by the API.</summary>
+    public CountType CountType { get; set; } = CountType.Both;
     public int? CreatedByAdminId { get; set; }
     public Admin? CreatedByAdmin { get; set; }
     public ICollection<AppUserBranch> Branches { get; set; } = new List<AppUserBranch>();
@@ -194,6 +198,7 @@ public class ScannedVin : Entity
     public double? Longitude { get; set; }
 }
 
+/// <summary>Retired: quantity-correction requests were removed from the dashboard and the app. The table stays for history.</summary>
 public class QuantityCorrectionRequest : Entity
 {
     public int? InventoryPartId { get; set; }
@@ -367,11 +372,11 @@ public static class Labels
     {
         AdminRole.MainAdmin => "يشوف كل شيء في النظام: المشرفين، الجلسات، الجرد، الطلبات، والمالية.",
         AdminRole.SuperAdmin => "يدير الجلسات والفروع والمخازن، ويشوف كل البيانات بدون إنشاء مسؤول رئيسي.",
-        AdminRole.Admin => "يدير مستخدمي فرعه ويوافق على المرحلة الأولى لتعديل الكمية وتصحيح VIN وإعادة العد.",
-        AdminRole.WarehouseManager => "يشوف مخازنه فقط، يوافق أولًا على تعديل الكمية، ويطلب إعادة العد.",
+        AdminRole.Admin => "يدير مستخدمي فرعه ويوافق على تصحيح VIN وإعادة العد.",
+        AdminRole.WarehouseManager => "يشوف مخازنه فقط ويطلب إعادة العد.",
         AdminRole.SparePartsManager => "اطلاع فقط على تقدّم جرد القطع والفروقات (أعلى / أقل / مطابق) بدون المركبات أو كمية النظام أو السعر أو التعديل.",
-        AdminRole.Accountant => "المالية والموافقة النهائية على الكمية، ويطلب إعادة العد ضمن الفروع المحددة.",
-        AdminRole.AccountsManager => "نفس صلاحيات المحاسب: المالية، الموافقة النهائية، وطلب إعادة العد.",
+        AdminRole.Accountant => "المالية (الفروقات بالزيادة والنقص)، ويطلب إعادة العد ضمن الفروع المحددة.",
+        AdminRole.AccountsManager => "نفس صلاحيات المحاسب: المالية وطلب إعادة العد، ويبدأ جلسة جرد.",
         AdminRole.VehicleWarehouseManager => "المركبات وتصحيح VIN واطلاع على تقدّم الجرد بدون تعديل الكميات أو المالية.",
         _ => ""
     };
@@ -400,4 +405,9 @@ public static class Labels
     public static string Vin(RequestStatus s) => s switch { RequestStatus.Pending => "قيد الانتظار", RequestStatus.Approved => "موافق عليه", _ => "مرفوض" };
     public static string Level(ApprovalLevel l) => l switch { ApprovalLevel.None => "القبول الأول", ApprovalLevel.First => "القبول النهائي", _ => "مكتمل" };
     public static string Recount(RecountStatus s) => s == RecountStatus.Pending ? "قيد المعالجة" : "مكتمل";
+    public static string CountTypeLabel(CountType t) => t switch { CountType.Parts => "قطع الغيار فقط", CountType.Vehicles => "السيارات فقط", _ => "قطع الغيار والسيارات" };
+    /// <summary>API code for the count type: parts | vehicles | both.</summary>
+    public static string CountTypeCode(CountType t) => t switch { CountType.Parts => "parts", CountType.Vehicles => "vehicles", _ => "both" };
+    /// <summary>Finance wording for a count against the system quantity.</summary>
+    public static string Variance(int? counted, int system) => counted is not int c ? "غير معدود" : c > system ? "زيادة" : c < system ? "نقص" : "مطابق";
 }

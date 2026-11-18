@@ -111,6 +111,9 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<bool>("CanPickDuplicateRow")
                         .HasColumnType("bit");
 
+                    b.Property<int>("CountType")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 

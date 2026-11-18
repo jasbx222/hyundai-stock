@@ -6,6 +6,7 @@
         <div><span>رقم الهاتف</span><b class="mono">@Model.PhoneNumber</b></div>
         <div><span>الفروع</span><b>@if (Model.Branches.Count == 0) {<text>—</text>} else {<span class="chips">@foreach (var b in Model.Branches) {<span class="chip">@b</span>}</span>}</b></div>
         <div><span>المستودعات</span><b>@if (Model.Warehouses.Count == 0) {<text>—</text>} else {<span class="chips">@foreach (var w in Model.Warehouses) {<span class="chip">@w</span>}</span>}</b></div>
+        <div><span>نوع الجرد</span><b>@Labels.CountTypeLabel(Model.CountType)</b></div>
         <div><span>الحالة</span><b>@Ui.Active(Model.IsActive)</b></div>
         <div><span>تاريخ الإنشاء</span><b>@Ui.Day(Model.CreatedAt)</b></div>
     </div></div>

@@ -35,12 +35,6 @@ public static class Ui
     public static IHtmlContent Badge(string text, string cls) => new HtmlString($"<span class=\"bd {cls}\">{System.Net.WebUtility.HtmlEncode(text)}</span>");
 
     public static IHtmlContent Active(bool a) => Badge(a ? "نشط" : "معطّل", a ? "ok" : "er");
-    public static IHtmlContent Qty(RequestStatus s, ApprovalLevel l) => s switch
-    {
-        RequestStatus.Approved => Badge("مقبول", "ok"),
-        RequestStatus.Rejected => Badge("مرفوض", "er"),
-        _ => Badge(l == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", "wa")
-    };
     public static IHtmlContent Vin(RequestStatus s) => Badge(Labels.Vin(s), s == RequestStatus.Approved ? "ok" : s == RequestStatus.Rejected ? "er" : "wa");
     public static IHtmlContent Session(SessionStatus s) => Badge(Labels.Session(s), s == SessionStatus.Completed ? "ok" : "wa");
     public static IHtmlContent Recount(RecountStatus s) => Badge(Labels.Recount(s), s == RecountStatus.Completed ? "ok" : "wa");
@@ -57,7 +51,6 @@ public static class Ui
     public static IHtmlContent Match(int? counted, int system) => counted is not int c ? Badge("غير معدود", "mu") : c == system ? Badge("متطابق", "ok") : Badge("غير متطابق", "er");
     public static IHtmlContent Role(AdminRole r) => Badge(Labels.Role(r), r == AdminRole.MainAdmin ? "rl1" : r == AdminRole.SuperAdmin ? "rl2" : "rl3");
     /// <summary>Approval step shown in the requests tables (always has a value).</summary>
-    public static string Step(RequestStatus s, ApprovalLevel l) => s == RequestStatus.Pending ? (l == ApprovalLevel.First ? "القبول النهائي" : "القبول") : (l == ApprovalLevel.None ? "القبول" : "القبول النهائي");
     public static IHtmlContent Who(string? name) => string.IsNullOrWhiteSpace(name) ? new HtmlString("<span class=\"muted\">—</span>") :
         new HtmlString($"<div class=\"who\"><div class=\"av\">{System.Net.WebUtility.HtmlEncode(Initial(name))}</div><span>{System.Net.WebUtility.HtmlEncode(name)}</span></div>");
     public static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "؟" : name.Trim()[..1];

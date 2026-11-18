@@ -127,11 +127,7 @@ r = api.get(B + "/api/v1/history", headers=H); check("API history all", r.status
 r = api.get(B + "/api/v1/history?search=100001", headers=H); check("API history search", r.status_code == 200 and r.json()["data"]["totalCount"] >= 1, r.text[:200])
 r = api.get(B + "/api/v1/parts?mine=true&pageSize=50", headers=H); mine = r.json()["data"]; check("API parts mine", r.status_code == 200 and mine["totalCount"] >= 1 and all(x["countedByMe"] for x in mine["items"]), r.text[:200])
 mp = mine["items"][0]["id"]
-r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 99, "reason": "تجربة من التطبيق"}, headers=H); check("API qty request", r.status_code == 201 and r.json()["data"]["newQuantity"] == 99, r.text[:200]); app_qid = r.json()["data"]["id"] if r.status_code == 201 else -1
-r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 98, "reason": "مكرر"}, headers=H); check("API qty request duplicate → 409", r.status_code == 409)
-r = api.post(B + "/api/v1/qty-requests", json={"partId": mp, "newQuantity": 5}, headers=H); check("API qty request needs reason", r.status_code == 400)
-r = api.get(B + "/api/v1/qty-requests", headers=H); check("API my qty requests", r.status_code == 200 and r.json()["data"]["totalCount"] >= 1)
-check("dashboard shows app qty request", "تجربة من التطبيق" in s.get(B + "/Requests").text)
+r = api.get(B + "/api/v1/qty-requests", headers=H); check("API qty requests removed (404)", r.status_code == 404, r.status_code)
 r = api.post(B + "/api/v1/me/password", json={"currentPassword": "wrong", "newPassword": "NewPass#2026"}, headers=H); check("API change password wrong current", r.status_code == 400)
 r = api.post(B + "/api/v1/me/password", json={"currentPassword": "User#2026x", "newPassword": "NewPass#2026"}, headers=H); check("API change password", r.status_code == 200)
 r = api.post(B + "/api/v1/auth/login", json={"phoneNumber": "07733333333", "password": "NewPass#2026"}); check("API login with new password", r.status_code == 200)
@@ -145,23 +141,15 @@ check("parts page 2", s.get(B + "/Parts?page=2").status_code == 200)
 r = s.get(B + f"/Parts/Details/{pid}"); check("part details", r.status_code == 200 and "سجل التغييرات" in r.text)
 check("part info partial (no price shown)", "السعر" not in s.get(B + f"/Parts/Info/{pid}").text and "<span>السعر</span>" not in s.get(B + f"/Parts/Details/{pid}").text)
 check("recount form partial", "طلب إعادة عد" in s.get(B + f"/Parts/RecountForm/{pid}").text)
-check("quantity form partial", "تعديل الكمية" in s.get(B + f"/Parts/QuantityForm/{pid}").text)
+check("quantity form removed", s.get(B + f"/Parts/QuantityForm/{pid}", allow_redirects=False).status_code in (302, 404))
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "other", "userId": uids[0] if False else ""}, ref="/Parts"); check("recount other w/o user rejected", flash(r)[0] == "er", flash(r))
 r = post(s, f"/Parts/Recount/{pid}", {"mode": "same"}, ref="/Parts"); check("recount same user", flash(r)[0] == "ok", flash(r))
 r = api.get(B + "/api/v1/recounts", headers=H); check("API my recounts", r.json()["data"]["totalCount"] == 1, r.text[:200])
 rid = r.json()["data"]["items"][0]["id"]
 r = api.post(B + f"/api/v1/recounts/{rid}/submit", headers=H, json={"quantity": 9, "location": "A-05-02", "latitude": 33.3, "longitude": 44.3}); check("API submit recount", r.status_code == 200, r.text[:300])
 r = api.post(B + f"/api/v1/recounts/{rid}/submit", headers=H, json={"quantity": 9, "latitude": 33.3, "longitude": 44.3}); check("API recount twice rejected", r.status_code in (400, 409), r.status_code)
-r = post(s, f"/Parts/Quantity/{pid}", {"newQuantity": 12}, ref="/Parts"); check("quantity update request", flash(r)[0] == "ok", flash(r))
-r = post(s, "/Requests/Create", {"PartNumber": "58101-D3A03", "NewQuantity": 5, "Reason": "طلب يدوي"}, ref="/Requests/Create"); check("manual request create", "تم إرسال طلب التعديل" in r.text, flash(r))
-r = post(s, "/Requests/Create", {"PartNumber": "NOPE", "NewQuantity": "", "Reason": ""}, ref="/Requests/Create"); check("request validation", "hint e" in r.text)
-rq = s.get(B + "/Requests").text; qids = sorted(set(int(x) for x in re.findall(r'/Requests/Edit/(\d+)', rq)) - {app_qid}); check("requests list", len(qids) == 2, qids)
-check("request edit form", s.get(B + f"/Requests/Edit/{qids[0]}").status_code == 200)
-r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("request first approve", flash(r)[0] == "ok", flash(r))
-r = post(s, "/Requests/Approve", {"id": qids[0]}, ref="/Requests"); check("double first approve blocked", flash(r)[0] == "er", flash(r))
-r = post(s, "/Requests/FinalApprove", {"id": qids[0]}, ref="/Requests"); check("request final approve", flash(r)[0] == "ok", flash(r))
-r = post(s, "/Requests/Reject", {"id": qids[1], "reason": "تجربة رفض"}, ref="/Requests"); check("request reject", flash(r)[0] == "ok", flash(r))
-r = s.get(B + f"/Parts/Details/{pid}?tab=logs"); check("change log written after final approve", "تصحيح" in r.text or r.text.count("<tr>") > 2)
+r = s.get(B + f"/Parts/Details/{pid}?tab=logs"); check("change log tab", r.status_code == 200 and "سجل التغييرات" in r.text)
+check("recount tasks page (no quantity tab)", "مهام إعادة العد" in s.get(B + "/Requests").text and "تصحيح الكمية" not in s.get(B + "/Requests").text)
 
 # --- cars
 html = s.get(B + "/Cars").text; check("cars list", html.count("/Cars/Edit/") == 5, html.count("/Cars/Edit/"))
@@ -209,11 +197,6 @@ vr = a2.get(B + "/VinRequests").text; vids = re.findall(r'data-action="/VinReque
 r = post(a2, "/VinRequests/Approve", {"id": vids[-1]}, ref="/VinRequests"); check("VIN request approve", flash(r)[0] == "ok", flash(r))
 r = post(a2, "/VinRequests/Reject", {"id": vids[0]}, ref="/VinRequests"); check("VIN request reject", flash(r)[0] == "ok", flash(r))
 check("VIN correction applied", "KMHD341CBMU199999" in s.get(B + "/Cars").text or "KMHD341CBMU188888" in s.get(B + "/Cars").text)
-r = post(a2, "/Requests/Approve", {"id": 999}, ref="/Requests"); check("role-2 approve unknown request err", flash(r)[0] == "er")
-r = post(a2, "/Requests/Create", {"PartNumber": "58101-D3A06", "NewQuantity": 1, "Reason": "x"}, ref="/Requests/Create"); 
-q2 = max(int(x) for x in re.findall(r'/Requests/Edit/(\d+)', a2.get(B + "/Requests").text))
-post(a2, "/Requests/Approve", {"id": q2}, ref="/Requests")
-r = post(a2, "/Requests/FinalApprove", {"id": q2}, ref="/Requests"); check("role-2 final approve forbidden", flash(r)[0] == "er", flash(r))
 
 # --- toggles
 r = post(s, "/Users/SetActive", {"id": uids[1], "active": "false"}, ref="/Users"); check("deactivate user", flash(r)[0] == "ok", flash(r))

@@ -26,7 +26,6 @@ public sealed class HomeStats
     public int ExpectedVins { get; init; }
     public int ScannedVins { get; init; }
     public int ScannedExpected { get; init; }
-    public int PendingQty { get; init; }
     public int PendingVin { get; init; }
     public int PendingRecounts { get; init; }
     public int Recounts { get; init; }
@@ -82,7 +81,6 @@ public sealed class HomeStats
             ExpectedVins = hideVehicles ? 0 : await exp.CountAsync(),
             ScannedVins = hideVehicles ? 0 : await scan.CountAsync(),
             ScannedExpected = hideVehicles ? 0 : await scan.CountAsync(x => db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin)),
-            PendingQty = await db.QuantityCorrections.CountAsync(x => x.Status == RequestStatus.Pending && (all || (wm ? x.WarehouseId != null && whIds.Contains(x.WarehouseId.Value) : x.BranchId != null && branchIds.Contains(x.BranchId.Value)))),
             PendingVin = await db.VinCorrections.CountAsync(x => x.Status == RequestStatus.Pending && (all || (wm ? whIds.Contains(x.ScannedVin!.WarehouseId) : branchIds.Contains(x.ScannedVin!.BranchId)))),
             PendingRecounts = await db.RecountRequests.CountAsync(x => x.Status == RecountStatus.Pending && (all || (wm ? x.InventoryPart!.WarehouseId != null && whIds.Contains(x.InventoryPart.WarehouseId.Value) : x.InventoryPart!.BranchId != null && branchIds.Contains(x.InventoryPart.BranchId.Value)))),
             Recounts = await db.RecountRequests.CountAsync(x => all || (wm ? x.InventoryPart!.WarehouseId != null && whIds.Contains(x.InventoryPart.WarehouseId.Value) : x.InventoryPart!.BranchId != null && branchIds.Contains(x.InventoryPart.BranchId.Value))),

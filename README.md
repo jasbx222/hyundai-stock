@@ -15,7 +15,7 @@ ASP.NET Core MVC (.NET 8) — لوحة تحكم عربية (RTL) بتصميم ه
 - **0 مسؤول رئيسي**: كل شيء، ويقدر ينشئ سوبر أدمن.
 - **1 سوبر أدمن**: كل شيء عدا إنشاء سوبر أدمن.
 - **2 أدمن**: بيانات فرعه فقط، يشوف طلبات تصحيح VIN، ما يشوف المشرفين وجلسات الجرد، وما يكدر يضيف/يعدل/يحذف فروع ومخازن.
-- طلبات تعديل الكمية: «قبول» (أي مشرف) ← «قبول نهائي» (0/1 فقط) يحدّث الكمية المعدودة ويكتب سجل التغيير.
+- طلبات تعديل الكمية انشالت من اللوحة والتطبيق. جداولها وسجلها القديم باقية بقاعدة البيانات بدون واجهة.
 
 ### التشغيل محلياً (SQLite)
 ```bash
@@ -43,7 +43,11 @@ Storage__UploadsPath=D:\HyundaiStock\uploads
 - جلسة وحدة قيد التنفيذ، وجلسة وحدة لكل سنة. يبدأ الجلسة المسؤول الرئيسي أو السوبر أدمن أو مدير الحسابات. الإنهاء للمسؤول الرئيسي والسوبر أدمن فقط.
 
 ### قواعد الجرد
-- عدد أعلى من كمية النظام ما ينضاف للجرد مباشرة. يصير طلب تعديل كمية، وينضاف بعد القبول ثم القبول النهائي. العدد المساوي أو الأقل ينحفظ مباشرة.
+- القطعة تنجرد مرة وحدة. إذا جردها موظف، غيره يشوف عند المسح «هذه القطعة معدودة من قبل الموظف <الاسم>» وما يكدر يجردها، وما تظهر له الكمية المعدودة ولا موقعها. نفس الموظف اللي جردها يكدر يعيد جردها مباشرة، والتغيير ينكتب بسجل القطعة. مهمة إعادة العد اللي ترسلها الإدارة تبقى الطريق الثاني لإعادة العد.
+- كل سطر يخص فرعه ومخزنه. نفس رقم القطعة بأكثر من مخزن (مثلاً بغداد وأربيل) سطور منفصلة، وكل سطر ينجرد بمخزنه.
+- أي عدد، أعلى أو أقل من كمية النظام، ينحفظ مباشرة بدون طلب موافقة. الفرق يظهر بصفحة «فروقات المخزون المالية»: الأعلى «زيادة» والأقل «نقص»، والتصدير فيه عمود `Variance` بنفس التسمية.
+- نوع الجرد لكل مستخدم تطبيق: قطع الغيار فقط، السيارات فقط، أو الاثنين (الافتراضي). المشرف يحدده عند الإضافة أو التعديل. التطبيق يعرض الأيقونة المسموحة فقط، والـ API يرفض (403) جرد القطع أو طلب إضافة قطعة أو مسح VIN غير المسموح.
+- «مهام إعادة العد» (`/Requests`): قطع أرسلتها الإدارة لموظف حتى يعيد عدّها، مع الحالة والنتيجة. «طلبات إعادة الجرد» (`/RecountAsks`): طلبات الموظفين لإعادة جرد قطعة، والموافقة تنشئ مهمة إعادة عد.
 - طلب إضافة قطعة غير موجودة: موافقة مدير قطع الغيار نهائية وتضيف القطعة للجرد. قسم الحسابات ما يشارك بهذا الطلب. الفرع والمخزن من مخزن الموظف اللي أرسل الطلب. صفحة «طلبات إضافة قطعة» فيها تصدير Excel حسب الفلتر.
 - رقم قطعة مكرر بنفس المخزن: المستخدم اللي عنده صلاحية «اختيار السطر عند تكرار رقم القطعة» يشوف كل الأسطر (سطر 1 من 2...) ويختار. بدونها يُجرد السطر الافتراضي: أول سطر غير معدود. إعادة العد تبقى على السطر المحدد بالطلب.
 - كل صفحات القوائم فيها فلتر سنة الجرد. أزرار «تصدير حسب الفلتر» تصدّر نفس السنة والبحث والعرض الظاهر بالصفحة.
@@ -72,17 +76,20 @@ All responses: `{ success, message, data, errors }`; lists: `data = { items, pag
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `auth/login` | phone + password → JWT (rate limited) |
-| GET | `me` | profile, branches, warehouses |
+| GET | `me` | profile, branches, warehouses, `countType` (`parts` \| `vehicles` \| `both`), `canCountParts`, `canScanVins` |
 | GET | `sessions/current` | in-progress stocktaking session |
-| GET | `parts?search=&warehouseId=&page=&pageSize=` | parts in the user's warehouses |
+| GET | `parts?search=&warehouseId=&page=&pageSize=` | parts in the user's warehouses. `isCounted` and `countedBy` (name) for every row; the counted quantity, location and time only for the user who counted it |
 | GET | `parts/{id}` | part details |
-| POST | `counts` | submit a count (`partId` or new `partNumber`+`description`+`warehouseId`, `quantity`, `location`, `latitude`, `longitude`) |
-| POST | `vins/scan` | scan a VIN (17 chars, GPS required) |
+| POST | `counts` | submit a count (`partId` or `partNumber`+`warehouseId`, `quantity`, `location`, `latitude`, `longitude`). Saved directly whatever the variance. A row counted by another user returns 409 with `data.countedBy`; the user who counted it may count it again. 403 if the user's count type excludes parts |
+| POST | `vins/scan` | scan a VIN (17 chars, GPS required). 403 if the user's count type excludes vehicles |
 | GET | `vins` | my scanned VINs |
 | POST/GET | `vin-corrections` | request / list VIN corrections |
 | GET | `recounts` | my recount tasks |
 | POST | `recounts/{id}/submit` | submit a recount |
 | GET | `history?type=part\|vin` | my history in the current session |
+| POST | `parts/{id}/recount-ask` | the user who counted a part asks an admin to recount it |
+
+`qty-requests` endpoints were removed (404).
 
 Disabled users are rejected at login and on every token validation (JWT `OnTokenValidated`). Errors are JSON (`401`, `403`, `404`, `500`).
 

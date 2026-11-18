@@ -6,23 +6,27 @@ using Microsoft.EntityFrameworkCore;
 namespace HyundaiStock.Infrastructure.Services;
 
 public sealed record MobileWarehouse(int Id, string Name, string Type, int BranchId, string BranchName);
-public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses, bool CanPickDuplicateRow = false);
+/// <summary>CountType: parts | vehicles | both. CanCountParts / CanScanVins say which home icons the app shows; the API enforces the same rule.</summary>
+public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses, bool CanPickDuplicateRow = false, string CountType = "both", bool CanCountParts = true, bool CanScanVins = true);
 public sealed record MobileSession(int Id, int Year, string Name, string Status, DateTime StartedAt);
-/// <summary>RowNo / RowCount: position of this row among the rows that share its part number in the same warehouse (1 when the number does not repeat).</summary>
-public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe, bool PendingApproval = false, int RowNo = 1, int RowCount = 1);
+/// <summary>
+/// RowNo / RowCount: position of this row among the rows that share its part number in the same warehouse (1 when the number does not repeat).
+/// IsCounted / CountedBy: whether the row is counted and by whom. The counted quantity, location and time are sent only to the counter who counted it.
+/// PendingApproval is always false: counts are no longer held for approval. Kept for older app builds.
+/// </summary>
+public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe, bool PendingApproval = false, int RowNo = 1, int RowCount = 1, bool IsCounted = false, string? CountedBy = null);
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected, string? VehicleType = null, string? Dealer = null, int? ManufactureYear = null);
 public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned, string? Dealer = null, int? ManufactureYear = null);
 public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt, string Status = "قيد الانتظار", int? ResultQuantity = null, DateTime? CompletedAt = null, int? WarehouseId = null, int? BranchId = null, string? BranchName = null);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
-public sealed record MobileQtyRequest(int Id, int? PartId, string PartNumber, string Description, int? OldQuantity, int NewQuantity, string Reason, string Status, DateTime CreatedAt, bool CanEdit = false);
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
 
 public sealed class CountInput { public int? PartId { get; set; } public string? PartNumber { get; set; } public string? Description { get; set; } public int? WarehouseId { get; set; } public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public bool Confirm { get; set; } }
 public sealed record MobileRecountAsk(int Id, int PartId, string PartNumber, string Status, DateTime CreatedAt);
-public sealed record CountedSnapshot(int? CountedQuantity, string? CountedLocation, DateTime? CountedAt);
+/// <summary>Error detail when another user already counted the row. Carries the name only, never the counted quantity.</summary>
+public sealed record CountedByDetail(string? CountedBy);
 public sealed class ScanInput { public string? Vin { get; set; } public int? WarehouseId { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class VinCorrectionInput { public int? ScannedVinId { get; set; } public string? NewVin { get; set; } public string? Reason { get; set; } }
-public sealed class QtyRequestInput { public int? PartId { get; set; } public int? NewQuantity { get; set; } public string? Reason { get; set; } }
 public sealed class ChangePasswordInput { public string? CurrentPassword { get; set; } public string? NewPassword { get; set; } }
 public sealed class RecountInput { public int? Quantity { get; set; } public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public bool Confirm { get; set; } }
 
@@ -91,7 +95,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (u == null) return null;
         var whs = await db.AppUserWarehouses.Where(x => x.AppUserId == userId)
             .Select(x => new MobileWarehouse(x.WarehouseId, x.Warehouse!.Name, x.Warehouse.Type == WarehouseType.Type1 ? "نوع 1" : "نوع 2", x.Warehouse.BranchId, x.Warehouse.Branch!.Name)).ToListAsync();
-        return new MobileProfile(u.Id, u.Name, u.PhoneNumber, whs, u.CanPickDuplicateRow);
+        return new MobileProfile(u.Id, u.Name, u.PhoneNumber, whs, u.CanPickDuplicateRow, Labels.CountTypeCode(u.CountType), CountTypes.Parts(u.CountType), CountTypes.Vehicles(u.CountType));
     }
 
     public async Task<MobileSession?> CurrentSessionAsync()
@@ -126,9 +130,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         {
             var cn = NormalizePartCode(code);
             q = q.Where(x => x.PartNumber.Replace(" ", "").Replace("-", "").Replace(".", "").ToUpper() == cn);
-            var all = await q.OrderBy(x => x.WarehouseId == null ? 1 : 0).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse != null ? x.Warehouse.Name : null,
-                x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId,
-                db.QuantityCorrections.Any(r => r.InventoryPartId == x.Id && r.Status == RequestStatus.Pending), 1, 1)).ToListAsync();
+            var all = await Project(q.OrderBy(x => x.WarehouseId == null ? 1 : 0).ThenBy(x => x.Id), userId).ToListAsync();
             // Number the rows that share a part number inside one warehouse, in import order.
             var numbered = all.GroupBy(x => x.WarehouseId).SelectMany(g => g.Select((x, n) => x with { RowNo = n + 1, RowCount = g.Count() })).ToList();
             if (!await CanPickRowAsync(userId))
@@ -136,11 +138,14 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             var page = numbered.Skip((p.SafePage - 1) * p.SafeSize).Take(p.SafeSize).ToList();
             return new(new PagedResult<MobilePart> { Items = page, Page = p.SafePage, PageSize = p.SafeSize, TotalCount = numbered.Count }, null);
         }
-        var rows = q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id).Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse != null ? x.Warehouse.Name : null,
-            x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId,
-            db.QuantityCorrections.Any(r => r.InventoryPartId == x.Id && r.Status == RequestStatus.Pending), 1, 1));
+        var rows = Project(q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id), userId);
         return new(Paging.Build(rows, p), null);
     }
+
+    /// <summary>Another counter's quantity, location and time stay hidden. Only the name of who counted it is shown.</summary>
+    private static IQueryable<MobilePart> Project(IQueryable<InventoryPart> q, int userId) => q.Select(x => new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse != null ? x.Warehouse.Name : null,
+        x.CountedByUserId == userId ? x.CountedQuantity : null, x.CountedByUserId == userId ? x.CountedLocation : null, x.CountedByUserId == userId ? x.CountedAt : null,
+        x.CountedByUserId == userId, false, 1, 1, x.CountedQuantity != null, x.CountedQuantity != null && x.CountedByUser != null ? x.CountedByUser.Name : null));
 
     public const string RowPickDenied = "ليس لديك صلاحية اختيار سطر القطعة المكررة";
 
@@ -148,7 +153,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     /// <summary>The row a counter without the pick grant counts: the first uncounted row, else the first row. Same order as counting by part number.</summary>
     private static MobilePart DefaultRow(IEnumerable<MobilePart> rows) =>
-        rows.OrderBy(x => x.CountedQuantity == null ? 0 : 1).ThenBy(x => x.RowNo).First();
+        rows.OrderBy(x => x.IsCounted ? 1 : 0).ThenBy(x => x.RowNo).First();
 
     /// <summary>Uppercase and keep only letters/digits so "58310 BWA40", "58310-BWA40" and "58310BWA40" match.</summary>
     public static string NormalizePartCode(string? v) => new string((v ?? "").ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
@@ -156,10 +161,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileResult<MobilePart>> PartAsync(int userId, int id)
     {
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
-        var x = await db.InventoryParts.AsNoTracking().Include(z => z.Warehouse).FirstOrDefaultAsync(z => z.Id == id);
+        var x = await db.InventoryParts.AsNoTracking().FirstOrDefaultAsync(z => z.Id == id);
         if (x == null || !CanSee(x, whs, brs)) return new(null, "القطعة غير موجودة", 404);
-        var pending = await db.QuantityCorrections.AnyAsync(r => r.InventoryPartId == x.Id && r.Status == RequestStatus.Pending);
-        return new(new MobilePart(x.Id, x.PartNumber, x.Description, x.SystemLocation, x.WarehouseId, x.Warehouse?.Name, x.CountedQuantity, x.CountedLocation, x.CountedAt, x.CountedByUserId == userId, pending), null);
+        return new(await Project(db.InventoryParts.AsNoTracking().Where(z => z.Id == id), userId).FirstAsync(), null);
     }
 
     public Task<MobileResult<MobilePart>> CountAsync(int userId, CountInput i) => CountAsync(userId, i, assignedRow: false);
@@ -171,6 +175,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
         if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
+        if (!CountTypes.Parts(user.CountType)) return new(null, CountTypes.PartsDenied, 403);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
         if (whs.Count == 0) return new(null, "لا يوجد مستودع مرتبط بحسابك", 400);
         InventoryPart? part;
@@ -214,12 +219,15 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (part.WarehouseId == null && i.WarehouseId is int cw && whs.Contains(cw)) part.WarehouseId = cw;
         if (part.WarehouseId == null)
             part.WarehouseId = await db.Warehouses.Where(z => whs.Contains(z.Id) && z.BranchId == part.BranchId).OrderBy(z => z.Id).Select(z => (int?)z.Id).FirstOrDefaultAsync();
-        // A counted part is never counted again from the normal count screen. The counter who counted it asks for a recount, and an admin approves it.
-        if (part.CountedQuantity != null && !assignedRow)
-            return new(null, AlreadyCounted, 409, new CountedSnapshot(part.CountedQuantity, part.CountedLocation, part.CountedAt));
+        // A counted row is counted once. Only the counter who counted it may count it again; everyone else is told who counted it, never the quantity.
+        // An admin-assigned recount task (assignedRow) is the only other way back in.
+        if (part.CountedQuantity != null && !assignedRow && part.CountedByUserId != userId)
+        {
+            var by = part.CountedByUserId is int cb ? await db.AppUsers.AsNoTracking().Where(u => u.Id == cb).Select(u => u.Name).FirstOrDefaultAsync() : null;
+            return new(null, AlreadyCountedBy(by), 409, new CountedByDetail(by));
+        }
         var loc = i.Location?.Trim(); if (loc?.Length > 64) loc = loc[..64];
-        // A count above the system quantity is not written to the inventory. It becomes a quantity request and is added only after approval.
-        if (!newLine && i.Quantity > part.SystemQuantity) return await HoldSurplusAsync(user, part, i.Quantity.Value, loc);
+        // Every count, above or below the system quantity, is saved. The variance shows on the finance page as surplus or shortage; no approval request is created.
         if (part.Id != 0)
         {
             if (part.CountedQuantity != i.Quantity)
@@ -235,30 +243,12 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public const string AlreadyCounted = "هذه القطعة معدودة سابقًا، يرجى جرد قطعة أخرى";
 
-    public const string SurplusHeldMessage = "تم استلام العد، وسيُضاف للجرد بعد الموافقة";
-
-    private async Task<MobileResult<MobilePart>> HoldSurplusAsync(AppUser user, InventoryPart part, int quantity, string? loc)
-    {
-        if (await db.QuantityCorrections.AnyAsync(x => x.InventoryPartId == part.Id && x.Status == RequestStatus.Pending))
-            return new(null, "يوجد طلب تعديل قيد الانتظار لنفس القطعة", 409);
-        var reason = "عدد أعلى من كمية النظام بانتظار الموافقة" + (string.IsNullOrEmpty(loc) ? "" : $" · الموقع: {loc}");
-        // Keep the warehouse pin from this count; only the quantity waits for approval.
-        await db.SaveChangesAsync();
-        var r = new QuantityCorrectionRequest
-        {
-            InventoryPartId = part.Id, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = quantity,
-            Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, RequestedByUserId = user.Id
-        };
-        db.QuantityCorrections.Add(r);
-        await db.SaveChangesAsync();
-        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.Submitted, ToStatus = "PendingWarehouseApproval", ActorUserId = user.Id, ActorRole = "Counter", Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, InventoryPartId = part.Id, SessionId = part.SessionId });
-        await db.SaveChangesAsync();
-        var shown = await PartAsync(user.Id, part.Id);
-        return new(shown.Data, null, 202, null, SurplusHeldMessage);
-    }
+    /// <summary>"Already counted by employee X". Falls back to <see cref="AlreadyCounted"/> when the counter is unknown.</summary>
+    public static string AlreadyCountedBy(string? name) => string.IsNullOrWhiteSpace(name) ? AlreadyCounted : $"هذه القطعة معدودة من قبل الموظف {name}";
 
     public async Task<MobileResult<MobileVin>> ScanVinAsync(int userId, ScanInput i)
     {
+        if (!await AllowsVehiclesAsync(userId)) return new(null, CountTypes.VehiclesDenied, 403);
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var vin = Validators.NormalizeVin(i.Vin);
@@ -279,8 +269,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     }
 
     /// <summary>Vehicle type for a VIN read by the app (from the session file), before it is saved.</summary>
-    public async Task<MobileResult<MobileVinLookup>> LookupVinAsync(string? raw)
+    public async Task<MobileResult<MobileVinLookup>> LookupVinAsync(int userId, string? raw)
     {
+        if (!await AllowsVehiclesAsync(userId)) return new(null, CountTypes.VehiclesDenied, 403);
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var vin = Validators.NormalizeVin(raw);
@@ -304,8 +295,16 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return Paging.Build(rows, p);
     }
 
+    private async Task<bool> AllowsVehiclesAsync(int userId) =>
+        CountTypes.Vehicles(await db.AppUsers.AsNoTracking().Where(x => x.Id == userId).Select(x => x.CountType).FirstOrDefaultAsync());
+
+    /// <summary>Spare-part flows outside counting (new-part requests) use the same rule.</summary>
+    public async Task<bool> AllowsPartsAsync(int userId) =>
+        CountTypes.Parts(await db.AppUsers.AsNoTracking().Where(x => x.Id == userId).Select(x => x.CountType).FirstOrDefaultAsync());
+
     public async Task<MobileResult<MobileVinRequest>> VinCorrectionAsync(int userId, VinCorrectionInput i)
     {
+        if (!await AllowsVehiclesAsync(userId)) return new(null, CountTypes.VehiclesDenied, 403);
         if (i.ScannedVinId is not int sid) return new(null, "scannedVinId مطلوب", 400);
         var newVin = Validators.NormalizeVin(i.NewVin);
         if (!Validators.IsVin(newVin)) return new(null, Validators.VinError, 400);
@@ -385,58 +384,6 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return new(new MobileRecountAsk(ask.Id, partId, part.PartNumber, "بانتظار الموافقة", ask.CreatedAt), null, 201, null, "تم إرسال طلب إعادة الجرد، سيصلك إشعار عند الموافقة");
     }
 
-    public async Task<MobileResult<MobileQtyRequest>> QtyRequestAsync(int userId, QtyRequestInput i)
-    {
-        var s = await sessions.CurrentAsync();
-        if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
-        if (i.PartId is not int pid) return new(null, "القطعة مطلوبة", 400);
-        if (i.NewQuantity is null || i.NewQuantity < 0) return new(null, "الكمية الجديدة مطلوبة ويجب ألا تكون سالبة", 400);
-        var reason = i.Reason?.Trim() ?? "";
-        if (reason.Length == 0) return new(null, "السبب مطلوب", 400);
-        if (reason.Length > 1000) reason = reason[..1000];
-        var whs = await MyWarehouses(userId);
-        var part = await db.InventoryParts.FirstOrDefaultAsync(x => x.Id == pid && x.SessionId == s.Id);
-        if (part == null) return new(null, "القطعة غير موجودة في الجلسة الحالية", 404);
-        if (part.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-        if (await db.QuantityCorrections.AnyAsync(x => x.InventoryPartId == pid && x.Status == RequestStatus.Pending)) return new(null, "يوجد طلب تعديل قيد الانتظار لنفس القطعة", 409);
-        var r = new QuantityCorrectionRequest { InventoryPartId = pid, PartNumber = part.PartNumber, PartDescription = part.Description, OldQuantity = part.CountedQuantity, NewQuantity = i.NewQuantity.Value, Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, RequestedByUserId = userId };
-        db.QuantityCorrections.Add(r);
-        await db.SaveChangesAsync();
-        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = r.Id, Action = AuditActions.Submitted, ToStatus = "PendingWarehouseApproval", ActorUserId = userId, ActorRole = "Counter", Reason = reason, BranchId = part.BranchId, WarehouseId = part.WarehouseId, InventoryPartId = pid, SessionId = part.SessionId });
-        await db.SaveChangesAsync();
-        return new(new MobileQtyRequest(r.Id, pid, r.PartNumber, r.PartDescription, r.OldQuantity, r.NewQuantity, r.Reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt, true), null, 201);
-    }
-
-    public async Task<MobileResult<MobileQtyRequest>> EditQtyRequestAsync(int userId, int id, QtyRequestInput i)
-    {
-        var r = await db.QuantityCorrections.AsNoTracking().Include(x => x.InventoryPart).ThenInclude(x => x!.Session)
-            .FirstOrDefaultAsync(x => x.Id == id && x.RequestedByUserId == userId);
-        if (r == null) return new(null, "الطلب غير موجود", 404);
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None)
-            return new(null, "لا يمكن تعديل الطلب بعد الموافقة عليه", 409);
-        if (r.InventoryPart?.Session?.Status != SessionStatus.InProgress) return new(null, "جلسة الجرد منتهية", 409);
-        if (i.NewQuantity is null or < 0 || string.IsNullOrWhiteSpace(i.Reason)) return new(null, "الكمية والسبب مطلوبان", 400);
-        if (i.PartId != null && i.PartId != r.InventoryPartId) return new(null, "لا يمكن تغيير قطعة الطلب", 400);
-        var whs = await MyWarehouses(userId);
-        if (r.WarehouseId is not int w || !whs.Contains(w)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-        var reason = i.Reason.Trim(); if (reason.Length > 1000) reason = reason[..1000];
-        await using var tx = await db.Database.BeginTransactionAsync();
-        var changed = await db.QuantityCorrections.Where(x => x.Id == id && x.RequestedByUserId == userId && x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.NewQuantity, i.NewQuantity.Value).SetProperty(x => x.Reason, reason).SetProperty(x => x.UpdatedAt, DateTime.UtcNow));
-        if (changed != 1) return new(null, "تم التعامل مع هذا الطلب مسبقاً", 409);
-        db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = id, Action = "Edited", ToStatus = "PendingWarehouseApproval", ActorUserId = userId, ActorRole = "Counter", Reason = reason, BranchId = r.BranchId, WarehouseId = r.WarehouseId, InventoryPartId = r.InventoryPartId, SessionId = r.InventoryPart!.SessionId });
-        await db.SaveChangesAsync(); await tx.CommitAsync();
-        return new(new MobileQtyRequest(r.Id, r.InventoryPartId, r.PartNumber, r.PartDescription, r.OldQuantity, i.NewQuantity.Value, reason, Labels.QtyMobile(r.Status, r.ApprovalLevel), r.CreatedAt, true), null);
-    }
-
-    public async Task<PagedResult<MobileQtyRequest>> MyQtyRequestsAsync(int userId, PageQuery p)
-    {
-        var q = db.QuantityCorrections.AsNoTracking().Where(x => x.RequestedByUserId == userId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
-            .Select(x => new MobileQtyRequest(x.Id, x.InventoryPartId, x.PartNumber, x.PartDescription, x.OldQuantity, x.NewQuantity, x.Reason,
-                x.Status == RequestStatus.Approved ? "مقبول" : x.Status == RequestStatus.Rejected ? "مرفوض" : x.ApprovalLevel == ApprovalLevel.First ? "بانتظار المالية" : "بانتظار مدير المخزن", x.CreatedAt, x.Status == RequestStatus.Pending && x.ApprovalLevel == ApprovalLevel.None && x.InventoryPart!.Session!.Status == SessionStatus.InProgress));
-        return Paging.Build(q, p);
-    }
-
     public async Task<MobileResult<bool>> ChangePasswordAsync(int userId, ChangePasswordInput i)
     {
         var u = await db.AppUsers.FirstAsync(x => x.Id == userId);
@@ -464,4 +411,13 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var page = p.SafePage; var size = p.SafeSize;
         return new PagedResult<HistoryItem> { Items = all.Skip((page - 1) * size).Take(size).ToList(), Page = page, PageSize = size, TotalCount = all.Count };
     }
+}
+
+/// <summary>Count-type rule shared by the API and the profile.</summary>
+public static class CountTypes
+{
+    public static bool Parts(CountType t) => t is CountType.Parts or CountType.Both;
+    public static bool Vehicles(CountType t) => t is CountType.Vehicles or CountType.Both;
+    public const string PartsDenied = "حسابك غير مخوّل بجرد قطع الغيار";
+    public const string VehiclesDenied = "حسابك غير مخوّل بجرد السيارات";
 }

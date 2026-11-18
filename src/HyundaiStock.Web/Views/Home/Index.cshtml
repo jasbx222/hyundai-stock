@@ -28,8 +28,8 @@
         <div class="s">@(me.HidesStockFigures ? "قطع أعلى أو أقل من كمية النظام" : $"نقص {N(m.Shortage)} · زيادة {N(m.Surplus)} · مطابقة {N(m.MatchedParts)}")</div>
     </a>
     @if (Menu.Requests(me)) {
-    <a class="card kpi" href="/Requests?kind=recount" title="طلبات إعادة العد وحالتها">
-        <div class="l">@Ui.Icon("clock", 18) طلبات التعديل</div>
+    <a class="card kpi" href="/Requests" title="مهام إعادة العد وحالتها">
+        <div class="l">@Ui.Icon("clock", 18) مهام إعادة العد</div>
         <div class="v" style="color:var(--wa)">@N(m.Recounts)</div>
         <div class="s">قيد المعالجة @N(m.PendingRecounts) · الباقي مكتمل</div>
     </a>

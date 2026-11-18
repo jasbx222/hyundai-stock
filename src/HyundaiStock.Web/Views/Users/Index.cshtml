@@ -9,7 +9,7 @@
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", string.IsNullOrEmpty(Context.Request.Query["search"]) ? "أضف مستخدمًا ليتمكن من تسجيل الدخول إلى تطبيق الجرد." : "جرّب اسمًا أو رقم هاتف آخر.", "users")) }
     else {
     <div class="hscroll"><table>
-        <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الفروع</th><th>المستودعات</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>الاسم</th><th>رقم الهاتف</th><th>الفروع</th><th>المستودعات</th><th>نوع الجرد</th><th>الحالة</th><th>تاريخ الإنشاء</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var u in Model.Items) {
             <tr><td><span class="idx">@Ui.Idx(u.Id)</span></td>
@@ -17,6 +17,7 @@
                 <td><span class="mono">@u.PhoneNumber</span></td>
                 <td>@(u.Branches.Count == 0 ? "—" : string.Join(" / ", u.Branches))</td>
                 <td>@(u.Warehouses.Count == 0 ? "—" : u.Warehouses.Count > 2 ? $"{string.Join(" / ", u.Warehouses.Take(2))} +{u.Warehouses.Count - 2}" : string.Join(" / ", u.Warehouses))</td>
+                <td>@Labels.CountTypeLabel(u.CountType)</td>
                 <td>@Ui.Active(u.IsActive)</td><td>@Ui.Day(u.CreatedAt)</td>
                 <td><div class="ra">
                     <button type="button" class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" data-remote="/Users/Details/@u.Id">@Ui.Icon("eye", 16)</button>

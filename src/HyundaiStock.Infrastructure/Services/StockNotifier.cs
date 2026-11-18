@@ -12,7 +12,6 @@ public interface IStockNotifier
 {
     Task SessionStartedAsync(int sessionId);
     Task RecountAssignedAsync(int userId, int recountId, string partNumber);
-    Task QuantityRequestedAsync(IReadOnlyCollection<int> userIds, int requestId, string partNumber);
 }
 
 /// <summary>
@@ -35,9 +34,6 @@ public sealed class StockNotifier(AppDbContext db, ILogger<StockNotifier> log, I
 
     public Task RecountAssignedAsync(int userId, int recountId, string partNumber) =>
         Guard(() => SendAsync(new[] { userId }, "طلب إعادة عد", "طُلب منك إعادة عد القطعة " + partNumber, "recount", recountId));
-
-    public Task QuantityRequestedAsync(IReadOnlyCollection<int> userIds, int requestId, string partNumber) =>
-        Guard(() => SendAsync(userIds, "طلب تعديل كمية", "وصل طلب تعديل كمية للقطعة " + partNumber, "quantity", requestId));
 
     private async Task Guard(Func<Task> work)
     {

@@ -227,9 +227,9 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         if (built.Query == null) return (null, built.Error, built.Forbidden);
         var data = await FinanceRows(FinanceOrder(built.Query, f.Sort)).ToListAsync();
         var file = Build("Variance", "Financial-Variance",
-            new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Price", "Financial Difference", "Branch", "Warehouse", "Session", "Recounted By" },
-            new[] { 22d, 40, 16, 16, 14, 14, 18, 18, 18, 12, 22 },
-            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Difference, x.Price, x.FinancialDifference, x.Branch ?? "", x.Warehouse ?? "", x.Year, x.RecountedBy ?? "" }));
+            new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Variance", "Price", "Financial Difference", "Branch", "Warehouse", "Session", "Recounted By" },
+            new[] { 22d, 40, 16, 16, 14, 14, 14, 18, 18, 18, 12, 22 },
+            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Difference, Labels.Variance(x.CountedQuantity, x.SystemQuantity), x.Price, x.FinancialDifference, x.Branch ?? "", x.Warehouse ?? "", x.Year, x.RecountedBy ?? "" }));
         return (file, null, false);
     }
 

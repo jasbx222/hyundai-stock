@@ -147,32 +147,6 @@ public static class DemoSeeder
                 db.ExpectedVins.Add(new ExpectedVin { SessionId = session.Id, Vin = vin, Model = new[] { "Elantra 2025", "Tucson 2025", "Santa Fe 2024" }[n % 3], BranchId = branches[b].Id, WarehouseId = warehouses[b * 2 + 1].Id });
                 if (!active || n >= 2) db.ScannedVins.Add(new ScannedVin { SessionId = session.Id, Vin = vin, BranchId = branches[b].Id, WarehouseId = warehouses[b * 2 + 1].Id, UserId = counters[b].Id, Latitude = Coordinates[b].Lat, Longitude = Coordinates[b].Lng, CreatedAt = started.AddHours(5 + n) });
             }
-            // Mixed request stages; only seeded records are changed, and approved stock agrees with history.
-            for (var n = 0; n < 4; n++)
-            {
-                var part = allParts[10 + n];
-                var status = n == 2 ? RequestStatus.Approved : n == 3 ? RequestStatus.Rejected : RequestStatus.Pending;
-                var old = part.CountedQuantity ?? part.SystemQuantity;
-                var request = new QuantityCorrectionRequest { InventoryPartId = part.Id, PartNumber = part.PartNumber, PartDescription = part.Description,
-                    BranchId = part.BranchId, WarehouseId = part.WarehouseId, RequestedByUserId = counters[0].Id,
-                    OldQuantity = old, NewQuantity = old + 2, Reason = "مطابقة كارتون وارد جديد - تجربة", Status = status,
-                    ApprovalLevel = n == 0 ? ApprovalLevel.None : n == 2 ? ApprovalLevel.Final : ApprovalLevel.First,
-                    FirstApprovedByAdminId = n == 0 ? null : manager.Id, FirstApprovedAt = n == 0 ? null : started.AddHours(8),
-                    FinalApprovedByAdminId = n == 2 ? accountant.Id : null, FinalApprovedAt = n == 2 ? started.AddHours(9) : null,
-                    RejectedByAdminId = n == 3 ? accountant.Id : null, RejectedAt = n == 3 ? started.AddHours(9) : null,
-                    DecisionReason = n == 3 ? "العد مطابق للنظام، لا حاجة للتعديل" : null, CreatedAt = started.AddHours(7) };
-                db.QuantityCorrections.Add(request);
-                await db.SaveChangesAsync();
-                if (n == 2)
-                {
-                    part.CountedQuantity = request.NewQuantity;
-                    part.ChangeLogs.Add(new PartChangeLog { Field = "الكمية المحسوبة", OldValue = old.ToString(), NewValue = request.NewQuantity.ToString(), ChangedBy = accountant.Name, Source = $"طلب تصحيح #{request.Id}", CreatedAt = started.AddHours(9) });
-                }
-                void QtyAudit(string action, string? from, string to, int? admin, DateTime at) => db.WorkflowAudits.Add(new WorkflowAudit { Subject = AuditActions.Quantity, SubjectId = request.Id, Action = action, FromStatus = from, ToStatus = to, ActorAdminId = admin, ActorUserId = admin == null ? counters[0].Id : null, ActorRole = admin == null ? "Counter" : admin == manager.Id ? "WarehouseManager" : "Accountant", SessionId = session.Id, BranchId = part.BranchId, WarehouseId = part.WarehouseId, InventoryPartId = part.Id, CreatedAt = at });
-                QtyAudit(AuditActions.Submitted, null, "PendingWarehouseApproval", null, started.AddHours(7));
-                if (n > 0) QtyAudit(AuditActions.FirstApproved, "PendingWarehouseApproval", "PendingAccountantApproval", manager.Id, started.AddHours(8));
-                if (n >= 2) QtyAudit(n == 2 ? AuditActions.FinalApproved : AuditActions.Rejected, "PendingAccountantApproval", n == 2 ? "Approved" : "Rejected", accountant.Id, started.AddHours(9));
-            }
             for (var n = 0; n < 4; n++)
             {
                 var state = n == 0 ? NewPartRequestStatus.PendingSparePartsManager : n == 1 ? NewPartRequestStatus.PendingAccountant : n == 2 ? NewPartRequestStatus.Approved : NewPartRequestStatus.ReturnedToEmployee;

@@ -50,8 +50,6 @@ public sealed record AdminScope(int Id, string Name, AdminRole Role, int? Branch
         _ => Array.Empty<int>()
     };
 
-    public bool CanFirstApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager;
-    public bool CanFinalApproveQty => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanRequestRecount => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanReviewNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager;
 

@@ -8,76 +8,18 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
+/// <summary>طلبات إعادة العد: recount tasks an admin sent to a counter, and their result. Quantity-correction requests were removed.</summary>
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
-public sealed class RequestsController(QuantityRequestService svc, PartService parts, ListExports xl) : DashboardController
+public sealed class RequestsController(PartService parts, ListExports xl) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? kind, int? year, int page = 1)
-    {
-        ViewBag.Kind = kind == "recount" ? "recount" : "qty";
-        if (kind == "recount") return View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, year));
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
-    }
+    public async Task<IActionResult> Index(string? search, int? year, int page = 1) =>
+        View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, year));
 
-    public async Task<IActionResult> Export(string? search, string? kind, int? year)
-    {
-        if (kind == "recount") return Excel(await xl.RecountsAsync(search, year, Scope));
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        return Excel(await xl.QuantityRequestsAsync(search, year, Scope));
-    }
-
-    public async Task<IActionResult> Create()
-    {
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        ViewBag.Choices = await svc.ChoicesAsync(Scope);
-        return View("Form", new QtyInput());
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create(QtyInput input)
-    {
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        var err = await svc.SaveAsync(null, input, Scope);
-        if (err.Count == 0) { TempData["ok"] = "تم إرسال طلب التعديل"; return RedirectToAction(nameof(Index)); }
-        AddErrors(err);
-        ViewBag.Choices = await svc.ChoicesAsync(Scope);
-        return View("Form", input);
-    }
-
-    public async Task<IActionResult> Edit(int id)
-    {
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        var r = await svc.GetAsync(id, Scope);
-        if (r == null) return NotFoundPage();
-        if (r.Status != RequestStatus.Pending || r.ApprovalLevel != ApprovalLevel.None) { TempData["err"] = "لا يمكن تعديل طلب بعد بدء الموافقة عليه"; return RedirectToAction(nameof(Index)); }
-        ViewBag.Id = id;
-        ViewBag.Choices = await svc.ChoicesAsync(Scope);
-        return View("Form", new QtyInput
-        {
-            PartNumber = r.PartNumber, PartDescription = r.PartDescription, OldQuantity = r.OldQuantity, NewQuantity = r.NewQuantity, Reason = r.Reason,
-            Audience = r.AudienceKind switch { 1 => "user", 2 => "branch", 3 => "warehouse", _ => null },
-            AudienceUserId = r.AudienceUserId, AudienceBranchId = r.BranchId, AudienceWarehouseId = r.WarehouseId
-        });
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Edit(int id, QtyInput input)
-    {
-        if (!Menu.QuantityTab(Scope)) return ForbidPage();
-        var err = await svc.SaveAsync(id, input, Scope);
-        if (err.Count == 0) { TempData["ok"] = "تم تعديل الطلب"; return RedirectToAction(nameof(Index)); }
-        AddErrors(err); ViewBag.Id = id;
-        ViewBag.Choices = await svc.ChoicesAsync(Scope);
-        return View("Form", input);
-    }
-
-    [HttpPost] public async Task<IActionResult> Approve(int id) => Menu.QuantityTab(Scope) ? Done(await svc.ApproveAsync(id, Scope), "تم قبول الطلب") : ForbidPage();
-    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Menu.QuantityTab(Scope) ? Done(await svc.FinalApproveAsync(id, Scope), "تم القبول النهائي وتحديث الكمية") : ForbidPage();
-    [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Menu.QuantityTab(Scope) ? Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب") : ForbidPage();
+    public async Task<IActionResult> Export(string? search, int? year) => Excel(await xl.RecountsAsync(search, year, Scope));
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.SparePartsManager, AdminRole.VehicleWarehouseManager)]
-public sealed class PartsController(PartService svc, QuantityRequestService requests) : DashboardController
+public sealed class PartsController(PartService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, string? view, int? year, int page = 1)
     {
@@ -92,7 +34,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
     {
         var d = await svc.GetAsync(id, Scope);
         if (d == null) return NotFoundPage();
-        ViewBag.Tab = Menu.QuantityTab(Scope) || tab != "corrections" ? tab : "recounts";
+        ViewBag.Tab = tab;
         return View(d);
     }
 
@@ -119,24 +61,7 @@ public sealed class PartsController(PartService svc, QuantityRequestService requ
         if (!Scope.CanRequestRecount) return ForbidPage();
         var target = mode == "other" ? (userId is > 0 ? userId : -1) : null;
         var result = await svc.RequestRecountAsync(id, target, Scope);
-        return Done(result, "تم إرسال طلب إعادة العد", result.Ok ? "/Requests?kind=recount" : returnUrl);
-    }
-
-    public async Task<IActionResult> QuantityForm(int id)
-    {
-        if (!Menu.QuantityTab(Scope) || Scope.HidesStockFigures) return ForbidPage();
-        var d = await svc.GetAsync(id, Scope);
-        if (d == null) return NotFound();
-        ViewBag.Users = await svc.CandidateUsersAsync(id);
-        return PartialView("_Quantity", d.Part);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Quantity(int id, int? newQuantity, string? reason, string? audience, int? audienceUserId, int? audienceBranchId, int? audienceWarehouseId, string? returnUrl)
-    {
-        if (!Menu.QuantityTab(Scope) || Scope.HidesStockFigures) return ForbidPage();
-        var err = await requests.SaveAsync(null, new QtyInput { InventoryPartId = id, NewQuantity = newQuantity, Reason = reason, Audience = audience, AudienceUserId = audienceUserId, AudienceBranchId = audienceBranchId, AudienceWarehouseId = audienceWarehouseId }, Scope);
-        return Done(err.Count == 0 ? OpResult.Success() : OpResult.Fail(string.Join("\n", err.Values)), "تم إرسال طلب تحديث الكمية", returnUrl);
+        return Done(result, "تم إرسال طلب إعادة العد", result.Ok ? "/Requests" : returnUrl);
     }
 }
 
