@@ -69,6 +69,37 @@ public sealed class QuantityRemovalTests
         Assert.Equal("حسابك غير مخوّل بجرد السيارات", body.GetProperty("message").GetString());
     }
 
+    [Fact]
+    public async Task User_created_as_parts_only_from_the_dashboard_logs_in_without_vehicles()
+    {
+        using var factory = new ApiFactory { Demo = true };
+        using var admin = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await Login(admin, DemoSeeder.MainPhone);
+        int branch, warehouse;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var w = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Warehouses.OrderBy(x => x.Id).FirstAsync();
+            branch = w.BranchId; warehouse = w.Id;
+        }
+        var html = await admin.GetStringAsync("/Users/Create");
+        var token = WebUtility.HtmlDecode(Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
+        var saved = await admin.PostAsync("/Users/Create", new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string, string>("Name", "قطع فقط"), new("PhoneNumber", "07756666666"),
+            new("Password", "secret1"), new("ConfirmPassword", "secret1"),
+            new("BranchIds", branch.ToString()), new("WarehouseIds", warehouse.ToString()),
+            new("CountType", "1"), new("__RequestVerificationToken", token)
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+
+        var mobile = factory.CreateClient();
+        var login = await mobile.PostAsJsonAsync("/api/v1/auth/login", new { phoneNumber = "07756666666", password = "secret1" });
+        var user = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data").GetProperty("user");
+        Assert.Equal("parts", user.GetProperty("countType").GetString());
+        Assert.True(user.GetProperty("canCountParts").GetBoolean());
+        Assert.False(user.GetProperty("canScanVins").GetBoolean());
+    }
+
     /// <summary>Dashboard 404s redirect to the not-found page.</summary>
     private static async Task AssertGone(HttpClient client, string path)
     {
