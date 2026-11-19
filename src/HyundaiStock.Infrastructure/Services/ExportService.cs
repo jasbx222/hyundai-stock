@@ -274,12 +274,17 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     }
 
     private static bool MenuAllowedFinance(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
-    private static IQueryable<InventoryPart> FinanceOrder(IQueryable<InventoryPart> q, string? sort) => sort switch
+    private IQueryable<InventoryPart> FinanceOrder(IQueryable<InventoryPart> q, string? sort)
     {
-        "difference" => q.OrderBy(x => x.CountedQuantity == null ? 0 : x.CountedQuantity - x.SystemQuantity).ThenBy(x => x.Id),
-        "value" => q.OrderBy(x => x.CountedQuantity == null ? 0m : (x.CountedQuantity - x.SystemQuantity) * x.Price).ThenBy(x => x.Id),
-        _ => q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id)
-    };
+        if (sort == "value")
+            return db.Database.IsSqlite()
+                ? q.OrderBy(x => x.CountedQuantity == null ? 0d : (double)(x.CountedQuantity.Value - x.SystemQuantity) * (double)x.Price).ThenBy(x => x.Id)
+                : q.OrderBy(x => x.CountedQuantity == null ? 0m : (x.CountedQuantity.Value - x.SystemQuantity) * x.Price).ThenBy(x => x.Id);
+
+        return sort == "difference"
+            ? q.OrderBy(x => x.CountedQuantity == null ? 0 : x.CountedQuantity - x.SystemQuantity).ThenBy(x => x.Id)
+            : q.OrderBy(x => x.PartNumber).ThenBy(x => x.Id);
+    }
 
     /// <summary>Empty session import template: sheets "Parts" (Quantity, Description, Location, Serial, BranchNo.) and "Vins" (VIN, WarehouseNo.).</summary>
     public static byte[] ImportTemplate()

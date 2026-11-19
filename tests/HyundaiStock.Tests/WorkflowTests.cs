@@ -486,6 +486,17 @@ public sealed class WorkflowTests : IDisposable
         var file = await _export.FinanceFileAsync(new FinanceFilter { SessionId = _session.Id }, AccScope());
         Assert.NotNull(file.File);
         Assert.True(file.File!.Content.Length > 100);
+
+        _db.InventoryParts.Add(new InventoryPart
+        {
+            SessionId = _session.Id, PartNumber = "ABC-2", Description = "فلتر ثاني", Price = 20,
+            SystemQuantity = 2, CountedQuantity = 4, WarehouseId = _warehouseRow.Id, BranchId = _branch.Id
+        });
+        await _db.SaveChangesAsync();
+        page = await _export.FinanceListAsync(new FinanceFilter { SessionId = _session.Id, Sort = "value" }, new PageQuery(1, 10), AccScope());
+        Assert.Equal(new[] { "ABC-1", "ABC-2" }, page.Page!.Items.Select(x => x.PartNumber));
+        file = await _export.FinanceFileAsync(new FinanceFilter { SessionId = _session.Id, Sort = "value" }, AccScope());
+        Assert.NotNull(file.File);
     }
 
     [Fact]
