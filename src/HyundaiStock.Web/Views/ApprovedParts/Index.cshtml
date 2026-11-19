@@ -7,12 +7,12 @@
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا القطع الجديدة بعد موافقة مدير قطع الغيار.", "plus")) }
     else {
     <div class="hscroll"><table>
-        <thead><tr><th>المرجع</th><th>القطعة</th><th>الكمية</th><th>الموقع</th><th>الفرع</th><th>المخزن</th><th>الموظف</th><th>الجلسة</th><th>وافق عليها</th><th>تاريخ الموافقة</th>@if (s.CanReviewNewPart) { <th>الإجراءات</th> }</tr></thead>
+        <thead><tr><th>المرجع</th><th>القطعة</th><th>الكمية</th><th>الموقع</th><th>الفرع</th><th>المخزن</th><th>الموظف</th><th>الجلسة</th><th>مدير قطع الغيار</th><th>الحسابات</th><th>تاريخ الموافقة</th>@if (s.CanReviewNewPart) { <th>الإجراءات</th> }</tr></thead>
         <tbody>
         @foreach (var r in Model.Items) {
             <tr><td><span class="idx">@r.Reference</span></td><td><span class="mono">@r.PartNumber</span><div class="muted">@r.Description</div></td>
                 <td class="num">@r.Quantity</td><td>@r.Location</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionYear</td>
-                <td>@Ui.Who(r.ApprovedBy)</td><td>@Ui.Day(r.ApprovedAt)</td>
+                <td>@Ui.Who(r.ApprovedBy)</td><td>@if (string.IsNullOrEmpty(r.AccountsApprovedBy)) { <span class="muted">—</span> } else { @Ui.Who(r.AccountsApprovedBy) }</td><td>@Ui.Day(r.ApprovedAt)</td>
                 @if (s.CanReviewNewPart) { <td><div class="ra"><a class="btn sm g" href="/NewParts/Details/@r.Id" title="التفاصيل" aria-label="التفاصيل">@Ui.Icon("eye", 16)</a></div></td> }
             </tr>
         }

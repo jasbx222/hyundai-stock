@@ -52,6 +52,8 @@ public sealed record AdminScope(int Id, string Name, AdminRole Role, int? Branch
 
     public bool CanRequestRecount => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.Accountant or AdminRole.AccountsManager;
     public bool CanReviewNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.SparePartsManager;
+    /// <summary>Accounts give the final approval on a new-part request after the spare-parts manager.</summary>
+    public bool CanFinalApproveNewPart => Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Accountant or AdminRole.AccountsManager;
 
     public bool AllowsBranch(int? branchId)
     {

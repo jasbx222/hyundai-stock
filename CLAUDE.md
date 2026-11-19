@@ -39,7 +39,7 @@ Three projects: `Domain` (entities and enums in one `Entities.cs`), `Infrastruct
 - Every count saves directly, above or below the system quantity. The variance shows on the finance page (`FinanceController`) as surplus/shortage. Quantity-correction requests were removed from the dashboard and the API; the `QuantityCorrections` table stays for history only.
 - A counted row is counted once. Another user gets 409 "counted by employee <name>" and never sees the counted quantity (`MobileService.Project` masks it). The user who counted it may count it again directly. Admin-assigned recount tasks (`RecountRequest`) still work; `RecountAsk` lets a counter ask for one.
 - `AppUser.CountType` (Parts / Vehicles / Both) limits what a mobile user may count. `me` exposes it and `MobileService` / `NewPartRequestService` return 403 otherwise.
-- Missing-part requests (`NewPartRequestService`): the SparePartsManager's approval is final and adds the part.
+- Missing-part requests (`NewPartRequestService`): two steps. The SparePartsManager approves (`ApproveAsync`, PendingSparePartsManager -> PendingAccountant), then the Accountant or AccountsManager approves (`FinalApproveAsync`), which adds the part and lists it on «القطع الجديدة» (`/ApprovedParts`). Each step's reviewer may return it to the employee (`CanAct`).
 - Duplicate part numbers in one warehouse: only users with `CanPickDuplicateRow` choose the row. Otherwise the first uncounted row is used.
 - `IStockNotifier` sends FCM push notifications. It is optional in service constructors (`= null`) so tests can omit it.
 

@@ -395,7 +395,7 @@ public static class Labels
     public static string NewPart(NewPartRequestStatus s) => s switch
     {
         NewPartRequestStatus.PendingSparePartsManager => "بانتظار مدير قطع الغيار",
-        NewPartRequestStatus.PendingAccountant => "بانتظار المالية",
+        NewPartRequestStatus.PendingAccountant => "بانتظار الحسابات",
         NewPartRequestStatus.ReturnedToEmployee => "رجع للموظف",
         NewPartRequestStatus.Approved => "مثبت",
         NewPartRequestStatus.Cancelled => "ملغي",

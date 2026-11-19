@@ -78,21 +78,22 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         var data = await Filtered(s, t, status, year).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new
         {
             x.Id, x.PartNumber, x.Description, x.Quantity, x.Location, B = x.Branch!.Name, W = x.Warehouse!.Name, U = x.RequestedByUser!.Name,
-            Y = x.Session!.Year, x.Status, x.CreatedAt, x.SparePartsApprovedAt
+            Y = x.Session!.Year, x.Status, x.CreatedAt, At = x.AccountantApprovedAt ?? x.SparePartsApprovedAt
         }).ToListAsync();
         var label = (year?.ToString() ?? "all") + (status is NewPartRequestStatus st ? "-" + st : "");
         return ExportService.Build("New Parts", $"New-Parts-{label}", ExportHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 22, 18, 18 },
             data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.B, x.W, x.U, x.Y, Labels.NewPart(x.Status),
-                ExportService.Stamp(x.CreatedAt), x.Status == NewPartRequestStatus.Approved && x.SparePartsApprovedAt is DateTime d ? ExportService.Stamp(d) : "" }));
+                ExportService.Stamp(x.CreatedAt), x.Status == NewPartRequestStatus.Approved && x.At is DateTime d ? ExportService.Stamp(d) : "" }));
     }
 
-    // ---- "القطع الجديدة": only requests the spare-parts manager approved, i.e. parts that were added to the count. ----
-    public sealed record ApprovedPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, int SessionYear, string? ApprovedBy, DateTime? ApprovedAt, int? InventoryPartId);
+    // ---- "القطع الجديدة": requests approved by the spare-parts manager and then by accounts, i.e. parts that were added to the count. ----
+    public sealed record ApprovedPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, int SessionYear, string? ApprovedBy, DateTime? ApprovedAt, int? InventoryPartId, string? AccountsApprovedBy = null);
 
     private IQueryable<ApprovedPartRow> ApprovedRows(AdminScope s, string? term, int? year) =>
-        Filtered(s, term, NewPartRequestStatus.Approved, year).OrderByDescending(x => x.SparePartsApprovedAt).ThenByDescending(x => x.Id).Select(x => new ApprovedPartRow(
+        Filtered(s, term, NewPartRequestStatus.Approved, year).OrderByDescending(x => x.AccountantApprovedAt ?? x.SparePartsApprovedAt).ThenByDescending(x => x.Id).Select(x => new ApprovedPartRow(
             x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name, x.Session!.Year,
-            db.Admins.Where(a => a.Id == x.SparePartsApprovedByAdminId).Select(a => a.Name).FirstOrDefault(), x.SparePartsApprovedAt, x.InventoryPartId));
+            db.Admins.Where(a => a.Id == x.SparePartsApprovedByAdminId).Select(a => a.Name).FirstOrDefault(), x.AccountantApprovedAt ?? x.SparePartsApprovedAt, x.InventoryPartId,
+            db.Admins.Where(a => a.Id == x.AccountantApprovedByAdminId).Select(a => a.Name).FirstOrDefault()));
 
     public Task<PagedResult<ApprovedPartRow>> ApprovedListAsync(PageQuery p, AdminScope s, int? year)
     {
@@ -104,15 +105,15 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         });
     }
 
-    public static readonly string[] ApprovedHeaders = { "Reference", "Part Number", "Description", "Quantity", "Location", "Branch", "Warehouse", "Counted By", "Session", "Approved By", "Approved At" };
+    public static readonly string[] ApprovedHeaders = { "Reference", "Part Number", "Description", "Quantity", "Location", "Branch", "Warehouse", "Counted By", "Session", "Spare Parts Approval", "Accounts Approval", "Approved At" };
 
     /// <summary>Excel of the new parts page with the same search and year filter.</summary>
     public async Task<ExportFile> ApprovedExportAsync(AdminScope s, string? term, int? year)
     {
         var t = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
         var data = await ApprovedRows(s, t, year).ToListAsync();
-        return ExportService.Build("New Parts", $"New-Parts-Approved-{year?.ToString() ?? "all"}", ApprovedHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 18, 20 },
-            data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.BranchName, x.WarehouseName, x.EmployeeName, x.SessionYear, x.ApprovedBy ?? "", x.ApprovedAt }));
+        return ExportService.Build("New Parts", $"New-Parts-Approved-{year?.ToString() ?? "all"}", ApprovedHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 18, 18, 20 },
+            data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.BranchName, x.WarehouseName, x.EmployeeName, x.SessionYear, x.ApprovedBy ?? "", x.AccountsApprovedBy ?? "", x.ApprovedAt }));
     }
 
     public async Task<NewPartDetails?> GetAsync(int id, AdminScope s)
@@ -223,25 +224,51 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         return new(await ToMobile(id, userId), null);
     }
 
-    /// <summary>The spare-parts manager's approval is final: the part is added to the session at once. Accounts no longer take part.
-    /// Older rows left in PendingAccountant are finished the same way.</summary>
+    public const string NotSparePartsApprovedMessage = "الطلب لم يجتز موافقة مدير قطع الغيار";
+
+    /// <summary>Step 1: the spare-parts manager approves and the request goes to accounts. Nothing is added to the count yet.</summary>
     public async Task<OpResult> ApproveAsync(int id, AdminScope s)
     {
         if (!s.CanReviewNewPart) return OpResult.Fail(DeniedMessage);
         await using var tx = await db.Database.BeginTransactionAsync();
         var r = await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || (!s.IsUnrestricted && !s.AllowsBranch(r.BranchId))) return OpResult.Fail("الطلب غير موجود");
-        if (r.Status is not (NewPartRequestStatus.PendingSparePartsManager or NewPartRequestStatus.PendingAccountant)) return OpResult.Fail(ProcessedMessage);
+        if (r.Status != NewPartRequestStatus.PendingSparePartsManager) return OpResult.Fail(ProcessedMessage);
         var open = await db.Sessions.AnyAsync(x => x.Id == r.SessionId && x.Status == SessionStatus.InProgress);
         if (!open) return OpResult.Fail(ClosedMessage);
         if (await PartInSession(r.SessionId, r.NormalizedPartNumber, r.WarehouseId, r.BranchId)) return OpResult.Fail(PartExistsMessage);
         var now = DateTime.UtcNow;
-        var from = r.Status;
-        var n = await db.NewPartRequests.Where(x => x.Id == id && x.Status == from)
+        var n = await db.NewPartRequests.Where(x => x.Id == id && x.Status == NewPartRequestStatus.PendingSparePartsManager)
             .ExecuteUpdateAsync(u => u
-                .SetProperty(x => x.Status, NewPartRequestStatus.Approved)
+                .SetProperty(x => x.Status, NewPartRequestStatus.PendingAccountant)
                 .SetProperty(x => x.SparePartsApprovedByAdminId, s.Id)
                 .SetProperty(x => x.SparePartsApprovedAt, now)
+                .SetProperty(x => x.UpdatedAt, now));
+        if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail(ProcessedMessage); }
+        db.WorkflowAudits.Add(Audit(r, NewPartRequestStatus.PendingSparePartsManager, NewPartRequestStatus.PendingAccountant, AuditActions.FirstApproved, s, null, s.Role.ToString(), null));
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        return OpResult.Success();
+    }
+
+    /// <summary>Step 2: the accountant or accounts manager approves. The part is added to the session and shows on «القطع الجديدة».</summary>
+    public async Task<OpResult> FinalApproveAsync(int id, AdminScope s)
+    {
+        if (!s.CanFinalApproveNewPart) return OpResult.Fail(DeniedMessage);
+        await using var tx = await db.Database.BeginTransactionAsync();
+        var r = await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (r == null || (!s.IsUnrestricted && !s.AllowsBranch(r.BranchId))) return OpResult.Fail("الطلب غير موجود");
+        if (r.Status == NewPartRequestStatus.PendingSparePartsManager) return OpResult.Fail(NotSparePartsApprovedMessage);
+        if (r.Status != NewPartRequestStatus.PendingAccountant) return OpResult.Fail(ProcessedMessage);
+        var open = await db.Sessions.AnyAsync(x => x.Id == r.SessionId && x.Status == SessionStatus.InProgress);
+        if (!open) return OpResult.Fail(ClosedMessage);
+        if (await PartInSession(r.SessionId, r.NormalizedPartNumber, r.WarehouseId, r.BranchId)) return OpResult.Fail(PartExistsMessage);
+        var now = DateTime.UtcNow;
+        var n = await db.NewPartRequests.Where(x => x.Id == id && x.Status == NewPartRequestStatus.PendingAccountant)
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(x => x.Status, NewPartRequestStatus.Approved)
+                .SetProperty(x => x.AccountantApprovedByAdminId, s.Id)
+                .SetProperty(x => x.AccountantApprovedAt, now)
                 .SetProperty(x => x.UpdatedAt, now));
         if (n != 1) { await tx.RollbackAsync(); return OpResult.Fail(ProcessedMessage); }
         var part = new InventoryPart
@@ -255,7 +282,7 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         try { await db.SaveChangesAsync(); }
         catch (DbUpdateException) { await tx.RollbackAsync(); return OpResult.Fail("تعذر تثبيت الطلب"); }
         await db.NewPartRequests.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.InventoryPartId, part.Id));
-        db.WorkflowAudits.Add(Audit(r, from, NewPartRequestStatus.Approved, AuditActions.FinalApproved, s, null, s.Role.ToString(), null, part.Id));
+        db.WorkflowAudits.Add(Audit(r, NewPartRequestStatus.PendingAccountant, NewPartRequestStatus.Approved, AuditActions.FinalApproved, s, null, s.Role.ToString(), null, part.Id));
         try { await db.SaveChangesAsync(); await tx.CommitAsync(); }
         catch (DbUpdateException) { await tx.RollbackAsync(); return OpResult.Fail("تعذر تثبيت الطلب"); }
         return OpResult.Success(part.Id);
@@ -271,7 +298,7 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         var r = await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (r == null || !s.IsUnrestricted && !s.AllowsBranch(r.BranchId)) return OpResult.Fail("الطلب غير موجود");
         if (r.Status is not (NewPartRequestStatus.PendingSparePartsManager or NewPartRequestStatus.PendingAccountant)) return OpResult.Fail(ProcessedMessage);
-        if (!s.CanReviewNewPart) return OpResult.Fail(DeniedMessage);
+        if (!CanAct(s, r.Status)) return OpResult.Fail(DeniedMessage);
         var now = DateTime.UtcNow;
         var n = await db.NewPartRequests.Where(x => x.Id == id && x.Status == r.Status)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, NewPartRequestStatus.ReturnedToEmployee).SetProperty(x => x.ReturnReason, why).SetProperty(x => x.UpdatedAt, now));
@@ -296,6 +323,14 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
             db.WorkflowAudits.Add(Audit(r, prev, NewPartRequestStatus.SessionClosed, AuditActions.SessionClosed, s, null, s.Role.ToString(), null));
         }
     }
+
+    /// <summary>Who acts on a pending request: the spare-parts manager at step 1, accounts at step 2. Main and super admin may act at both.</summary>
+    public static bool CanAct(AdminScope s, NewPartRequestStatus status) => status switch
+    {
+        NewPartRequestStatus.PendingSparePartsManager => s.CanReviewNewPart,
+        NewPartRequestStatus.PendingAccountant => s.CanFinalApproveNewPart,
+        _ => false
+    };
 
     private async Task<bool> PartInSession(int sessionId, string normalized, int warehouseId, int branchId) =>
         await db.InventoryParts.AnyAsync(x => x.SessionId == sessionId
@@ -322,7 +357,7 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         AuditActions.Submitted => "تم الإرسال",
         "Resubmitted" => "تم التعديل وإعادة الإرسال",
         AuditActions.FirstApproved => "موافقة مدير قطع الغيار",
-        AuditActions.FinalApproved => "تم التثبيت",
+        AuditActions.FinalApproved => "موافقة الحسابات وإضافة القطعة",
         AuditActions.Returned => "تم الإرجاع",
         AuditActions.Cancelled => "تم الإلغاء",
         AuditActions.SessionClosed => "انتهت جلسة الجرد",

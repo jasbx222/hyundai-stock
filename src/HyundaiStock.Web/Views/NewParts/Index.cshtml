@@ -27,8 +27,12 @@
                 <td>@Ui.Day(r.CreatedAt)</td>
                 <td><div class="ra">
                     <a class="btn sm g" href="/NewParts/Details/@r.Id">@Ui.Icon("eye", 16)</a>
-                    @if (r.Status is NewPartRequestStatus.PendingSparePartsManager or NewPartRequestStatus.PendingAccountant && s.CanReviewNewPart) {
-                        <button type="button" class="btn sm okb" data-confirm data-action="/NewParts/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="موافقة وإضافة للجرد؟" data-text="@r.PartNumber · @r.Quantity · ستُضاف بكمية نظام 0 وسعر 0" data-ok="موافقة">@Ui.Icon("check", 16)</button>
+                    @if (r.Status == NewPartRequestStatus.PendingSparePartsManager && s.CanReviewNewPart) {
+                        <button type="button" class="btn sm okb" data-confirm data-action="/NewParts/Approve" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="موافقة مدير قطع الغيار؟" data-text="@r.PartNumber · @r.Quantity · يتحول الطلب للحسابات" data-ok="موافقة">@Ui.Icon("check", 16)</button>
+                        <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/NewParts/Return" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="إرجاع للموظف؟" data-text="السبب إلزامي" data-ok="إرجاع">@Ui.Icon("x", 16)</button>
+                    }
+                    @if (r.Status == NewPartRequestStatus.PendingAccountant && s.CanFinalApproveNewPart) {
+                        <button type="button" class="btn sm okb" data-confirm data-action="/NewParts/FinalApprove" data-hidden='{"id":"@r.Id"}' data-kind="ok" data-icon="check" data-title="موافقة الحسابات وإضافة للجرد؟" data-text="@r.PartNumber · @r.Quantity · ستُضاف للقطع الجديدة بكمية نظام 0 وسعر 0" data-ok="موافقة">@Ui.Icon("check", 16)</button>
                         <button type="button" class="btn sm dg" data-confirm data-reason="1" data-action="/NewParts/Return" data-hidden='{"id":"@r.Id"}' data-kind="d" data-icon="x" data-title="إرجاع للموظف؟" data-text="السبب إلزامي" data-ok="إرجاع">@Ui.Icon("x", 16)</button>
                     }
                 </div></td></tr>

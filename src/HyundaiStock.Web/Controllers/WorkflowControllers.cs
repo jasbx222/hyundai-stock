@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HyundaiStock.Web.Controllers;
 
-[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager)]
+/// <summary>طلبات إضافة قطعة: the spare-parts manager approves first, then accounts approve and the part is added to the count.</summary>
+[Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class NewPartsController(NewPartRequestService svc) : DashboardController
 {
     public async Task<IActionResult> Index(string? search, string? status, int? year, int page = 1)
@@ -30,7 +31,8 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
         return d == null ? NotFoundPage() : View(d);
     }
 
-    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وإضافة القطعة للجرد");
+    [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وتحويل الطلب للحسابات");
+    [HttpPost] public async Task<IActionResult> FinalApprove(int id) => Done(await svc.FinalApproveAsync(id, Scope), "تمت موافقة الحسابات وإضافة القطعة للقطع الجديدة");
     [HttpPost] public async Task<IActionResult> Return(int id, string? reason) => Done(await svc.ReturnAsync(id, reason, Scope), "تم إرجاع الطلب مع توضيح السبب");
 }
 

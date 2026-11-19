@@ -276,15 +276,31 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task NewParts_Approve_SparePartsApprovalIsFinal()
+    public async Task NewParts_SparePartsApprovesThenAccountsApproveAndThePartIsAdded()
     {
         var created = await _newParts.CreateAsync(_counter.Id, Input());
         var id = created.Data!.Id;
+        // Accounts cannot act before the spare-parts manager.
         Assert.False((await _newParts.ApproveAsync(id, AccScope())).Ok);
-        Assert.Equal(1, await _db.InventoryParts.CountAsync());
+        Assert.Equal(NewPartRequestService.NotSparePartsApprovedMessage, (await _newParts.FinalApproveAsync(id, AccScope())).Error);
+
         Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        var pending = await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id);
+        Assert.Equal(NewPartRequestStatus.PendingAccountant, pending.Status);
+        Assert.Equal(_spare.Id, pending.SparePartsApprovedByAdminId);
+        Assert.Equal(1, await _db.InventoryParts.CountAsync());
+        Assert.Empty((await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), null)).Items);
+        Assert.Equal("بانتظار الحسابات", (await _newParts.MineAsync(_counter.Id, new PageQuery(1, 10))).Items.Single().Status);
+        // The spare-parts manager cannot approve again or give the final approval.
         Assert.False((await _newParts.ApproveAsync(id, SpareScope())).Ok);
-        Assert.False((await _newParts.ReturnAsync(id, "متأخر", SpareScope())).Ok);
+        Assert.False((await _newParts.FinalApproveAsync(id, SpareScope())).Ok);
+        Assert.Equal(NewPartRequestService.DeniedMessage, (await _newParts.ReturnAsync(id, "متأخر", SpareScope())).Error);
+        // An accountant of another branch does not see it.
+        Assert.False((await _newParts.FinalApproveAsync(id, OtherAcc())).Ok);
+
+        Assert.True((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
+        Assert.False((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
+        Assert.False((await _newParts.ReturnAsync(id, "متأخر", AccScope())).Ok);
 
         var line = await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.PartNumber == "ZZ-9");
         Assert.Equal(0, line.SystemQuantity);
@@ -294,26 +310,41 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal(_warehouseRow.Id, line.WarehouseId);
         Assert.Equal("رف 1", line.CountedLocation);
         Assert.Contains(await _db.PartChangeLogs.AsNoTracking().Where(x => x.InventoryPartId == line.Id).Select(x => x.Source).ToListAsync(), x => x == "New Part Request");
-        Assert.Equal(NewPartRequestStatus.Approved, (await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id)).Status);
+        var done = await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id);
+        Assert.Equal(NewPartRequestStatus.Approved, done.Status);
+        Assert.Equal(_accountant.Id, done.AccountantApprovedByAdminId);
+        Assert.True(await _db.WorkflowAudits.AnyAsync(x => x.SubjectId == id && x.Action == AuditActions.FirstApproved));
         Assert.True(await _db.WorkflowAudits.AnyAsync(x => x.SubjectId == id && x.Action == AuditActions.FinalApproved && x.InventoryPartId == line.Id));
+
+        var row = Assert.Single((await _newParts.ApprovedListAsync(new PageQuery(1, 10), AccScope(), null)).Items);
+        Assert.Equal(_spare.Name, row.ApprovedBy);
+        Assert.Equal(_accountant.Name, row.AccountsApprovedBy);
     }
 
     [Fact]
-    public async Task NewParts_Approve_SuperAdminApprovesInOneStep()
+    public async Task NewParts_AccountsReturnToTheEmployeeWithAReason()
+    {
+        var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "RET-1"))).Data!.Id;
+        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.False((await _newParts.ReturnAsync(id, "", AccScope())).Ok);
+        Assert.True((await _newParts.ReturnAsync(id, "الكمية غير واضحة", AccScope())).Ok);
+        var r = await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id);
+        Assert.Equal(NewPartRequestStatus.ReturnedToEmployee, r.Status);
+        Assert.Equal("الكمية غير واضحة", r.ReturnReason);
+        Assert.Equal(0, await _db.InventoryParts.CountAsync(x => x.PartNumber == "RET-1"));
+        // Accounts cannot return a request still waiting for the spare-parts manager.
+        var first = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "RET-2"))).Data!.Id;
+        Assert.Equal(NewPartRequestService.DeniedMessage, (await _newParts.ReturnAsync(first, "x", AccScope())).Error);
+    }
+
+    [Fact]
+    public async Task NewParts_SuperAdminMayApproveBothSteps()
     {
         var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "SUP-1"))).Data!.Id;
         Assert.True((await _newParts.ApproveAsync(id, Super())).Ok);
+        Assert.Equal(0, await _db.InventoryParts.CountAsync(x => x.PartNumber == "SUP-1"));
+        Assert.True((await _newParts.FinalApproveAsync(id, Super())).Ok);
         Assert.Equal(1, await _db.InventoryParts.CountAsync(x => x.PartNumber == "SUP-1"));
-    }
-
-    [Fact]
-    public async Task NewParts_Approve_LegacyAccountantRowIsFinishedBySpareParts()
-    {
-        var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "OLD-1"))).Data!.Id;
-        await _db.NewPartRequests.Where(x => x.Id == id).ExecuteUpdateAsync(u => u.SetProperty(x => x.Status, NewPartRequestStatus.PendingAccountant));
-        Assert.False((await _newParts.ApproveAsync(id, AccScope())).Ok);
-        Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
-        Assert.Equal(1, await _db.InventoryParts.CountAsync(x => x.PartNumber == "OLD-1"));
     }
 
     [Fact]
@@ -322,6 +353,7 @@ public sealed class WorkflowTests : IDisposable
         var approved = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "EXP-1"))).Data!.Id;
         await _newParts.CreateAsync(_counter.Id, Input(partNumber: "EXP-2"));
         Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
+        Assert.True((await _newParts.FinalApproveAsync(approved, AccScope())).Ok);
 
         var file = await _newParts.ExportAsync(SpareScope(), null, NewPartRequestStatus.Approved, _session.Year);
         using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content)))
@@ -345,6 +377,7 @@ public sealed class WorkflowTests : IDisposable
         var approved = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-1"))).Data!.Id;
         await _newParts.CreateAsync(_counter.Id, Input(partNumber: "APR-2"));
         Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
+        Assert.True((await _newParts.FinalApproveAsync(approved, AccScope())).Ok);
 
         var page = await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), null);
         var row = Assert.Single(page.Items);
@@ -515,6 +548,7 @@ public sealed class WorkflowTests : IDisposable
         Assert.Null(result.Data.ReturnReason);
         Assert.Equal(1, await _db.NewPartRequests.CountAsync());
         Assert.True((await _newParts.ApproveAsync(id, SpareScope())).Ok);
+        Assert.True((await _newParts.FinalApproveAsync(id, AccScope())).Ok);
         Assert.Equal(7, (await _db.InventoryParts.AsNoTracking().SingleAsync(x => x.PartNumber == "FIXED-9")).CountedQuantity);
         Assert.Equal(409, (await _newParts.ResubmitAsync(_counter.Id, id, Input())).Status);
     }

@@ -100,6 +100,25 @@ public sealed class QuantityRemovalTests
         Assert.False(user.GetProperty("canScanVins").GetBoolean());
     }
 
+    [Fact]
+    public async Task New_part_requests_page_gives_step_one_to_spare_parts_and_step_two_to_accounts()
+    {
+        using var factory = new ApiFactory { Demo = true };
+        using var spare = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await Login(spare, "07790000004");
+        var spareHtml = await spare.GetStringAsync("/NewParts");
+        Assert.Contains("/NewParts/Approve", spareHtml);
+        Assert.DoesNotContain("/NewParts/FinalApprove", spareHtml);
+        Assert.Contains("بانتظار الحسابات", spareHtml);
+
+        using var acc = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await Login(acc, "07790000005");
+        var accHtml = await acc.GetStringAsync("/NewParts");
+        Assert.Contains("/NewParts/FinalApprove", accHtml);
+        Assert.DoesNotContain("data-action=\"/NewParts/Approve\"", accHtml);
+        Assert.Contains("href=\"/NewParts\"", await acc.GetStringAsync("/"));
+    }
+
     /// <summary>Dashboard 404s redirect to the not-found page.</summary>
     private static async Task AssertGone(HttpClient client, string path)
     {
