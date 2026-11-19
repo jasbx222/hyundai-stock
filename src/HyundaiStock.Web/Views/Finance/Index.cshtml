@@ -40,7 +40,7 @@
         @foreach (var r in Model.Items) {
             <tr><td class="mono">@r.PartNumber</td><td class="clip">@r.Description</td><td class="num">@r.SystemQuantity</td><td class="num">@(r.CountedQuantity?.ToString() ?? "—")</td>
                 <td>@Ui.Diff(r.CountedQuantity, r.SystemQuantity)</td><td>@Labels.Variance(r.CountedQuantity, r.SystemQuantity)</td><td class="num" dir="ltr">@r.Price.ToString("0.00")</td>
-                <td class="num" dir="ltr">@(r.FinancialDifference?.ToString("0.00") ?? "—")</td><td>@(r.Branch ?? "—")</td><td>@(r.Warehouse ?? "—")</td><td>@r.Year</td>
+                <td class="num" dir="ltr">@(r.FinancialDifference?.ToString("0.00") ?? "—")</td><td>@(r.Branch ?? "—")</td><td>@(r.Warehouse ?? "—")</td><td>@r.Session</td>
                 <td>@Ui.Who(r.RecountedBy)</td>
                 <td>@if (r.Difference is int d && d != 0 && me.CanRequestRecount) { <button type="button" class="btn sm" data-remote="/Parts/RecountForm/@r.Id" title="إرسال القطعة إلى مستخدم لإعادة عدّها">@Ui.Icon("refresh", 16) إعادة العد</button> }</td></tr>
         }

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HyundaiStock.Infrastructure.Services;
 
-public sealed record NewPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, int SessionYear, double Latitude, double Longitude, NewPartRequestStatus Status, string? ReturnReason, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record NewPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, string SessionName, double Latitude, double Longitude, NewPartRequestStatus Status, string? ReturnReason, DateTime CreatedAt, DateTime UpdatedAt);
 public sealed record AuditRow(int Id, string Action, string? FromStatus, string ToStatus, string Actor, string ActorRole, string? Reason, DateTime CreatedAt);
 public sealed record NewPartDetails(NewPartRow Request, List<AuditRow> History);
 
@@ -46,21 +46,21 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
         return q.Where(x => branches.Contains(x.BranchId));
     }
 
-    private IQueryable<NewPartRequest> Filtered(AdminScope s, string? term, NewPartRequestStatus? status, int? year)
+    private IQueryable<NewPartRequest> Filtered(AdminScope s, string? term, NewPartRequestStatus? status, int? sessionId)
     {
         var q = Scoped(s);
         if (status is NewPartRequestStatus st) q = q.Where(x => x.Status == st);
-        if (year is int y) q = q.Where(x => x.Session!.Year == y);
+        if (sessionId is int y) q = q.Where(x => x.SessionId == y);
         if (term is string t) q = q.Where(x => x.PartNumber.Contains(t) || x.Description.Contains(t) || x.RequestedByUser!.Name.Contains(t) || x.Warehouse!.Name.Contains(t));
         return q;
     }
 
-    public Task<PagedResult<NewPartRow>> ListAsync(PageQuery p, AdminScope s, NewPartRequestStatus? status, int? year = null)
+    public Task<PagedResult<NewPartRow>> ListAsync(PageQuery p, AdminScope s, NewPartRequestStatus? status, int? sessionId = null)
     {
-        var q = Filtered(s, p.Term, status, year);
+        var q = Filtered(s, p.Term, status, sessionId);
         var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new NewPartRow(
             x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name,
-            x.Session!.Year, x.Latitude, x.Longitude, x.Status, x.ReturnReason, x.CreatedAt, x.UpdatedAt));
+            x.Session!.Name, x.Latitude, x.Longitude, x.Status, x.ReturnReason, x.CreatedAt, x.UpdatedAt));
         var page = Paging.Build(rows, p);
         return Task.FromResult(new PagedResult<NewPartRow>
         {
@@ -71,33 +71,33 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
 
     public static readonly string[] ExportHeaders = { "Reference", "Part Number", "Description", "Quantity", "Location", "Branch", "Warehouse", "Counted By", "Session", "Status", "Requested At", "Approved At" };
 
-    /// <summary>Excel of the requests on the New Parts page, with the same search, status and year filter. Branch and warehouse are the counter's own, taken when the request was sent.</summary>
-    public async Task<ExportFile> ExportAsync(AdminScope s, string? term, NewPartRequestStatus? status, int? year)
+    /// <summary>Excel of the requests on the New Parts page, with the same search, status and sessionId filter. Branch and warehouse are the counter's own, taken when the request was sent.</summary>
+    public async Task<ExportFile> ExportAsync(AdminScope s, string? term, NewPartRequestStatus? status, int? sessionId)
     {
         var t = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
-        var data = await Filtered(s, t, status, year).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new
+        var data = await Filtered(s, t, status, sessionId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new
         {
             x.Id, x.PartNumber, x.Description, x.Quantity, x.Location, B = x.Branch!.Name, W = x.Warehouse!.Name, U = x.RequestedByUser!.Name,
-            Y = x.Session!.Year, x.Status, x.CreatedAt, At = x.AccountantApprovedAt ?? x.SparePartsApprovedAt
+            Y = x.Session!.Name, x.Status, x.CreatedAt, At = x.AccountantApprovedAt ?? x.SparePartsApprovedAt
         }).ToListAsync();
-        var label = (year?.ToString() ?? "all") + (status is NewPartRequestStatus st ? "-" + st : "");
+        var label = (sessionId?.ToString() ?? "all") + (status is NewPartRequestStatus st ? "-" + st : "");
         return ExportService.Build("New Parts", $"New-Parts-{label}", ExportHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 22, 18, 18 },
             data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.B, x.W, x.U, x.Y, Labels.NewPart(x.Status),
                 ExportService.Stamp(x.CreatedAt), x.Status == NewPartRequestStatus.Approved && x.At is DateTime d ? ExportService.Stamp(d) : "" }));
     }
 
     // ---- "القطع الجديدة": requests approved by the spare-parts manager and then by accounts, i.e. parts that were added to the count. ----
-    public sealed record ApprovedPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, int SessionYear, string? ApprovedBy, DateTime? ApprovedAt, int? InventoryPartId, string? AccountsApprovedBy = null);
+    public sealed record ApprovedPartRow(int Id, string Reference, string PartNumber, string Description, int Quantity, string Location, string BranchName, string WarehouseName, string EmployeeName, string SessionName, string? ApprovedBy, DateTime? ApprovedAt, int? InventoryPartId, string? AccountsApprovedBy = null);
 
-    private IQueryable<ApprovedPartRow> ApprovedRows(AdminScope s, string? term, int? year) =>
-        Filtered(s, term, NewPartRequestStatus.Approved, year).OrderByDescending(x => x.AccountantApprovedAt ?? x.SparePartsApprovedAt).ThenByDescending(x => x.Id).Select(x => new ApprovedPartRow(
-            x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name, x.Session!.Year,
+    private IQueryable<ApprovedPartRow> ApprovedRows(AdminScope s, string? term, int? sessionId) =>
+        Filtered(s, term, NewPartRequestStatus.Approved, sessionId).OrderByDescending(x => x.AccountantApprovedAt ?? x.SparePartsApprovedAt).ThenByDescending(x => x.Id).Select(x => new ApprovedPartRow(
+            x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name, x.Session!.Name,
             db.Admins.Where(a => a.Id == x.SparePartsApprovedByAdminId).Select(a => a.Name).FirstOrDefault(), x.AccountantApprovedAt ?? x.SparePartsApprovedAt, x.InventoryPartId,
             db.Admins.Where(a => a.Id == x.AccountantApprovedByAdminId).Select(a => a.Name).FirstOrDefault()));
 
-    public Task<PagedResult<ApprovedPartRow>> ApprovedListAsync(PageQuery p, AdminScope s, int? year)
+    public Task<PagedResult<ApprovedPartRow>> ApprovedListAsync(PageQuery p, AdminScope s, int? sessionId)
     {
-        var page = Paging.Build(ApprovedRows(s, p.Term, year), p);
+        var page = Paging.Build(ApprovedRows(s, p.Term, sessionId), p);
         return Task.FromResult(new PagedResult<ApprovedPartRow>
         {
             Items = page.Items.Select(x => x with { Reference = ReferenceOf(x.Id) }).ToList(),
@@ -107,20 +107,20 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
 
     public static readonly string[] ApprovedHeaders = { "Reference", "Part Number", "Description", "Quantity", "Location", "Branch", "Warehouse", "Counted By", "Session", "Spare Parts Approval", "Accounts Approval", "Approved At" };
 
-    /// <summary>Excel of the new parts page with the same search and year filter.</summary>
-    public async Task<ExportFile> ApprovedExportAsync(AdminScope s, string? term, int? year)
+    /// <summary>Excel of the new parts page with the same search and sessionId filter.</summary>
+    public async Task<ExportFile> ApprovedExportAsync(AdminScope s, string? term, int? sessionId)
     {
         var t = string.IsNullOrWhiteSpace(term) ? null : term.Trim();
-        var data = await ApprovedRows(s, t, year).ToListAsync();
-        return ExportService.Build("New Parts", $"New-Parts-Approved-{year?.ToString() ?? "all"}", ApprovedHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 18, 18, 20 },
-            data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.BranchName, x.WarehouseName, x.EmployeeName, x.SessionYear, x.ApprovedBy ?? "", x.AccountsApprovedBy ?? "", x.ApprovedAt }));
+        var data = await ApprovedRows(s, t, sessionId).ToListAsync();
+        return ExportService.Build("New Parts", $"New-Parts-Approved-{sessionId?.ToString() ?? "all"}", ApprovedHeaders, new[] { 10.0, 18, 36, 10, 14, 16, 18, 18, 10, 18, 18, 20 },
+            data.Select(x => new object?[] { ReferenceOf(x.Id), x.PartNumber, x.Description, x.Quantity, x.Location, x.BranchName, x.WarehouseName, x.EmployeeName, x.SessionName, x.ApprovedBy ?? "", x.AccountsApprovedBy ?? "", x.ApprovedAt }));
     }
 
     public async Task<NewPartDetails?> GetAsync(int id, AdminScope s)
     {
         var row = await Scoped(s).Where(x => x.Id == id).Select(x => new NewPartRow(
             x.Id, "", x.PartNumber, x.Description, x.Quantity, x.Location, x.Branch!.Name, x.Warehouse!.Name, x.RequestedByUser!.Name,
-            x.Session!.Year, x.Latitude, x.Longitude, x.Status, x.ReturnReason, x.CreatedAt, x.UpdatedAt)).FirstOrDefaultAsync();
+            x.Session!.Name, x.Latitude, x.Longitude, x.Status, x.ReturnReason, x.CreatedAt, x.UpdatedAt)).FirstOrDefaultAsync();
         if (row == null) return null;
         var history = await db.WorkflowAudits.AsNoTracking().Where(x => x.Subject == AuditActions.NewPart && x.SubjectId == id)
             .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)

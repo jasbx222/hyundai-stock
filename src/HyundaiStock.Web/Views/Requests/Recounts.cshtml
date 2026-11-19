@@ -1,8 +1,8 @@
 @model PagedResult<RecountListRow>
 @{ ViewData["Title"] = "مهام إعادة العد"; ViewData["Nav"] = "requests"; }
-<div class="ph"><div><h1>مهام إعادة العد</h1><p class="muted">قطع أرسلتها الإدارة لموظف حتى يعيد عدّها، وحالة كل مهمة ونتيجتها.</p></div><div class="acts"><a class="btn" href="/Requests/Export?@Ui.FilterQuery(Context.Request, "search", "year").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
+<div class="ph"><div><h1>مهام إعادة العد</h1><p class="muted">قطع أرسلتها الإدارة لموظف حتى يعيد عدّها، وحالة كل مهمة ونتيجتها.</p></div><div class="acts"><a class="btn" href="/Requests/Export?@Ui.FilterQuery(Context.Request, "search", "sessionId").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو الاسم")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو الاسم")@await Html.PartialAsync("_SessionFilter", "كل الجلسات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات إعادة العد.", "refresh")) }
     else {
     <div class="hscroll"><table>

@@ -12,6 +12,7 @@ public sealed record BranchProgress(string Name, int Parts, int Counted, int Vin
 public sealed class HomeStats
 {
     public int? SessionYear { get; init; }
+    public string? SessionName { get; init; }
     public bool SessionOpen { get; init; }
     public DateTime? SessionStartedAt { get; init; }
     public int Sessions { get; init; }
@@ -35,13 +36,13 @@ public sealed class HomeStats
     public int CountedPercent => Parts == 0 ? 0 : (int)Math.Round(CountedParts * 100.0 / Parts);
     public int VinPercent => ExpectedVins == 0 ? 0 : (int)Math.Round(ScannedExpected * 100.0 / ExpectedVins);
 
-    public static async Task<HomeStats> BuildAsync(AppDbContext db, SessionLookup sessions, AdminScope s, int? year = null)
+    public static async Task<HomeStats> BuildAsync(AppDbContext db, SessionLookup sessions, AdminScope s, int? sessionId = null)
     {
         var all = s.IsUnrestricted;
         var wm = s.Role == AdminRole.WarehouseManager;
         var branchIds = s.Branches.ToList();
         var whIds = s.Warehouses.ToList();
-        var cur = year is int y ? await sessions.ForYearAsync(y) : await sessions.CurrentAsync() ?? await sessions.LatestAsync();
+        var cur = sessionId is int sel ? await sessions.ForSessionAsync(sel) : await sessions.CurrentAsync() ?? await sessions.LatestAsync();
         var sid = cur?.Id ?? -1;
         var parts = db.InventoryParts.AsNoTracking().Where(x => x.SessionId == sid);
         if (!all) parts = wm ? parts.Where(x => x.WarehouseId != null && whIds.Contains(x.WarehouseId.Value)) : parts.Where(x => x.BranchId != null && branchIds.Contains(x.BranchId.Value));
@@ -67,6 +68,7 @@ public sealed class HomeStats
         return new HomeStats
         {
             SessionYear = cur?.Year,
+            SessionName = cur?.Name,
             SessionOpen = cur?.Status == SessionStatus.InProgress,
             SessionStartedAt = cur?.StartedAt,
             Sessions = await db.Sessions.CountAsync(),

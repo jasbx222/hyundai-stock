@@ -767,6 +767,17 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("datetime2");
 
@@ -787,6 +798,8 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("StartedByAdminId");
+
+                    b.HasIndex("Year", "Kind", "Month");
 
                     b.ToTable("Sessions");
                 });

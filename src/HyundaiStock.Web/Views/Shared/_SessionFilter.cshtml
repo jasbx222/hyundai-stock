@@ -1,0 +1,14 @@
+@model string
+@inject SessionLookup Sessions
+@{
+    // Session filter shared by every list page: the annual count and each monthly count are separate sessions.
+    var options = await Sessions.OptionsAsync();
+    var current = Context.Request.Query["sessionId"].ToString();
+}
+<form method="get">
+    @foreach (var kv in Context.Request.Query.Where(x => x.Key is not ("sessionId" or "year" or "page"))) { <input type="hidden" name="@kv.Key" value="@kv.Value" /> }
+    <label class="sel"><select name="sessionId" onchange="this.form.submit()" aria-label="جلسة الجرد">
+        <option value="">@Model</option>
+        @foreach (var o in options) { <option value="@o.Id" selected="@(current == o.Id.ToString())">@o.Name</option> }
+    </select>@Ui.Icon("chev", 14)</label>
+</form>

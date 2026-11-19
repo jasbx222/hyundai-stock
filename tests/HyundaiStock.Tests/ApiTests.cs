@@ -77,7 +77,7 @@ public sealed class ApiTests : IClassFixture<ApiFactory>
         db.AppUsers.AddRange(user, shadow);
         await db.SaveChangesAsync();
         db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = user.Id, WarehouseId = wh.Id });
-        db.Sessions.Add(new StocktakingSession { Year = 2026, StartedByAdminId = main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" });
+        db.Sessions.Add(new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", StartedByAdminId = main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" });
         await db.SaveChangesAsync();
 
         var client = _factory.CreateClient();
@@ -127,7 +127,7 @@ public sealed class ApiTests : IClassFixture<ApiFactory>
         db.AppUserWarehouses.AddRange(
             new AppUserWarehouse { AppUserId = counter.Id, WarehouseId = wh.Id },
             new AppUserWarehouse { AppUserId = outsider.Id, WarehouseId = otherWh.Id });
-        var session = new StocktakingSession { Year = 2026, StartedByAdminId = admin.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
+        var session = new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", StartedByAdminId = admin.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
         db.Sessions.Add(session);
         await db.SaveChangesAsync();
         var open = new InventoryPart { SessionId = session.Id, PartNumber = "00H72AQ210", Description = "قطعة", SystemQuantity = 1, BranchId = branch.Id };

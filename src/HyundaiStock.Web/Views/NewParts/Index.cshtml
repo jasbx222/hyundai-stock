@@ -1,10 +1,10 @@
 @model PagedResult<NewPartRow>
 @{ ViewData["Title"] = "طلبات إضافة قطعة للجرد"; ViewData["Nav"] = "newparts"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
-<div class="ph"><div><h1>طلبات إضافة قطعة للجرد</h1></div><div class="acts"><a class="btn p" href="/NewParts/Export?@Ui.FilterQuery(Context.Request, "search", "status", "year").TrimStart('&')" title="تحميل ملف Excel بالطلبات حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير حسب الفلتر</a></div></div>
+<div class="ph"><div><h1>طلبات إضافة قطعة للجرد</h1></div><div class="acts"><a class="btn p" href="/NewParts/Export?@Ui.FilterQuery(Context.Request, "search", "status", "sessionId").TrimStart('&')" title="تحميل ملف Excel بالطلبات حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير حسب الفلتر</a></div></div>
 <div class="card" style="overflow:hidden">
     <div class="toolbar">
         @await Html.PartialAsync("_Search", "بحث برقم القطعة")
-        @await Html.PartialAsync("_YearFilter", "كل السنوات")
+        @await Html.PartialAsync("_SessionFilter", "كل الجلسات")
         <form method="get">
             @foreach (var kv in Context.Request.Query.Where(x => x.Key is not ("status" or "page"))) { <input type="hidden" name="@kv.Key" value="@kv.Value" /> }
             <label class="sel"><select name="status" onchange="this.form.submit()" aria-label="الحالة">
@@ -22,7 +22,7 @@
         <tbody>
         @foreach (var r in Model.Items) {
             <tr><td><span class="idx">@r.Reference</span></td><td><span class="mono">@r.PartNumber</span><div class="muted">@r.Description</div></td>
-                <td class="num">@r.Quantity</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionYear</td>
+                <td class="num">@r.Quantity</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionName</td>
                 <td>@Ui.Badge(Labels.NewPart(r.Status), r.Status == NewPartRequestStatus.Approved ? "ok" : r.Status is NewPartRequestStatus.Cancelled or NewPartRequestStatus.SessionClosed ? "mu" : r.Status == NewPartRequestStatus.ReturnedToEmployee ? "er" : "wa")</td>
                 <td>@Ui.Day(r.CreatedAt)</td>
                 <td><div class="ra">

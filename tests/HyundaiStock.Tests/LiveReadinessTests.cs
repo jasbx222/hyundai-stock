@@ -171,7 +171,7 @@ public sealed class LiveReadinessTests
         var env = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
         var existing = new Admin { Name = "موجود", PhoneNumber = "07700000000", Role = AdminRole.MainAdmin, PasswordHash = pw.Hash("Existing123") };
         db.Admins.Add(existing); await db.SaveChangesAsync();
-        var old = new StocktakingSession { Year = 2026, StartedByAdminId = existing.Id, Status = SessionStatus.Completed, FileName = "existing.xlsx", StoredFileName = "existing.xlsx" };
+        var old = new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", StartedByAdminId = existing.Id, Status = SessionStatus.Completed, FileName = "existing.xlsx", StoredFileName = "existing.xlsx" };
         db.Sessions.Add(old); await db.SaveChangesAsync();
         var part = new InventoryPart { SessionId = old.Id, PartNumber = "OLD-1", CountedQuantity = 123 };
         db.InventoryParts.Add(part); await db.SaveChangesAsync();
@@ -212,7 +212,7 @@ public sealed class LiveReadinessTests
         var pw = scope.ServiceProvider.GetRequiredService<IPasswordService>();
         var admin = new Admin { Name = "موجود", PhoneNumber = "07700000000", Role = AdminRole.MainAdmin, PasswordHash = pw.Hash("Existing123") };
         db.Admins.Add(admin); await db.SaveChangesAsync();
-        var live = new StocktakingSession { Year = 2026, StartedByAdminId = admin.Id, FileName = "existing.xlsx", StoredFileName = "existing.xlsx" };
+        var live = new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", StartedByAdminId = admin.Id, FileName = "existing.xlsx", StoredFileName = "existing.xlsx" };
         db.Sessions.Add(live); await db.SaveChangesAsync();
         await DemoSeeder.SeedAsync(db, pw, new SeedOptions { Demo = true }, scope.ServiceProvider.GetRequiredService<IHostEnvironment>(), NullLogger.Instance);
         Assert.Equal(live.Id, (await db.Sessions.SingleAsync(x => x.Status == SessionStatus.InProgress)).Id);

@@ -8,11 +8,11 @@
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }
     else {
     <div class="hscroll"><table>
-        <thead><tr><th>الرقم</th><th>السنة</th><th>الحالة</th><th>بواسطة</th><th>تاريخ البدء</th><th>تاريخ الإنهاء</th><th>الملف</th><th>الإجراءات</th></tr></thead>
+        <thead><tr><th>الرقم</th><th>الجلسة</th><th>النوع</th><th>الحالة</th><th>بواسطة</th><th>تاريخ البدء</th><th>تاريخ الإنهاء</th><th>الملف</th><th>الإجراءات</th></tr></thead>
         <tbody>
         @foreach (var x in Model.Items) {
             var live = x.Status == SessionStatus.InProgress;
-            <tr><td><span class="idx">@Ui.Idx(x.Id)</span></td><td><b class="num">@x.Year</b></td><td>@Ui.Session(x.Status)</td><td>@x.StartedBy</td><td>@Ui.Day(x.StartedAt)</td><td>@Ui.Day(x.EndedAt)</td>
+            <tr><td><span class="idx">@Ui.Idx(x.Id)</span></td><td><b>@(string.IsNullOrEmpty(x.Name) ? x.Year.ToString() : x.Name)</b></td><td>@Ui.Badge(Labels.SessionKindLabel(x.Kind), x.Kind == SessionKind.Monthly ? "in" : "mu")</td><td>@Ui.Session(x.Status)</td><td>@x.StartedBy</td><td>@Ui.Day(x.StartedAt)</td><td>@Ui.Day(x.EndedAt)</td>
                 <td><span class="chip">@Ui.Icon("sheet", 14) <span class="mono">@x.FileName</span></span></td>
                 <td><div class="ra">
                     <a class="btn sm g" href="/Sessions/File/@x.Id" title="عرض الملف" aria-label="عرض الملف">@Ui.Icon("file", 16)</a>
@@ -24,7 +24,7 @@
                     }
                     @if (live && me.IsSuper) {
                         <span class="sep"></span>
-                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء جلسة جرد @x.Year، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
+                        <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء «@x.Name»، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
                     }
                 </div></td></tr>
         }
@@ -37,9 +37,21 @@
     @Html.AntiForgeryToken()
     <div class="mh"><div class="mic pr">@Ui.Icon("upload", 20)</div><div><h3>بدء جلسة جرد جديدة</h3><p>ارفع ملف Excel أو أكثر بقطع الغيار وأرقام الشاصي</p></div></div>
     <div class="mb">
+        @{ var now = Ui.Local(DateTime.UtcNow); }
+        <label class="lbl" for="session-kind">نوع الجرد</label>
+        <div class="field"><select id="session-kind" name="kind" onchange="document.getElementById('session-month-row').hidden = this.value !== 'Monthly'">
+            <option value="Annual">جرد سنوي</option>
+            <option value="Monthly">جرد شهري</option>
+        </select></div>
         <label class="lbl" for="session-year">سنة الجرد</label>
-        <div class="field"><input id="session-year" name="year" type="number" min="2000" max="2100" required value="@Ui.Local(DateTime.UtcNow).Year" dir="ltr" /></div>
-        <p class="hint">جلسة واحدة لكل سنة (2000–2100)، بما فيها الجلسات المكتملة. يجب إنهاء أي جلسة مفتوحة أولاً. السنة تؤخذ من هذا الحقل، وليس من ملف Excel.</p>
+        <div class="field"><input id="session-year" name="year" type="number" min="2000" max="2100" required value="@now.Year" dir="ltr" /></div>
+        <div id="session-month-row" hidden>
+            <label class="lbl" for="session-month">الشهر</label>
+            <div class="field"><select id="session-month" name="month">
+                @for (var m = 1; m <= 12; m++) { <option value="@m" selected="@(m == now.Month)">@m - @Labels.MonthName(m)</option> }
+            </select></div>
+        </div>
+        <p class="hint">جرد سنوي واحد لكل سنة، وجرد شهري واحد لكل شهر، بما فيها الجلسات المكتملة. الجرد الشهري يشتغل مثل السنوي: قطع الغيار والسيارات، والفروقات تروح للحسابات. جلسة وحدة مفتوحة بنفس الوقت، فلازم تنهي أي جلسة مفتوحة أولاً. السنة والشهر يؤخذون من هذا الفورم، مو من ملف Excel.</p>
         <label class="drop">
             <input name="file" type="file" accept=".xlsx,.xls" multiple />
             @Ui.Icon("upload", 28)

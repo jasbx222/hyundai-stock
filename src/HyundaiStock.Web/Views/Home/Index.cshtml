@@ -4,9 +4,9 @@
     static string N(int v) => v.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 }
 <div class="ph"><div><h1>لوحة التحكم</h1>
-    <p class="muted">@(m.SessionYear is int y ? (m.SessionOpen ? $"ملخص جلسة جرد {y} (قيد التنفيذ)، بدأت {Ui.Date(m.SessionStartedAt)}" : $"ملخص آخر جلسة جرد ({y}، منتهية)") : "لا توجد جلسة جرد بعد. ابدأ جلسة من صفحة جلسات الجرد.")</p></div>
-    <div class="acts">@await Html.PartialAsync("_YearFilter", "الجلسة الحالية")</div>
-    @if (m.SessionOpen) { <span class="sess" title="توجد جلسة جرد مفتوحة يمكن للمستخدمين الإرسال إليها">@Ui.Icon("session", 16) جلسة @m.SessionYear مفتوحة</span> }
+    <p class="muted">@(m.SessionName is string y ? (m.SessionOpen ? $"ملخص «{y}» (قيد التنفيذ)، بدأت {Ui.Date(m.SessionStartedAt)}" : $"ملخص آخر جلسة: «{y}» (منتهية)") : "لا توجد جلسة جرد بعد. ابدأ جلسة من صفحة جلسات الجرد.")</p></div>
+    <div class="acts">@await Html.PartialAsync("_SessionFilter", "الجلسة الحالية")</div>
+    @if (m.SessionOpen) { <span class="sess" title="توجد جلسة جرد مفتوحة يمكن للمستخدمين الإرسال إليها">@Ui.Icon("session", 16) @m.SessionName مفتوح</span> }
 </div>
 
 <div class="kpis" style="margin-bottom:16px">

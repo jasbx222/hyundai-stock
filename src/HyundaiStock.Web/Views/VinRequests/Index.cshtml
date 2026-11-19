@@ -1,8 +1,8 @@
 @model PagedResult<VinReqRow>
 @{ ViewData["Title"] = "طلبات تصحيح رقم الشاصي"; ViewData["Nav"] = "vinrequests"; }
-<div class="ph"><div><h1>طلبات تصحيح رقم الشاصي</h1></div><div class="acts"><a class="btn" href="/VinRequests/Export?@Ui.FilterQuery(Context.Request, "search", "year").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
+<div class="ph"><div><h1>طلبات تصحيح رقم الشاصي</h1></div><div class="acts"><a class="btn" href="/VinRequests/Export?@Ui.FilterQuery(Context.Request, "search", "sessionId").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
 <div class="card vt" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_SessionFilter", "كل الجلسات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا طلبات تصحيح رقم الشاصي من التطبيق.", "vin")) }
     else {
     <div class="hscroll"><table>

@@ -72,7 +72,7 @@ public sealed class WorkflowTests : IDisposable
         _db.AppUsers.AddRange(_counter, blocked);
         _db.SaveChanges();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = _warehouseRow.Id });
-        _session = new StocktakingSession { Year = 2026, Status = SessionStatus.InProgress, StartedByAdminId = _main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
+        _session = new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", Status = SessionStatus.InProgress, StartedByAdminId = _main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
         _db.Sessions.Add(_session);
         _db.SaveChanges();
         _part = new InventoryPart { SessionId = _session.Id, PartNumber = "ABC-1", Description = "فلتر", Price = 10, SystemQuantity = 2, WarehouseId = _warehouseRow.Id, BranchId = _branch.Id, CountedQuantity = 2 };
@@ -355,7 +355,7 @@ public sealed class WorkflowTests : IDisposable
         Assert.True((await _newParts.ApproveAsync(approved, SpareScope())).Ok);
         Assert.True((await _newParts.FinalApproveAsync(approved, AccScope())).Ok);
 
-        var file = await _newParts.ExportAsync(SpareScope(), null, NewPartRequestStatus.Approved, _session.Year);
+        var file = await _newParts.ExportAsync(SpareScope(), null, NewPartRequestStatus.Approved, _session.Id);
         using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content)))
         {
             var ws = wb.Worksheet("New Parts");
@@ -366,7 +366,7 @@ public sealed class WorkflowTests : IDisposable
         var all = await _newParts.ExportAsync(SpareScope(), "EXP", null, null);
         using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(all.Content)))
             Assert.Equal(3, wb.Worksheet("New Parts").LastRowUsed()!.RowNumber());
-        var otherYear = await _newParts.ExportAsync(SpareScope(), null, null, _session.Year - 1);
+        var otherYear = await _newParts.ExportAsync(SpareScope(), null, null, _session.Id + 999);
         using (var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(otherYear.Content)))
             Assert.Equal(1, wb.Worksheet("New Parts").LastRowUsed()!.RowNumber());
     }
@@ -384,9 +384,9 @@ public sealed class WorkflowTests : IDisposable
         Assert.Equal("APR-1", row.PartNumber);
         Assert.NotNull(row.ApprovedAt);
         Assert.NotNull(row.InventoryPartId);
-        Assert.Empty((await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), _session.Year - 1)).Items);
+        Assert.Empty((await _newParts.ApprovedListAsync(new PageQuery(1, 10), SpareScope(), _session.Id + 999)).Items);
 
-        var file = await _newParts.ApprovedExportAsync(SpareScope(), null, _session.Year);
+        var file = await _newParts.ApprovedExportAsync(SpareScope(), null, _session.Id);
         using var wb = new ClosedXML.Excel.XLWorkbook(new MemoryStream(file.Content));
         var ws = wb.Worksheet("New Parts");
         Assert.Equal(2, ws.LastRowUsed()!.RowNumber());
@@ -413,14 +413,14 @@ public sealed class WorkflowTests : IDisposable
     [Fact]
     public async Task Lists_YearFilter_PicksThatYearsSession()
     {
-        var (thisYear, s1) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Year);
+        var (thisYear, s1) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Id);
         Assert.Equal(_session.Id, s1!.Id);
         Assert.Single(thisYear.Items);
         var (none, s2) = await _parts.ListAsync(new PageQuery(1, 10), Super(), null, 1999);
         Assert.Null(s2);
         Assert.Empty(none.Items);
         var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "YR-1"))).Data!.Id;
-        Assert.Single((await _newParts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Year)).Items, x => x.Id == id);
+        Assert.Single((await _newParts.ListAsync(new PageQuery(1, 10), Super(), null, _session.Id)).Items, x => x.Id == id);
         Assert.Empty((await _newParts.ListAsync(new PageQuery(1, 10), Super(), null, 1999)).Items);
     }
 

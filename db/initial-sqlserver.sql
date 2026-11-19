@@ -651,3 +651,28 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [Sessions] ADD [Kind] int NOT NULL DEFAULT 0;
+GO
+
+ALTER TABLE [Sessions] ADD [Month] int NULL;
+GO
+
+ALTER TABLE [Sessions] ADD [Name] nvarchar(60) NOT NULL DEFAULT N'';
+GO
+
+UPDATE Sessions SET Name = N'جرد سنوي ' + CAST([Year] AS nvarchar(10)) WHERE Name = N''
+GO
+
+CREATE INDEX [IX_Sessions_Year_Kind_Month] ON [Sessions] ([Year], [Kind], [Month]);
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261119090000_MonthlySessions', N'8.0.11');
+GO
+
+COMMIT;
+GO
+

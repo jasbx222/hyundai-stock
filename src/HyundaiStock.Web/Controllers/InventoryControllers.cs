@@ -12,19 +12,19 @@ namespace HyundaiStock.Web.Controllers;
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class RequestsController(PartService parts, ListExports xl) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, int page = 1) =>
-        View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, year));
+    public async Task<IActionResult> Index(string? search, int? sessionId, int page = 1) =>
+        View("Recounts", await parts.RecountsAsync(new PageQuery(page, 10, search), Scope, sessionId));
 
-    public async Task<IActionResult> Export(string? search, int? year) => Excel(await xl.RecountsAsync(search, year, Scope));
+    public async Task<IActionResult> Export(string? search, int? sessionId) => Excel(await xl.RecountsAsync(search, sessionId, Scope));
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.SparePartsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class PartsController(PartService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? view, int? year, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? view, int? sessionId, int page = 1)
     {
         var selected = view is "counted" or "diff" ? view : null;
-        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope, selected, year);
+        var (p, session) = await svc.ListAsync(new PageQuery(page, 10, search), Scope, selected, sessionId);
         ViewBag.Session = session;
         ViewBag.View = selected;
         return View(p);
@@ -68,17 +68,17 @@ public sealed class PartsController(PartService svc) : DashboardController
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager, AdminRole.VehicleWarehouseManager)]
 public sealed class CarsController(VinService svc, WarehouseService warehouses, BranchService branches, AdminService admins, UserService users) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, string? view, int page = 1)
+    public async Task<IActionResult> Index(string? search, int? sessionId, string? view, int page = 1)
     {
         if (view == "missing")
         {
             ViewBag.View = view;
-            return View("Missing", await svc.MissingAsync(new PageQuery(page, 10, search), Scope, year));
+            return View("Missing", await svc.MissingAsync(new PageQuery(page, 10, search), Scope, sessionId));
         }
         ViewBag.Branches = await branches.AllAsync(Scope);
         ViewBag.Users = await users.AllAsync(Scope);
         ViewBag.Admins = Scope.IsSuper ? (await admins.ListAsync(new PageQuery(1, 100), Scope)).Items.Select(a => new NamedItem(a.Id, a.Name)).ToList() : new List<NamedItem> { new(Scope.Id, Scope.Name) };
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, sessionId));
     }
 
     public async Task<IActionResult> Edit(int id)
@@ -106,8 +106,8 @@ public sealed class CarsController(VinService svc, WarehouseService warehouses, 
 [Roles(AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.VehicleWarehouseManager)]
 public sealed class VinRequestsController(VinRequestService svc, ListExports xl) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
-    public async Task<IActionResult> Export(string? search, int? year) => Excel(await xl.VinRequestsAsync(search, year, Scope));
+    public async Task<IActionResult> Index(string? search, int? sessionId, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, sessionId));
+    public async Task<IActionResult> Export(string? search, int? sessionId) => Excel(await xl.VinRequestsAsync(search, sessionId, Scope));
     [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.DecideAsync(id, true, Scope), "تمت الموافقة على تصحيح VIN");
     [HttpPost] public async Task<IActionResult> Reject(int id) => Done(await svc.DecideAsync(id, false, Scope), "تم رفض طلب تصحيح VIN");
 }
@@ -120,7 +120,7 @@ public sealed class SessionsController(SessionService svc, ListExports xl) : Das
 
     [HttpPost]
     [RequestSizeLimit(25 * 1024 * 1024)]
-    public async Task<IActionResult> Start(int? year, List<IFormFile>? file)
+    public async Task<IActionResult> Start(int? year, List<IFormFile>? file, SessionKind kind = SessionKind.Annual, int? month = null)
     {
         if (!ModelState.IsValid) return Done(OpResult.Fail("السنة غير صالحة، أدخل سنة بين 2000 و2100"), "");
         var picked = (file ?? new()).Where(f => f.Length > 0).ToList();
@@ -129,7 +129,7 @@ public sealed class SessionsController(SessionService svc, ListExports xl) : Das
         try
         {
             var input = picked.Select((f, i) => (streams[i], f.FileName, f.Length)).ToList();
-            return Done(await svc.StartAsync(year ?? Ui.Local(DateTime.UtcNow).Year, input, Scope), "تم بدء جلسة الجرد");
+            return Done(await svc.StartAsync(kind, year ?? Ui.Local(DateTime.UtcNow).Year, month, input, Scope), "تم بدء جلسة الجرد");
         }
         finally { foreach (var st in streams) await st.DisposeAsync(); }
     }

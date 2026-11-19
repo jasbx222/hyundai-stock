@@ -87,6 +87,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.Property(x => x.FileName).HasMaxLength(260);
             e.Property(x => x.StoredFileName).HasMaxLength(260);
+            e.Property(x => x.Name).HasMaxLength(60);
+            e.HasIndex(x => new { x.Year, x.Kind, x.Month });
             e.HasOne(x => x.StartedByAdmin).WithMany().HasForeignKey(x => x.StartedByAdminId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<InventoryPart>(e =>

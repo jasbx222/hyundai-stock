@@ -1,16 +1,16 @@
 @model PagedResult<MissingVinRow>
 @{ ViewData["Title"] = "فروقات السيارات"; ViewData["Nav"] = "cars"; }
 <div class="ph"><div><h1>فروقات السيارات</h1><p class="muted">سيارات ملف الجلسة التي لم تُجرد بعد</p></div>
-    <div class="acts"><a class="btn p" href="/Exports/Vins?missing=true@(Ui.FilterQuery(Context.Request, "year", "search"))" title="تحميل ملف Excel بالسيارات غير المعدودة">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
+    <div class="acts"><a class="btn p" href="/Exports/Vins?missing=true@(Ui.FilterQuery(Context.Request, "sessionId", "search"))" title="تحميل ملف Excel بالسيارات غير المعدودة">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar"><a class="btn sm" href="/Cars">المعدودة</a><a class="btn sm p" href="/Cars?view=missing">فروقات السيارات</a>@await Html.PartialAsync("_Search", "بحث برقم الشاصي أو النوع")@await Html.PartialAsync("_YearFilter", "آخر جلسة")</div>
+    <div class="toolbar"><a class="btn sm" href="/Cars">المعدودة</a><a class="btn sm p" href="/Cars?view=missing">فروقات السيارات</a>@await Html.PartialAsync("_Search", "بحث برقم الشاصي أو النوع")@await Html.PartialAsync("_SessionFilter", "آخر جلسة")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد فروقات", "كل سيارات الملف تم جردها.", "car")) }
     else {
     <div class="hscroll"><table>
         <thead><tr><th>رقم الشاصي</th><th>نوع المركبة</th><th>سنة الصنع</th><th>المستودع</th><th>الفرع</th><th>الجلسة</th></tr></thead>
         <tbody>
         @foreach (var v in Model.Items) {
-            <tr><td><span class="mono" dir="ltr">@v.Vin</span></td><td>@(v.VehicleType ?? "—")</td><td class="num">@(v.ManufactureYear?.ToString() ?? "—")</td><td>@(v.WarehouseName ?? "—")</td><td>@(v.BranchName ?? "—")</td><td>جرد @v.SessionYear</td></tr>
+            <tr><td><span class="mono" dir="ltr">@v.Vin</span></td><td>@(v.VehicleType ?? "—")</td><td class="num">@(v.ManufactureYear?.ToString() ?? "—")</td><td>@(v.WarehouseName ?? "—")</td><td>@(v.BranchName ?? "—")</td><td>جرد @v.SessionName</td></tr>
         }
         </tbody>
     </table></div>

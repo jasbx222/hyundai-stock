@@ -9,11 +9,11 @@
             <a href="#" data-modal="#exp-admin">@Ui.Icon("shield", 16) للمسؤول</a>
             <a href="#" data-modal="#exp-user">@Ui.Icon("user", 16) للمستخدم</a>
         </div></div>
-        <a class="btn p" href="/Exports/Cars?@Ui.FilterQuery(Context.Request, "year", "search").TrimStart('&')" title="تحميل ملف Excel بالمركبات حسب الفلتر الحالي (السنة والبحث)، أو آخر جلسة بدون فلتر">@Ui.Icon("export", 16) تصدير حسب الفلتر</a>
+        <a class="btn p" href="/Exports/Cars?@Ui.FilterQuery(Context.Request, "sessionId", "search").TrimStart('&')" title="تحميل ملف Excel بالمركبات حسب الفلتر الحالي (السنة والبحث)، أو آخر جلسة بدون فلتر">@Ui.Icon("export", 16) تصدير حسب الفلتر</a>
     </div>
 </div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar"><a class="btn sm p" href="/Cars">المعدودة</a><a class="btn sm" href="/Cars?view=missing@(Ui.FilterQuery(Context.Request, "year"))">فروقات السيارات</a>@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    <div class="toolbar"><a class="btn sm p" href="/Cars">المعدودة</a><a class="btn sm" href="/Cars?view=missing@(Ui.FilterQuery(Context.Request, "sessionId"))">فروقات السيارات</a>@await Html.PartialAsync("_Search", "بحث...")@await Html.PartialAsync("_SessionFilter", "كل الجلسات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا المركبات التي تُمسح من التطبيق.", "car")) }
     else {
     <div class="hscroll"><table>
@@ -21,7 +21,7 @@
         <tbody>
         @foreach (var v in Model.Items) {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            <tr><td><span class="idx">@Ui.Idx(v.Id)</span></td><td><span class="mono" dir="ltr">@v.Vin</span></td><td>@(v.VehicleType ?? "—")</td><td class="num">@(v.ManufactureYear?.ToString() ?? "—")</td><td>جرد @v.SessionYear</td><td>@v.UserName</td><td>@v.WarehouseName</td><td>@v.BranchName</td>
+            <tr><td><span class="idx">@Ui.Idx(v.Id)</span></td><td><span class="mono" dir="ltr">@v.Vin</span></td><td>@(v.VehicleType ?? "—")</td><td class="num">@(v.ManufactureYear?.ToString() ?? "—")</td><td>جرد @v.SessionName</td><td>@v.UserName</td><td>@v.WarehouseName</td><td>@v.BranchName</td>
                 <td>@if (v.Latitude.HasValue) { <a class="coord mono" dir="ltr" target="_blank" rel="noopener" href="https://www.google.com/maps?q=@v.Latitude.Value.ToString(inv),@v.Longitude!.Value.ToString(inv)">@v.Latitude.Value.ToString("F4", inv), @v.Longitude.Value.ToString("F4", inv)</a> } else { <span class="muted">—</span> }</td>
                 <td>@Ui.Day(v.CreatedAt)</td>
                 <td><div class="ra"><a class="btn sm g" href="/Cars/Edit/@v.Id" title="تعديل" aria-label="تعديل">@Ui.Icon("edit", 16)</a></div></td></tr>

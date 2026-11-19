@@ -273,19 +273,26 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
     public Task<PagedResult<SessionRow>> ListAsync(PageQuery p)
     {
         var q = db.Sessions.AsNoTracking().AsQueryable();
-        if (p.Term is string t) q = q.Where(x => x.Year.ToString().Contains(t) || x.FileName.Contains(t) || x.StartedByAdmin!.Name.Contains(t));
-        var rows = q.OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).Select(x => new SessionRow(x.Id, x.Year, x.Status, x.StartedByAdmin!.Name, x.StartedAt, x.EndedAt, x.FileName, x.Parts.Count(), x.ExpectedVins.Count()));
+        if (p.Term is string t) q = q.Where(x => x.Year.ToString().Contains(t) || x.Name.Contains(t) || x.FileName.Contains(t) || x.StartedByAdmin!.Name.Contains(t));
+        var rows = q.OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).Select(x => new SessionRow(x.Id, x.Year, x.Status, x.StartedByAdmin!.Name, x.StartedAt, x.EndedAt, x.FileName, x.Parts.Count(), x.ExpectedVins.Count(), x.Name, x.Kind, x.Month));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
     public Task<OpResult> StartAsync(int year, Stream file, string fileName, long length, AdminScope s)
-        => StartAsync(year, new[] { (file, fileName, length) }, s);
+        => StartAsync(SessionKind.Annual, year, null, new[] { (file, fileName, length) }, s);
 
-    /// <summary>Starts a session from one or more files (our template, or the system's raw reports as exported).</summary>
-    public async Task<OpResult> StartAsync(int year, IReadOnlyList<(Stream file, string fileName, long length)> files, AdminScope s)
+    public Task<OpResult> StartAsync(int year, IReadOnlyList<(Stream file, string fileName, long length)> files, AdminScope s)
+        => StartAsync(SessionKind.Annual, year, null, files, s);
+
+    /// <summary>Starts an annual or monthly session from one or more files (our template, or the system's raw reports as exported).
+    /// One annual session per year and one monthly session per month, and only one session in progress at a time.</summary>
+    public async Task<OpResult> StartAsync(SessionKind kind, int year, int? month, IReadOnlyList<(Stream file, string fileName, long length)> files, AdminScope s)
     {
         if (!s.CanStartSession) return OpResult.Fail("بدء الجلسة للمسؤول الرئيسي والسوبر أدمن ومدير الحسابات فقط");
+        if (!Enum.IsDefined(kind)) return OpResult.Fail("نوع الجرد غير صالح");
         if (year < 2000 || year > 2100) return OpResult.Fail("السنة غير صالحة");
+        if (kind == SessionKind.Monthly && month is not (>= 1 and <= 12)) return OpResult.Fail("اختر شهر الجرد");
+        if (kind == SessionKind.Annual) month = null;
         if (files.Count == 0) return OpResult.Fail("اختر ملف Excel");
         foreach (var (_, fileName, length) in files)
         {
@@ -295,8 +302,11 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
         }
         if (files.Sum(x => x.length) > opt.Value.MaxUploadBytes) return OpResult.Fail("حجم الملفات أكبر من المسموح");
         if (await db.Sessions.AnyAsync(x => x.Status == SessionStatus.InProgress)) return OpResult.Fail("توجد جلسة جرد قيد التنفيذ، أنهِها أولاً");
-        var existing = await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Year == year);
-        if (existing != null) return OpResult.Fail($"توجد جلسة جرد لسنة {year} ({Labels.Session(existing.Status)}). لا يمكن إنشاء أكثر من جلسة للسنة نفسها حتى لو كانت مكتملة");
+        var name = Labels.SessionName(kind, year, month);
+        var existing = await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Year == year && x.Kind == kind && x.Month == month);
+        if (existing != null) return OpResult.Fail(kind == SessionKind.Monthly
+            ? $"توجد جلسة «{name}» ({Labels.Session(existing.Status)}). لا يمكن إنشاء أكثر من جرد للشهر نفسه حتى لو كان مكتملًا"
+            : $"توجد جلسة جرد لسنة {year} ({Labels.Session(existing.Status)}). لا يمكن إنشاء أكثر من جلسة للسنة نفسها حتى لو كانت مكتملة");
 
         var buffers = new List<(string name, byte[] data)>();
         foreach (var (file, fileName, _) in files)
@@ -332,9 +342,9 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
                     await es.WriteAsync(d);
                 }
             }
-            shownName = $"session-{year}-files.zip";
+            shownName = $"session-{Labels.SessionCode(kind, year, month)}-files.zip";
         }
-        var session = new StocktakingSession { Year = year, StartedByAdminId = s.Id, StartedAt = DateTime.UtcNow, FileName = shownName.Length > 260 ? shownName[..260] : shownName, StoredFileName = stored };
+        var session = new StocktakingSession { Year = year, Kind = kind, Month = month, Name = name, StartedByAdminId = s.Id, StartedAt = DateTime.UtcNow, FileName = shownName.Length > 260 ? shownName[..260] : shownName, StoredFileName = stored };
         // Fast path for ~16k rows: save the session, then bulk-add rows with change tracking off, all in one transaction
         // (wrapped in the execution strategy so SQL Server retry-on-failure works with a user transaction).
         var prevDetect = db.ChangeTracker.AutoDetectChangesEnabled;

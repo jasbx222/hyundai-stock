@@ -101,7 +101,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public async Task<MobileSession?> CurrentSessionAsync()
     {
         var s = await sessions.CurrentAsync();
-        return s == null ? null : new MobileSession(s.Id, s.Year, $"جلسة جرد {s.Year}", Labels.Session(s.Status), s.StartedAt);
+        return s == null ? null : new MobileSession(s.Id, s.Year, s.Name.Length > 0 ? s.Name : Labels.SessionName(s.Kind, s.Year, s.Month), Labels.Session(s.Status), s.StartedAt);
     }
 
     public async Task<MobileResult<PagedResult<MobilePart>>> PartsAsync(int userId, PageQuery p, int? warehouseId, bool? counted, bool mine = false, string? code = null)

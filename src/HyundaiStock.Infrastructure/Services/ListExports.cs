@@ -44,17 +44,17 @@ public sealed class ListExports(BranchService branches, WarehouseService warehou
         return ExportService.Build("Warehouses", "Warehouses", h, new[] { 16.48, 28.08, 24, 12 }, rows.Select(x => new object?[] { x.Number, x.Name, x.BranchName, Labels.Type(x.Type) }));
     }
 
-    public async Task<ExportFile> RecountsAsync(string? search, int? year, AdminScope s)
+    public async Task<ExportFile> RecountsAsync(string? search, int? sessionId, AdminScope s)
     {
-        var rows = (await parts.RecountsAsync(All(search), s, year)).Items;
+        var rows = (await parts.RecountsAsync(All(search), s, sessionId)).Items;
         string[] h = { "Part Number", "Requested By", "Assigned To", "Date", "Status", "Result Quantity" };
         return ExportService.Build("Recounts", "Recounts", h, new[] { 18.0, 22, 22, 20, 14, 16 },
             rows.Select(x => new object?[] { x.PartNumber, x.RequestedBy, x.AssignedTo, x.CreatedAt, x.Status == RecountStatus.Completed ? "مكتمل" : "قيد الانتظار", x.Status == RecountStatus.Completed ? x.ResultQuantity : null }));
     }
 
-    public async Task<ExportFile> VinRequestsAsync(string? search, int? year, AdminScope s)
+    public async Task<ExportFile> VinRequestsAsync(string? search, int? sessionId, AdminScope s)
     {
-        var rows = (await vinRequests.ListAsync(All(search), s, year)).Items;
+        var rows = (await vinRequests.ListAsync(All(search), s, sessionId)).Items;
         string[] h = { "Current VIN", "New VIN", "Reason", "Requested By", "Decided By", "Status", "Date", "Decision Date" };
         return ExportService.Build("VIN Requests", "VIN-Requests", h, new[] { 22.0, 22, 30, 22, 22, 14, 20, 20 },
             rows.Select(x => new object?[] { x.CurrentVin, x.NewVin, x.Reason, x.RequestedBy, x.ApprovedBy ?? "", Labels.Qty(x.Status), x.CreatedAt, x.ApprovedAt }));
@@ -63,8 +63,8 @@ public sealed class ListExports(BranchService branches, WarehouseService warehou
     public async Task<ExportFile> SessionsAsync(string? search)
     {
         var rows = (await sessions.ListAsync(All(search))).Items;
-        string[] h = { "Year", "Status", "Started By", "Started At", "Ended At", "File", "Parts", "VINs" };
-        return ExportService.Build("Sessions", "Sessions", h, new[] { 10.0, 14, 22, 20, 20, 36, 10, 10 },
-            rows.Select(x => new object?[] { x.Year, Labels.Session(x.Status), x.StartedBy, x.StartedAt, x.EndedAt, x.FileName, x.Parts, x.Vins }));
+        string[] h = { "Session", "Type", "Year", "Month", "Status", "Started By", "Started At", "Ended At", "File", "Parts", "VINs" };
+        return ExportService.Build("Sessions", "Sessions", h, new[] { 24.0, 10, 10, 8, 14, 22, 20, 20, 36, 10, 10 },
+            rows.Select(x => new object?[] { x.Name, Labels.SessionKindLabel(x.Kind), x.Year, x.Month, Labels.Session(x.Status), x.StartedBy, x.StartedAt, x.EndedAt, x.FileName, x.Parts, x.Vins }));
     }
 }

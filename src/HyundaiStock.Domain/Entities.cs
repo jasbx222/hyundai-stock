@@ -111,9 +111,17 @@ public class AppUserWarehouse
     public Warehouse? Warehouse { get; set; }
 }
 
+/// <summary>Annual count (one per year) or monthly count (one per month). Both work the same way: parts, vehicles and variances to accounts.</summary>
+public enum SessionKind { Annual = 0, Monthly = 1 }
+
 public class StocktakingSession : Entity
 {
     public int Year { get; set; }
+    public SessionKind Kind { get; set; } = SessionKind.Annual;
+    /// <summary>1 to 12 for a monthly count, null for an annual one.</summary>
+    public int? Month { get; set; }
+    /// <summary>Shown everywhere a session is named: «جرد سنوي 2026» or «جرد شباط 2026». Set when the session starts.</summary>
+    public string Name { get; set; } = "";
     public SessionStatus Status { get; set; } = SessionStatus.InProgress;
     public int StartedByAdminId { get; set; }
     public Admin? StartedByAdmin { get; set; }
@@ -384,6 +392,15 @@ public static class Labels
     public static string Direction(int? counted, int system) => counted is not int c ? "—" : c > system ? "أعلى" : c < system ? "أقل" : "مطابق";
     public static string Type(WarehouseType t) => t == WarehouseType.Type1 ? "نوع 1" : "نوع 2";
     public static string Session(SessionStatus s) => s == SessionStatus.InProgress ? "قيد التنفيذ" : "مكتمل";
+    public static readonly string[] Months = { "كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول" };
+    public static string MonthName(int month) => month is >= 1 and <= 12 ? Months[month - 1] : month.ToString();
+    public static string SessionKindLabel(SessionKind k) => k == SessionKind.Monthly ? "شهري" : "سنوي";
+    /// <summary>Display name of a session: «جرد سنوي 2026» or «جرد شباط 2026».</summary>
+    public static string SessionName(SessionKind kind, int year, int? month) =>
+        kind == SessionKind.Monthly && month is int m ? $"جرد {MonthName(m)} {year}" : $"جرد سنوي {year}";
+    /// <summary>ASCII code for file names: 2026 or 2026-02.</summary>
+    public static string SessionCode(SessionKind kind, int year, int? month) =>
+        kind == SessionKind.Monthly && month is int m ? $"{year}-{m:00}" : year.ToString();
     public static string Qty(RequestStatus s) => s switch { RequestStatus.Pending => "قيد الانتظار", RequestStatus.Approved => "مقبول", _ => "مرفوض" };
     /// <summary>Labels shown to the counter. Pending is split by the existing approval level so older rows stay valid.</summary>
     public static string QtyMobile(RequestStatus s, ApprovalLevel l) => s switch

@@ -8,7 +8,7 @@ namespace HyundaiStock.Web.Controllers;
 
 public sealed class HomeController(AppDbContext db, SessionLookup sessions) : DashboardController
 {
-    public async Task<IActionResult> Index(int? year) => View(await HomeStats.BuildAsync(db, sessions, Scope, year));
+    public async Task<IActionResult> Index(int? sessionId) => View(await HomeStats.BuildAsync(db, sessions, Scope, sessionId));
 
     [AllowAnonymous]
     public IActionResult NotFoundPage() { Response.StatusCode = 404; return View("~/Views/Shared/NotFound.cshtml"); }

@@ -35,7 +35,7 @@ public sealed class RecountListTests : IDisposable
         _db.AppUsers.Add(_counter);
         _db.SaveChanges();
         _db.AppUserWarehouses.Add(new AppUserWarehouse { AppUserId = _counter.Id, WarehouseId = _warehouse.Id });
-        var session = new StocktakingSession { Year = 2026, Status = SessionStatus.InProgress, StartedByAdminId = _main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
+        var session = new StocktakingSession { Year = 2026, Name = "جرد سنوي 2026", Status = SessionStatus.InProgress, StartedByAdminId = _main.Id, FileName = "a.xlsx", StoredFileName = "a.xlsx" };
         _db.Sessions.Add(session);
         _db.SaveChanges();
         _part = new InventoryPart { SessionId = session.Id, PartNumber = "263203N000", Description = "فلتر", WarehouseId = _warehouse.Id, BranchId = _branch.Id, CountedQuantity = 50, CountedByUserId = _counter.Id };

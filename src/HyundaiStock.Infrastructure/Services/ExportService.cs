@@ -26,7 +26,7 @@ public sealed class ExportFilter
     public int? WarehouseId { get; set; }
     public int? UserId { get; set; }
     public int? AdminId { get; set; }
-    /// <summary>Stocktaking year picked on the page. Used when no session id is given.</summary>
+    /// <summary>Older links by year: resolves to that year's annual session. The session id wins when both are given.</summary>
     public int? Year { get; set; }
     /// <summary>Search text from the page, so the file matches what the page shows.</summary>
     public string? Search { get; set; }
@@ -53,7 +53,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
     private async Task<(int sessionId, string label)> ResolveSession(ExportFilter f)
     {
         StocktakingSession? s = f.SessionId is int id ? await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id) : await sessions.ForYearAsync(f.Year);
-        return s == null ? (-1, "بدون-جلسة") : (s.Id, s.Year.ToString());
+        return s == null ? (-1, "بدون-جلسة") : (s.Id, Labels.SessionCode(s.Kind, s.Year, s.Month));
     }
 
     private async Task<int?> BranchFilter(ExportFilter f, AdminScope scope)
@@ -212,7 +212,7 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         return Build("Warehouses", "Warehouses", WarehousesHeaders, WarehousesWidths, data.Select(x => new object?[] { x.Number, x.Name, x.B }));
     }
 
-    public sealed record FinanceRow(int Id, string PartNumber, string Description, int SystemQuantity, int? CountedQuantity, int? Difference, decimal Price, decimal? FinancialDifference, string? Branch, string? Warehouse, int Year, string? RecountedBy);
+    public sealed record FinanceRow(int Id, string PartNumber, string Description, int SystemQuantity, int? CountedQuantity, int? Difference, decimal Price, decimal? FinancialDifference, string? Branch, string? Warehouse, string Session, string? RecountedBy);
 
     public async Task<(PagedResult<FinanceRow>? Page, string? Error, bool Forbidden)> FinanceListAsync(FinanceFilter f, PageQuery p, AdminScope s)
     {
@@ -229,14 +229,14 @@ public sealed class ExportService(AppDbContext db, SessionLookup sessions)
         var file = Build("Variance", "Financial-Variance",
             new[] { "Part Number", "Description", "System Quantity", "Counted Quantity", "Difference", "Variance", "Price", "Financial Difference", "Branch", "Warehouse", "Session", "Recounted By" },
             new[] { 22d, 40, 16, 16, 14, 14, 14, 18, 18, 18, 12, 22 },
-            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Difference, Labels.Variance(x.CountedQuantity, x.SystemQuantity), x.Price, x.FinancialDifference, x.Branch ?? "", x.Warehouse ?? "", x.Year, x.RecountedBy ?? "" }));
+            data.Select(x => new object?[] { x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity, x.Difference, Labels.Variance(x.CountedQuantity, x.SystemQuantity), x.Price, x.FinancialDifference, x.Branch ?? "", x.Warehouse ?? "", x.Session, x.RecountedBy ?? "" }));
         return (file, null, false);
     }
 
     private IQueryable<FinanceRow> FinanceRows(IQueryable<InventoryPart> q) => q.Select(x => new FinanceRow(x.Id, x.PartNumber, x.Description, x.SystemQuantity, x.CountedQuantity,
         x.CountedQuantity == null ? null : x.CountedQuantity - x.SystemQuantity, x.Price,
         x.CountedQuantity == null ? null : decimal.Round((x.CountedQuantity.Value - x.SystemQuantity) * x.Price, 2, MidpointRounding.AwayFromZero),
-        x.Branch != null ? x.Branch.Name : null, x.Warehouse != null ? x.Warehouse.Name : null, x.Session!.Year,
+        x.Branch != null ? x.Branch.Name : null, x.Warehouse != null ? x.Warehouse.Name : null, x.Session!.Name,
         db.RecountRequests.Where(r => r.InventoryPartId == x.Id && r.Status == RecountStatus.Completed)
             .OrderByDescending(r => r.CompletedAt).ThenByDescending(r => r.Id)
             .Select(r => r.AssignedUser!.Name).FirstOrDefault()));

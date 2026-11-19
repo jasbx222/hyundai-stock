@@ -9,10 +9,10 @@ public sealed record PartRow(int Id, string PartNumber, string Description, int?
 public sealed record RecountListRow(int Id, string PartNumber, string RequestedBy, string AssignedTo, DateTime CreatedAt, RecountStatus Status, int? ResultQuantity);
 public sealed record ChangeLogRow(int Id, string Field, string? OldValue, string? NewValue, string ChangedBy, string Source, DateTime CreatedAt);
 public sealed record RecountRow(int Id, string UserName, string RequestedBy, RecountStatus Status, int? ResultQuantity, DateTime CreatedAt, DateTime? CompletedAt);
-public sealed record VinRow(int Id, string Vin, int SessionYear, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt, string? VehicleType = null, int? ManufactureYear = null);
-public sealed record MissingVinRow(int Id, string Vin, string? VehicleType, int? ManufactureYear, string? WarehouseName, string? BranchName, int SessionYear, DateTime CreatedAt);
+public sealed record VinRow(int Id, string Vin, string SessionName, string UserName, string WarehouseName, string BranchName, double? Latitude, double? Longitude, DateTime CreatedAt, string? VehicleType = null, int? ManufactureYear = null);
+public sealed record MissingVinRow(int Id, string Vin, string? VehicleType, int? ManufactureYear, string? WarehouseName, string? BranchName, string SessionName, DateTime CreatedAt);
 public sealed record VinReqRow(int Id, string CurrentVin, string NewVin, string Reason, string RequestedBy, string? ApprovedBy, RequestStatus Status, DateTime CreatedAt, DateTime? ApprovedAt);
-public sealed record SessionRow(int Id, int Year, SessionStatus Status, string StartedBy, DateTime StartedAt, DateTime? EndedAt, string FileName, int Parts, int Vins);
+public sealed record SessionRow(int Id, int Year, SessionStatus Status, string StartedBy, DateTime StartedAt, DateTime? EndedAt, string FileName, int Parts, int Vins, string Name = "", SessionKind Kind = SessionKind.Annual, int? Month = null);
 
 public sealed class PartDetails
 {
@@ -26,13 +26,19 @@ public sealed class SessionLookup(AppDbContext db)
 {
     public Task<StocktakingSession?> CurrentAsync() => db.Sessions.AsNoTracking().Where(x => x.Status == SessionStatus.InProgress).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync();
     public Task<StocktakingSession?> LatestAsync() => db.Sessions.AsNoTracking().OrderBy(x => x.Status).ThenByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync();
-    public Task<List<NamedItem>> OptionsAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).Select(x => new NamedItem(x.Id, x.Year.ToString(), null)).ToListAsync();
-    /// <summary>Stocktaking years that have a session, newest first. Feeds the year filter on every page.</summary>
-    public Task<List<int>> YearsAsync() => db.Sessions.AsNoTracking().Select(x => x.Year).Distinct().OrderByDescending(x => x).ToListAsync();
-    /// <summary>The session of the given year (one per year), or the latest session when no year is chosen. A year with no session returns null.</summary>
-    public async Task<StocktakingSession?> ForYearAsync(int? year) => year is int y
-        ? await db.Sessions.AsNoTracking().Where(x => x.Year == y).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync()
+    /// <summary>Every session (annual and monthly), newest first, by its display name. Feeds the session filter on every page.</summary>
+    public Task<List<NamedItem>> OptionsAsync() => db.Sessions.AsNoTracking().OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id).Select(x => new NamedItem(x.Id, x.Name, null)).ToListAsync();
+    /// <summary>The chosen session, or the latest one when none is chosen. An unknown id returns null.</summary>
+    public async Task<StocktakingSession?> ForSessionAsync(int? id) => id is int sid
+        ? await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == sid)
         : await LatestAsync();
+    /// <summary>Older links filtered by year: the annual session of that year, else its newest monthly one. A year with no session returns null.</summary>
+    public async Task<StocktakingSession?> ForYearAsync(int? year) => year is int y
+        ? await db.Sessions.AsNoTracking().Where(x => x.Year == y).OrderBy(x => x.Kind).ThenByDescending(x => x.StartedAt).FirstOrDefaultAsync()
+        : await LatestAsync();
+    /// <summary>Session id for a page filter: the chosen session, else the session of an older year link, else null (no filter).</summary>
+    public async Task<int?> PickAsync(int? sessionId, int? year) =>
+        sessionId ?? (year is int ? (await ForYearAsync(year))?.Id ?? -1 : null);
 }
 
 public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockNotifier? notify = null)
@@ -46,9 +52,9 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
         return q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value));
     }
 
-    public async Task<(PagedResult<PartRow> page, StocktakingSession? session)> ListAsync(PageQuery p, AdminScope s, string? view = null, int? year = null)
+    public async Task<(PagedResult<PartRow> page, StocktakingSession? session)> ListAsync(PageQuery p, AdminScope s, string? view = null, int? sessionId = null)
     {
-        var latest = await sessions.ForYearAsync(year);
+        var latest = await sessions.ForSessionAsync(sessionId);
         var sid = latest?.Id ?? -1;
         var q = Scoped(s).Where(x => x.SessionId == sid && !db.NewPartRequests.Any(r => r.InventoryPartId == x.Id));
         if (view == "counted") q = q.Where(x => x.CountedQuantity != null);
@@ -61,10 +67,10 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
         return (Paging.Build(rows, p), latest);
     }
 
-    public Task<PagedResult<RecountListRow>> RecountsAsync(PageQuery p, AdminScope s, int? year = null)
+    public Task<PagedResult<RecountListRow>> RecountsAsync(PageQuery p, AdminScope s, int? sessionId = null)
     {
         var q = db.RecountRequests.AsNoTracking().AsQueryable();
-        if (year is int y) q = q.Where(x => x.InventoryPart!.Session!.Year == y);
+        if (sessionId is int y) q = q.Where(x => x.InventoryPart!.SessionId == y);
         if (!s.IsUnrestricted)
         {
             if (s.Role == AdminRole.WarehouseManager) { var ids = s.Warehouses.ToList(); q = q.Where(x => x.InventoryPart!.WarehouseId != null && ids.Contains(x.InventoryPart.WarehouseId.Value)); }
@@ -140,7 +146,7 @@ public sealed class PartService(AppDbContext db, SessionLookup sessions, IStockN
     }
 }
 
-public sealed record RecountAskRow(int Id, string PartNumber, string Description, string RequestedBy, string? BranchName, string? WarehouseName, string? CountedLocation, int? CountedQuantity, RecountAskStatus Status, string? DecidedBy, DateTime CreatedAt, int SessionYear);
+public sealed record RecountAskRow(int Id, string PartNumber, string Description, string RequestedBy, string? BranchName, string? WarehouseName, string? CountedLocation, int? CountedQuantity, RecountAskStatus Status, string? DecidedBy, DateTime CreatedAt, string SessionName);
 
 /// <summary>Counters ask to recount a part they already counted. Approval hands the part back to that counter as a recount task and notifies them.</summary>
 public sealed class RecountAskService(AppDbContext db, IStockNotifier? notify = null)
@@ -154,15 +160,15 @@ public sealed class RecountAskService(AppDbContext db, IStockNotifier? notify = 
         return q.Where(x => x.InventoryPart!.BranchId != null && branches.Contains(x.InventoryPart.BranchId.Value));
     }
 
-    public Task<PagedResult<RecountAskRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
+    public Task<PagedResult<RecountAskRow>> ListAsync(PageQuery p, AdminScope s, int? sessionId = null)
     {
         var q = Scoped(s);
-        if (year is int y) q = q.Where(x => x.InventoryPart!.Session!.Year == y);
+        if (sessionId is int y) q = q.Where(x => x.InventoryPart!.SessionId == y);
         if (p.Term is string t) q = q.Where(x => x.InventoryPart!.PartNumber.Contains(t) || x.RequestedByUser!.Name.Contains(t));
         var rows = q.OrderBy(x => x.Status).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
             .Select(x => new RecountAskRow(x.Id, x.InventoryPart!.PartNumber, x.InventoryPart.Description, x.RequestedByUser!.Name,
                 x.InventoryPart.Branch != null ? x.InventoryPart.Branch.Name : null, x.InventoryPart.Warehouse != null ? x.InventoryPart.Warehouse.Name : null,
-                x.InventoryPart.CountedLocation, x.InventoryPart.CountedQuantity, x.Status, x.DecidedByAdmin != null ? x.DecidedByAdmin.Name : null, x.CreatedAt, x.InventoryPart.Session!.Year));
+                x.InventoryPart.CountedLocation, x.InventoryPart.CountedQuantity, x.Status, x.DecidedByAdmin != null ? x.DecidedByAdmin.Name : null, x.CreatedAt, x.InventoryPart.Session!.Name));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
@@ -219,21 +225,21 @@ public sealed class VinService(AppDbContext db, SessionLookup sessions)
         return q.Where(x => branches.Contains(x.BranchId));
     }
 
-    public Task<PagedResult<VinRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
+    public Task<PagedResult<VinRow>> ListAsync(PageQuery p, AdminScope s, int? sessionId = null)
     {
         var q = Scoped(s);
-        if (year is int y) q = q.Where(x => x.Session!.Year == y);
+        if (sessionId is int y) q = q.Where(x => x.SessionId == y);
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t) || x.User!.Name.Contains(t) || x.Warehouse!.Name.Contains(t));
-        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinRow(x.Id, x.Vin, x.Session!.Year, x.User!.Name, x.Warehouse!.Name, x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
+        var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinRow(x.Id, x.Vin, x.Session!.Name, x.User!.Name, x.Warehouse!.Name, x.Branch!.Name, x.Latitude, x.Longitude, x.CreatedAt,
             db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.Model).FirstOrDefault(),
             db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault()));
         return Task.FromResult(Paging.Build(rows, p));
     }
 
     /// <summary>Vehicle differences: VINs of the session file that nobody has scanned yet.</summary>
-    public async Task<PagedResult<MissingVinRow>> MissingAsync(PageQuery p, AdminScope s, int? year = null)
+    public async Task<PagedResult<MissingVinRow>> MissingAsync(PageQuery p, AdminScope s, int? sessionId = null)
     {
-        var session = await sessions.ForYearAsync(year);
+        var session = await sessions.ForSessionAsync(sessionId);
         var sid = session?.Id ?? -1;
         var q = db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == sid && !db.ScannedVins.Any(v => v.SessionId == x.SessionId && v.Vin == x.Vin));
         if (!s.IsUnrestricted)
@@ -242,7 +248,7 @@ public sealed class VinService(AppDbContext db, SessionLookup sessions)
             else { var branches = s.Branches.ToList(); q = q.Where(x => x.BranchId != null && branches.Contains(x.BranchId.Value)); }
         }
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t) || (x.Model != null && x.Model.Contains(t)));
-        var rows = q.OrderBy(x => x.Vin).Select(x => new MissingVinRow(x.Id, x.Vin, x.Model, x.ManufactureYear, x.Warehouse != null ? x.Warehouse.Name : null, x.Branch != null ? x.Branch.Name : null, session!.Year, x.CreatedAt));
+        var rows = q.OrderBy(x => x.Vin).Select(x => new MissingVinRow(x.Id, x.Vin, x.Model, x.ManufactureYear, x.Warehouse != null ? x.Warehouse.Name : null, x.Branch != null ? x.Branch.Name : null, session!.Name, x.CreatedAt));
         return Paging.Build(rows, p);
     }
 
@@ -276,10 +282,10 @@ public sealed class VinRequestService(AppDbContext db)
         return q.Where(x => branches.Contains(x.ScannedVin!.BranchId));
     }
 
-    public Task<PagedResult<VinReqRow>> ListAsync(PageQuery p, AdminScope s, int? year = null)
+    public Task<PagedResult<VinReqRow>> ListAsync(PageQuery p, AdminScope s, int? sessionId = null)
     {
         var q = Scoped(s);
-        if (year is int y) q = q.Where(x => x.ScannedVin!.Session!.Year == y);
+        if (sessionId is int y) q = q.Where(x => x.ScannedVin!.SessionId == y);
         if (p.Term is string t) q = q.Where(x => x.CurrentVin.Contains(t) || x.NewVin.Contains(t) || x.RequestedByUser!.Name.Contains(t));
         var rows = q.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => new VinReqRow(x.Id, x.CurrentVin, x.NewVin, x.Reason, x.RequestedByUser!.Name,
             x.ApprovedByAdmin != null ? x.ApprovedByAdmin.Name : null, x.Status, x.CreatedAt, x.ApprovedAt));

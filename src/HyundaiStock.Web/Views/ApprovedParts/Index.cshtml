@@ -1,9 +1,9 @@
 @model PagedResult<NewPartRequestService.ApprovedPartRow>
 @{ ViewData["Title"] = "القطع الجديدة"; ViewData["Nav"] = "approvedparts"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph"><div><h1>القطع الجديدة</h1><p class="muted">القطع التي أضافها الموظفون للجرد وتمت الموافقة عليها.</p></div>
-    <div class="acts"><a class="btn p" href="/ApprovedParts/Export?@Ui.FilterQuery(Context.Request, "search", "year").TrimStart('&')" title="تحميل ملف Excel بالقطع الجديدة حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
+    <div class="acts"><a class="btn p" href="/ApprovedParts/Export?@Ui.FilterQuery(Context.Request, "search", "sessionId").TrimStart('&')" title="تحميل ملف Excel بالقطع الجديدة حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a></div></div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة")@await Html.PartialAsync("_SessionFilter", "كل الجلسات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm(string.IsNullOrEmpty(Context.Request.Query["search"]) ? "لا توجد بيانات" : "لا توجد نتائج", "ستظهر هنا القطع الجديدة بعد موافقة مدير قطع الغيار.", "plus")) }
     else {
     <div class="hscroll"><table>
@@ -11,7 +11,7 @@
         <tbody>
         @foreach (var r in Model.Items) {
             <tr><td><span class="idx">@r.Reference</span></td><td><span class="mono">@r.PartNumber</span><div class="muted">@r.Description</div></td>
-                <td class="num">@r.Quantity</td><td>@r.Location</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionYear</td>
+                <td class="num">@r.Quantity</td><td>@r.Location</td><td>@r.BranchName</td><td>@r.WarehouseName</td><td>@Ui.Who(r.EmployeeName)</td><td>@r.SessionName</td>
                 <td>@Ui.Who(r.ApprovedBy)</td><td>@if (string.IsNullOrEmpty(r.AccountsApprovedBy)) { <span class="muted">—</span> } else { @Ui.Who(r.AccountsApprovedBy) }</td><td>@Ui.Day(r.ApprovedAt)</td>
                 @if (s.CanReviewNewPart) { <td><div class="ra"><a class="btn sm g" href="/NewParts/Details/@r.Id" title="التفاصيل" aria-label="التفاصيل">@Ui.Icon("eye", 16)</a></div></td> }
             </tr>

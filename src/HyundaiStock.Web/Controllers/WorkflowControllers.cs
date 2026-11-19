@@ -10,15 +10,15 @@ namespace HyundaiStock.Web.Controllers;
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class NewPartsController(NewPartRequestService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, string? status, int? year, int page = 1)
+    public async Task<IActionResult> Index(string? search, string? status, int? sessionId, int page = 1)
     {
         ViewBag.Status = status;
-        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, ParseStatus(status), year));
+        return View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, ParseStatus(status), sessionId));
     }
 
-    public async Task<IActionResult> Export(string? search, string? status, int? year)
+    public async Task<IActionResult> Export(string? search, string? status, int? sessionId)
     {
-        var f = await svc.ExportAsync(Scope, search, ParseStatus(status), year);
+        var f = await svc.ExportAsync(Scope, search, ParseStatus(status), sessionId);
         return File(f.Content, ExportFile.ContentType, f.FileName);
     }
 
@@ -40,7 +40,7 @@ public sealed class NewPartsController(NewPartRequestService svc) : DashboardCon
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Admin, AdminRole.WarehouseManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class RecountAsksController(RecountAskService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, year));
+    public async Task<IActionResult> Index(string? search, int? sessionId, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search), Scope, sessionId));
     [HttpPost] public async Task<IActionResult> Approve(int id) => Done(await svc.ApproveAsync(id, Scope), "تمت الموافقة وأُرسل إشعار للموظف لإعادة الجرد");
     [HttpPost] public async Task<IActionResult> Reject(int id, string? reason) => Done(await svc.RejectAsync(id, reason, Scope), "تم رفض الطلب");
 }
@@ -49,8 +49,8 @@ public sealed class RecountAsksController(RecountAskService svc) : DashboardCont
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.SparePartsManager, AdminRole.Accountant, AdminRole.AccountsManager)]
 public sealed class ApprovedPartsController(NewPartRequestService svc) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int? year, int page = 1) => View(await svc.ApprovedListAsync(new PageQuery(page, 10, search), Scope, year));
-    public async Task<IActionResult> Export(string? search, int? year) => Excel(await svc.ApprovedExportAsync(Scope, search, year));
+    public async Task<IActionResult> Index(string? search, int? sessionId, int page = 1) => View(await svc.ApprovedListAsync(new PageQuery(page, 10, search), Scope, sessionId));
+    public async Task<IActionResult> Export(string? search, int? sessionId) => Excel(await svc.ApprovedExportAsync(Scope, search, sessionId));
 }
 
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.Accountant, AdminRole.AccountsManager)]

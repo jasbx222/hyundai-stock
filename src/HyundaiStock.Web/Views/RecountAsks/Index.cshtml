@@ -2,7 +2,7 @@
 @{ ViewData["Title"] = "طلبات إعادة الجرد"; ViewData["Nav"] = "recountasks"; var s = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph"><div><h1>طلبات إعادة الجرد</h1><p class="muted">الموظف الذي جرد القطعة أول مرة يطلب إعادة جردها. عند الموافقة يصله إشعار ليجردها من جديد.</p></div></div>
 <div class="card" style="overflow:hidden">
-    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو اسم الموظف")@await Html.PartialAsync("_YearFilter", "كل السنوات")</div>
+    <div class="toolbar">@await Html.PartialAsync("_Search", "بحث برقم القطعة أو اسم الموظف")@await Html.PartialAsync("_SessionFilter", "كل الجلسات")</div>
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد طلبات", "ستظهر هنا طلبات إعادة الجرد من الموظفين.", "recount")) }
     else {
     <div class="hscroll"><table>
