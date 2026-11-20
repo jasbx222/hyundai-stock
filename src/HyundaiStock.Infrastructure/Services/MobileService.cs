@@ -16,7 +16,7 @@ public sealed record MobileSession(int Id, int Year, string Name, string Status,
 /// </summary>
 public sealed record MobilePart(int Id, string PartNumber, string Description, string? SystemLocation, int? WarehouseId, string? WarehouseName, int? CountedQuantity, string? CountedLocation, DateTime? CountedAt, bool CountedByMe, bool PendingApproval = false, int RowNo = 1, int RowCount = 1, bool IsCounted = false, string? CountedBy = null);
 public sealed record MobileVin(int Id, string Vin, int WarehouseId, string WarehouseName, double? Latitude, double? Longitude, DateTime CreatedAt, bool IsExpected, string? VehicleType = null, string? Dealer = null, int? ManufactureYear = null);
-public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned, string? Dealer = null, int? ManufactureYear = null);
+public sealed record MobileVinLookup(string Vin, bool IsExpected, string? VehicleType, bool AlreadyScanned, string? Dealer = null, int? ManufactureYear = null, string? ScannedBy = null, bool ScannedByMe = false);
 public sealed record MobileRecount(int Id, int PartId, string PartNumber, string Description, string? SystemLocation, string WarehouseName, string RequestedBy, DateTime CreatedAt, string Status = "قيد الانتظار", int? ResultQuantity = null, DateTime? CompletedAt = null, int? WarehouseId = null, int? BranchId = null, string? BranchName = null);
 public sealed record MobileVinRequest(int Id, string CurrentVin, string NewVin, string Reason, string Status, DateTime CreatedAt, DateTime? ApprovedAt);
 public sealed record HistoryItem(string Type, int Id, string Reference, string? Detail, int WarehouseId, string WarehouseName, DateTime At);
@@ -25,6 +25,8 @@ public sealed class CountInput { public int? PartId { get; set; } public string?
 public sealed record MobileRecountAsk(int Id, int PartId, string PartNumber, string Status, DateTime CreatedAt);
 /// <summary>Error detail when another user already counted the row. Carries the name only, never the counted quantity.</summary>
 public sealed record CountedByDetail(string? CountedBy);
+/// <summary>Error detail when a VIN was already scanned in the session. Carries the employee name only.</summary>
+public sealed record ScannedByDetail(string? ScannedBy, bool ScannedByMe);
 public sealed class ScanInput { public string? Vin { get; set; } public int? WarehouseId { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } }
 public sealed class VinCorrectionInput { public int? ScannedVinId { get; set; } public string? NewVin { get; set; } public string? Reason { get; set; } }
 public sealed class ChangePasswordInput { public string? CurrentPassword { get; set; } public string? NewPassword { get; set; } }
@@ -259,13 +261,29 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var wid = resolved.Id!.Value;
         var whs = await MyWarehouses(userId);
         if (!whs.Contains(wid)) return new(null, "المستودع غير مرتبط بحسابك", 403);
-        if (await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin)) return new(null, "رقم VIN ممسوح مسبقًا في هذه الجلسة", 409);
+        var already = await ScannerOfAsync(s.Id, vin, userId);
+        if (already != null) return new(null, AlreadyScannedBy(already.Value.Name, already.Value.Mine), 409, new ScannedByDetail(already.Value.Name, already.Value.Mine));
         var wh = await db.Warehouses.FirstAsync(x => x.Id == wid);
         var e = new ScannedVin { SessionId = s.Id, Vin = vin, UserId = userId, WarehouseId = wid, BranchId = wh.BranchId, Latitude = i.Latitude, Longitude = i.Longitude };
         db.ScannedVins.Add(e);
         await db.SaveChangesAsync();
         var exp = await db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == s.Id && x.Vin == vin).Select(x => new { x.Model, x.Dealer, x.ManufactureYear }).FirstOrDefaultAsync();
         return new(new MobileVin(e.Id, e.Vin, wid, wh.Name, e.Latitude, e.Longitude, e.CreatedAt, exp != null, exp?.Model, exp?.Dealer, exp?.ManufactureYear), null, 201);
+    }
+
+    public const string AlreadyScanned = "رقم VIN ممسوح مسبقًا في هذه الجلسة";
+
+    /// <summary>"Already scanned by employee X", or a note to the scanner themself. Falls back to <see cref="AlreadyScanned"/> when the name is unknown.</summary>
+    public static string AlreadyScannedBy(string? name, bool mine) =>
+        mine ? "أنت مسحت هذا الشاصي مسبقًا في هذه الجلسة"
+        : string.IsNullOrWhiteSpace(name) ? AlreadyScanned : $"هذا الشاصي ممسوح من قبل الموظف {name}";
+
+    /// <summary>Who scanned the VIN in this session, if anyone. Only the name is returned, never the warehouse or location.</summary>
+    private async Task<(string? Name, bool Mine)?> ScannerOfAsync(int sessionId, string vin, int userId)
+    {
+        var row = await db.ScannedVins.AsNoTracking().Where(x => x.SessionId == sessionId && x.Vin == vin)
+            .OrderBy(x => x.Id).Select(x => new { x.UserId, Name = x.User != null ? x.User.Name : null }).FirstOrDefaultAsync();
+        return row == null ? null : (row.Name, row.UserId == userId);
     }
 
     /// <summary>Vehicle type for a VIN read by the app (from the session file), before it is saved.</summary>
@@ -277,8 +295,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var vin = Validators.NormalizeVin(raw);
         if (!Validators.IsVin(vin)) return new(null, Validators.VinError, 400);
         var exp = await db.ExpectedVins.AsNoTracking().Where(x => x.SessionId == s.Id && x.Vin == vin).Select(x => new { x.Model, x.Dealer, x.ManufactureYear }).FirstOrDefaultAsync();
-        var scanned = await db.ScannedVins.AnyAsync(x => x.SessionId == s.Id && x.Vin == vin);
-        return new(new MobileVinLookup(vin, exp != null, exp?.Model, scanned, exp?.Dealer, exp?.ManufactureYear), null, 200);
+        var scanner = await ScannerOfAsync(s.Id, vin, userId);
+        return new(new MobileVinLookup(vin, exp != null, exp?.Model, scanner != null, exp?.Dealer, exp?.ManufactureYear, scanner?.Name, scanner?.Mine ?? false), null, 200);
     }
 
     public async Task<PagedResult<MobileVin>> MyVinsAsync(int userId, PageQuery p)

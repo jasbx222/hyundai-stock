@@ -2,8 +2,15 @@
 @{ ViewData["Title"] = "جلسات الجرد"; ViewData["Nav"] = "sessions"; var me = (AdminScope)Context.Items[AdminScopeFilter.Key]!; }
 <div class="ph">
     <div><h1>جلسات الجرد</h1></div>
-    <div class="acts"><a class="btn" href="/Sessions/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a><button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button></div>
+    <div class="acts"><a class="btn" href="/Sessions/Export?@Ui.FilterQuery(Context.Request, "search").TrimStart('&')" title="تحميل ملف Excel حسب الفلتر الحالي">@Ui.Icon("export", 16) تصدير Excel</a>@if (me.CanStartSession) { <button class="btn p" data-modal="#start-m">@Ui.Icon("plus", 16) بدء جلسة جرد جديدة</button> }</div>
 </div>
+@if (ViewBag.Active is string active)
+{
+    <div class="card" role="status" style="padding:14px 18px;margin-bottom:16px;border-inline-start:4px solid var(--warn, #d97706)">
+        <b>توجد جلسة جرد مفتوحة: «@active»</b>
+        <div class="muted">لا يمكن فتح جلسة جديدة (سنوية أو شهرية) قبل إنهاء هذه الجلسة. مدير الحسابات وحده يفتح الجلسة ويغلقها.</div>
+    </div>
+}
 <div class="card" style="overflow:hidden">
     @if (Model.Items.Count == 0) { @await Html.PartialAsync("_Empty", new EmptyVm("لا توجد بيانات", "ابدأ أول جلسة جرد برفع ملف Excel للقطع والمركبات.", "session")) }
     else {
@@ -22,7 +29,7 @@
                     <a class="btn sm g" href="/Exports/Parts?kind=uncounted&sessionId=@x.Id" title="تصدير غير محسوب" aria-label="تصدير غير محسوب">@Ui.Icon("layers", 16)</a>
                     <a class="btn sm g" href="/Exports/Vins?missing=true&sessionId=@x.Id" title="تصدير VINs غير موجودة" aria-label="تصدير VINs غير موجودة">@Ui.Icon("alert", 16)</a>
                     }
-                    @if (live && me.IsSuper) {
+                    @if (live && me.CanEndSession) {
                         <span class="sep"></span>
                         <button type="button" class="btn sm dz" data-confirm data-action="/Sessions/End" data-hidden='{"id":"@x.Id"}' data-kind="d" data-icon="power" title="إنهاء الجلسة؟" data-title="إنهاء الجلسة؟" data-text="سيتم إنهاء «@x.Name»، ولن يتمكن المستخدمون من إرسال أي عدّ أو مسح بعدها." data-ok="إنهاء الجلسة">@Ui.Icon("power", 14) إنهاء الجلسة</button>
                     }

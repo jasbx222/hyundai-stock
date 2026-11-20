@@ -89,6 +89,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.StoredFileName).HasMaxLength(260);
             e.Property(x => x.Name).HasMaxLength(60);
             e.HasIndex(x => new { x.Year, x.Kind, x.Month });
+            // At most one session in progress (Status 0), whoever opens it and however fast.
+            e.HasIndex(x => x.Status).IsUnique().HasFilter("[Status] = 0");
             e.HasOne(x => x.StartedByAdmin).WithMany().HasForeignKey(x => x.StartedByAdminId).OnDelete(DeleteBehavior.Restrict);
         });
         b.Entity<InventoryPart>(e =>

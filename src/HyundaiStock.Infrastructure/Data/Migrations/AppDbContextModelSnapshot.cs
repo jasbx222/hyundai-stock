@@ -799,6 +799,10 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
 
                     b.HasIndex("StartedByAdminId");
 
+                    b.HasIndex("Status")
+                        .IsUnique()
+                        .HasFilter("[Status] = 0");
+
                     b.HasIndex("Year", "Kind", "Month");
 
                     b.ToTable("Sessions");

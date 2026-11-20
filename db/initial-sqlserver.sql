@@ -676,3 +676,17 @@ GO
 COMMIT;
 GO
 
+BEGIN TRANSACTION;
+GO
+
+IF (SELECT COUNT(*) FROM Sessions WHERE [Status] = 0) <= 1
+    EXEC(N'CREATE UNIQUE INDEX [IX_Sessions_Status] ON [Sessions] ([Status]) WHERE [Status] = 0')
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261120090000_OneActiveSession', N'8.0.11');
+GO
+
+COMMIT;
+GO
+

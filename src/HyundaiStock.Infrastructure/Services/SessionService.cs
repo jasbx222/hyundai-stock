@@ -278,6 +278,19 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
         return Task.FromResult(Paging.Build(rows, p));
     }
 
+    /// <summary>The one session in progress, if any. Only one session may be open at a time, whoever asks.</summary>
+    public Task<string?> ActiveNameAsync() => db.Sessions.AsNoTracking().Where(x => x.Status == SessionStatus.InProgress)
+        .OrderByDescending(x => x.StartedAt).Select(x => x.Name != "" ? x.Name : "جلسة جرد " + x.Year).FirstOrDefaultAsync();
+
+    public static string ActiveMessage(string name) => $"لا يمكن فتح جلسة جديدة: توجد جلسة جرد مفتوحة حاليًا («{name}»). أنهِها أولاً ثم افتح الجلسة الجديدة.";
+
+    private static bool IsActiveSessionViolation(Exception ex)
+    {
+        for (var e = ex; e != null; e = e.InnerException)
+            if (e.Message.Contains("IX_Sessions_Status", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
     public Task<OpResult> StartAsync(int year, Stream file, string fileName, long length, AdminScope s)
         => StartAsync(SessionKind.Annual, year, null, new[] { (file, fileName, length) }, s);
 
@@ -288,7 +301,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
     /// One annual session per year and one monthly session per month, and only one session in progress at a time.</summary>
     public async Task<OpResult> StartAsync(SessionKind kind, int year, int? month, IReadOnlyList<(Stream file, string fileName, long length)> files, AdminScope s)
     {
-        if (!s.CanStartSession) return OpResult.Fail("بدء الجلسة للمسؤول الرئيسي والسوبر أدمن ومدير الحسابات فقط");
+        if (!s.CanStartSession) return OpResult.Fail("فتح جلسة الجرد لمدير الحسابات فقط");
         if (!Enum.IsDefined(kind)) return OpResult.Fail("نوع الجرد غير صالح");
         if (year < 2000 || year > 2100) return OpResult.Fail("السنة غير صالحة");
         if (kind == SessionKind.Monthly && month is not (>= 1 and <= 12)) return OpResult.Fail("اختر شهر الجرد");
@@ -301,7 +314,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
             if (length <= 0) return OpResult.Fail($"{fileName}: الملف فارغ");
         }
         if (files.Sum(x => x.length) > opt.Value.MaxUploadBytes) return OpResult.Fail("حجم الملفات أكبر من المسموح");
-        if (await db.Sessions.AnyAsync(x => x.Status == SessionStatus.InProgress)) return OpResult.Fail("توجد جلسة جرد قيد التنفيذ، أنهِها أولاً");
+        if (await ActiveNameAsync() is string active) return OpResult.Fail(ActiveMessage(active));
         var name = Labels.SessionName(kind, year, month);
         var existing = await db.Sessions.AsNoTracking().FirstOrDefaultAsync(x => x.Year == year && x.Kind == kind && x.Month == month);
         if (existing != null) return OpResult.Fail(kind == SessionKind.Monthly
@@ -378,6 +391,13 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
                 await tx.CommitAsync();
             });
         }
+        catch (DbUpdateException ex) when (IsActiveSessionViolation(ex))
+        {
+            // Another session was opened between the check above and the insert. The database allows one open session only.
+            db.ChangeTracker.Clear();
+            try { File.Delete(Path.Combine(Dir, stored)); } catch { /* the orphan file is harmless */ }
+            return OpResult.Fail(ActiveMessage(await ActiveNameAsync() ?? "جلسة جرد"));
+        }
         finally { db.ChangeTracker.AutoDetectChangesEnabled = prevDetect; }
         if (notify != null)
         {
@@ -389,7 +409,7 @@ public sealed class SessionService(AppDbContext db, ExcelImportService importer,
 
     public async Task<OpResult> EndAsync(int id, AdminScope s)
     {
-        if (!s.IsSuper) return OpResult.Fail("إنهاء الجلسة للسوبر أدمن فقط");
+        if (!s.CanEndSession) return OpResult.Fail("إنهاء جلسة الجرد لمدير الحسابات فقط");
         await using var tx = await db.Database.BeginTransactionAsync();
         var e = await db.Sessions.FindAsync(id);
         if (e == null) return OpResult.Fail("الجلسة غير موجودة");

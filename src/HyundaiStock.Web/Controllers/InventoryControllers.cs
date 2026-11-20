@@ -115,10 +115,14 @@ public sealed class VinRequestsController(VinRequestService svc, ListExports xl)
 [Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin, AdminRole.AccountsManager)]
 public sealed class SessionsController(SessionService svc, ListExports xl) : DashboardController
 {
-    public async Task<IActionResult> Index(string? search, int page = 1) => View(await svc.ListAsync(new PageQuery(page, 10, search)));
+    public async Task<IActionResult> Index(string? search, int page = 1)
+    {
+        ViewBag.Active = await svc.ActiveNameAsync();
+        return View(await svc.ListAsync(new PageQuery(page, 10, search)));
+    }
     public async Task<IActionResult> Export(string? search) => Excel(await xl.SessionsAsync(search));
 
-    [HttpPost]
+    [HttpPost, Roles(AdminRole.AccountsManager)]
     [RequestSizeLimit(25 * 1024 * 1024)]
     public async Task<IActionResult> Start(int? year, List<IFormFile>? file, SessionKind kind = SessionKind.Annual, int? month = null)
     {
@@ -134,7 +138,7 @@ public sealed class SessionsController(SessionService svc, ListExports xl) : Das
         finally { foreach (var st in streams) await st.DisposeAsync(); }
     }
 
-    [HttpPost, Roles(AdminRole.MainAdmin, AdminRole.SuperAdmin)] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");
+    [HttpPost, Roles(AdminRole.AccountsManager)] public async Task<IActionResult> End(int id) => Done(await svc.EndAsync(id, Scope), "تم إنهاء الجلسة");
 
     public async Task<IActionResult> File(int id)
     {

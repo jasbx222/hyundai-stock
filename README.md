@@ -40,7 +40,7 @@ Storage__UploadsPath=D:\HyundaiStock\uploads
 - ورقة `Parts`: `Quantity | Description | Location | Serial | BranchNo.`
 - ورقة `Vins`: `VIN | WarehouseNo. | VehicleType | Dealer | ManufactureYear`. الـ VIN هو رقم الشاصي. الوكيل وسنة الصنع اختياريان، وتُقبل العناوين العربية «رقم الشاصي» و«الوكيل» و«سنة الصنع».
 - استخدم أرقام الفرع والمخزن من اللوحة، مو ids. القالب من صفحة جلسات الجرد ← «تحميل القالب».
-- جلسة جرد وحدة قيد التنفيذ بنفس الوقت. النوع إما جرد سنوي (واحد لكل سنة) أو جرد شهري (واحد لكل شهر). الشهري يشتغل مثل السنوي بالضبط: قطع الغيار والسيارات، والفروقات تروح للحسابات، لكن له جلسته واسمه («جرد شباط 2026») وأرقامه منفصلة عن السنوي. يبدأ الجلسة المسؤول الرئيسي أو السوبر أدمن أو مدير الحسابات. الإنهاء للمسؤول الرئيسي والسوبر أدمن فقط.
+- جلسة جرد وحدة قيد التنفيذ بنفس الوقت. النوع إما جرد سنوي (واحد لكل سنة) أو جرد شهري (واحد لكل شهر). الشهري يشتغل مثل السنوي بالضبط: قطع الغيار والسيارات، والفروقات تروح للحسابات، لكن له جلسته واسمه («جرد شباط 2026») وأرقامه منفصلة عن السنوي. مدير الحسابات وحده يفتح الجلسة ويغلقها، والمسؤول الرئيسي والسوبر أدمن يشوفون الجلسات وملفاتها بس. إذا كانت جلسة مفتوحة وحاول أي أحد يفتح جلسة جديدة تطلع رسالة واضحة باسم الجلسة المفتوحة، وما تنفتح الجلسة. وقاعدة البيانات نفسها ترفض جلسة مفتوحة ثانية حتى لو انضغط الزر مرتين بنفس اللحظة.
 
 ### قواعد الجرد
 - القطعة تنجرد مرة وحدة. إذا جردها موظف، غيره يشوف عند المسح «هذه القطعة معدودة من قبل الموظف <الاسم>» وما يكدر يجردها، وما تظهر له الكمية المعدودة ولا موقعها. نفس الموظف اللي جردها يكدر يعيد جردها مباشرة، والتغيير ينكتب بسجل القطعة. مهمة إعادة العد اللي ترسلها الإدارة تبقى الطريق الثاني لإعادة العد.
@@ -81,7 +81,7 @@ All responses: `{ success, message, data, errors }`; lists: `data = { items, pag
 | GET | `parts?search=&warehouseId=&page=&pageSize=` | parts in the user's warehouses. `isCounted` and `countedBy` (name) for every row; the counted quantity, location and time only for the user who counted it |
 | GET | `parts/{id}` | part details |
 | POST | `counts` | submit a count (`partId` or `partNumber`+`warehouseId`, `quantity`, `location`, `latitude`, `longitude`). Saved directly whatever the variance. A row counted by another user returns 409 with `data.countedBy`; the user who counted it may count it again. 403 if the user's count type excludes parts |
-| POST | `vins/scan` | scan a VIN (17 chars, GPS required). 403 if the user's count type excludes vehicles |
+| POST | `vins/scan` | scan a VIN (17 chars, GPS required). 403 if the user's count type excludes vehicles. 409 `هذا الشاصي ممسوح من قبل الموظف <name>` (`data.scannedBy`, `data.scannedByMe`) if the VIN was already scanned in the session |
 | GET | `vins` | my scanned VINs |
 | POST/GET | `vin-corrections` | request / list VIN corrections |
 | GET | `recounts` | my recount tasks |

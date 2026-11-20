@@ -44,9 +44,9 @@ public static class DemoSeeder
             throw new InvalidOperationException("Seed:DemoPassword must contain at least 8 characters.");
 
         // A collision aborts the entire seed rather than resetting someone else's password or scope.
-        var phones = Enumerable.Range(0, 12).Select(i => $"077900000{i:00}").ToList();
+        var phones = Enumerable.Range(0, 13).Select(i => $"077900000{i:00}").ToList();
         if (await db.Admins.AnyAsync(x => phones.Contains(x.PhoneNumber)) || await db.AppUsers.AnyAsync(x => phones.Contains(x.PhoneNumber)))
-            throw new InvalidOperationException("Demo phone range 07790000000-07790000011 is already used. No existing account was changed.");
+            throw new InvalidOperationException("Demo phone range 07790000000-07790000012 is already used. No existing account was changed.");
         var existingLive = await db.Sessions.AnyAsync(x => x.Status == SessionStatus.InProgress);
         var now = DateTime.UtcNow;
         await using var tx = await db.Database.BeginTransactionAsync();
@@ -91,6 +91,7 @@ public static class DemoSeeder
         var accountant = MakeAdmin(5, "محاسب المنصور", AdminRole.Accountant);
         MakeAdmin(6, "سوبر أدمن", AdminRole.SuperAdmin);
         var otherAccountant = MakeAdmin(7, "محاسب البصرة", AdminRole.Accountant);
+        MakeAdmin(12, "مدير الحسابات", AdminRole.AccountsManager);
         var counters = new List<AppUser>();
         for (var b = 0; b < 5; b++)
         {

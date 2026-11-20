@@ -168,6 +168,9 @@ public static class SqliteSchema
         await Column(conn, db, "Sessions", "Name", "Name TEXT NOT NULL DEFAULT ''");
         await Sql(db, "UPDATE Sessions SET Name = 'جرد سنوي ' || Year WHERE Name = '' AND Kind = 0");
         await Sql(db, "CREATE INDEX IF NOT EXISTS IX_Sessions_Year_Kind_Month ON Sessions (Year, Kind, Month)");
+        // One session in progress only. Skipped when an old dev database already holds several, so startup never fails.
+        if (await db.Sessions.CountAsync(x => x.Status == HyundaiStock.Domain.SessionStatus.InProgress) <= 1)
+            await Sql(db, "CREATE UNIQUE INDEX IF NOT EXISTS IX_Sessions_Status ON Sessions (Status) WHERE Status = 0");
         if (!await Table(conn, "DeviceRegistrations"))
         {
             await Sql(db, """

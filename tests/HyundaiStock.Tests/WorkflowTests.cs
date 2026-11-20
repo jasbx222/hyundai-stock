@@ -425,17 +425,25 @@ public sealed class WorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task Sessions_Start_AccountsManagerMayStartAccountantMayNot()
+    public async Task Sessions_OnlyTheAccountsManagerOpensAndClosesASession()
     {
         var manager = new AdminScope(_accountant.Id, _accountant.Name, AdminRole.AccountsManager, null);
-        Assert.True(manager.CanStartSession);
-        Assert.False(AccScope().CanStartSession);
-        Assert.False(SpareScope().CanStartSession);
+        Assert.True(manager.CanStartSession); Assert.True(manager.CanEndSession);
+        foreach (var other in new[] { AccScope(), SpareScope(), Super(), WmScope(), new AdminScope(_main.Id, _main.Name, AdminRole.MainAdmin, null) })
+        {
+            Assert.False(other.CanStartSession); Assert.False(other.CanEndSession);
+            Assert.Equal("إنهاء جلسة الجرد لمدير الحسابات فقط", (await _sessionSvc.EndAsync(_session.Id, other)).Error);
+            Assert.Equal("فتح جلسة الجرد لمدير الحسابات فقط", (await _sessionSvc.StartAsync(2031, new MemoryStream(new byte[] { 1 }), "x.xlsx", 1, other)).Error);
+        }
+        Assert.Equal(SessionStatus.InProgress, (await _db.Sessions.AsNoTracking().SingleAsync(x => x.Id == _session.Id)).Status);
         var denied = await _sessionSvc.StartAsync(2031, new MemoryStream(new byte[] { 1 }), "x.xlsx", 1, AccScope());
         Assert.False(denied.Ok);
         Assert.Contains("مدير الحسابات", denied.Error);
+        // A session is already open, so even the accounts manager gets the clear "already active" error.
         var allowed = await _sessionSvc.StartAsync(2031, new MemoryStream(new byte[] { 1 }), "x.xlsx", 1, manager);
-        Assert.DoesNotContain("مدير الحسابات", allowed.Error ?? "");
+        Assert.False(allowed.Ok);
+        Assert.Contains("توجد جلسة جرد مفتوحة حاليًا", allowed.Error);
+        Assert.Contains(_session.Name, allowed.Error);
     }
 
     [Fact]
@@ -461,7 +469,7 @@ public sealed class WorkflowTests : IDisposable
     public async Task Closed_session_rejects_new_requests_and_closes_open_ones()
     {
         var id = (await _newParts.CreateAsync(_counter.Id, Input(partNumber: "CLS-1"))).Data!.Id;
-        Assert.True((await _sessionSvc.EndAsync(_session.Id, Super())).Ok);
+        Assert.True((await _sessionSvc.EndAsync(_session.Id, new AdminScope(_accountant.Id, _accountant.Name, AdminRole.AccountsManager, null))).Ok);
         Assert.Equal(NewPartRequestStatus.SessionClosed, (await _db.NewPartRequests.AsNoTracking().SingleAsync(x => x.Id == id)).Status);
         var again = await _newParts.CreateAsync(_counter.Id, Input(partNumber: "CLS-2"));
         Assert.Equal(409, again.Status);

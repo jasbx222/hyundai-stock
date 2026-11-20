@@ -54,7 +54,7 @@ public static class Menu
 {
     public static bool Users(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;
     public static bool Admins(AdminScope s) => s.IsSuper;
-    public static bool Sessions(AdminScope s) => s.CanStartSession;
+    public static bool Sessions(AdminScope s) => s.CanViewSessions;
     public static bool VinRequests(AdminScope s) => s.Role is AdminRole.Admin or AdminRole.WarehouseManager or AdminRole.VehicleWarehouseManager;
     public static bool ManageOrg(AdminScope s) => s.IsSuper;
     public static bool Org(AdminScope s) => s.Role is AdminRole.MainAdmin or AdminRole.SuperAdmin or AdminRole.Admin;

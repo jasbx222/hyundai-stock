@@ -97,7 +97,7 @@ public sealed class SessionImportTests
         var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
         var svc = services.ServiceProvider.GetRequiredService<SessionService>();
         var main = await db.Admins.SingleAsync(x => x.Role == AdminRole.MainAdmin);
-        var scope = new AdminScope(main.Id, main.Name, main.Role, null);
+        var scope = new AdminScope(main.Id, main.Name, AdminRole.AccountsManager, null);
         var open = await db.Sessions.SingleAsync(x => x.Status == SessionStatus.InProgress);
         var year = open.Year;
         Assert.True((await svc.EndAsync(open.Id, scope)).Ok);
@@ -120,7 +120,7 @@ public sealed class SessionImportTests
         static string Token(string html) => WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value);
         var html = await client.GetStringAsync("/Account/Login");
         var login = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-        { ["PhoneNumber"] = DemoSeeder.MainPhone, ["Password"] = "Test1234", ["__RequestVerificationToken"] = Token(html) }));
+        { ["PhoneNumber"] = "07790000012", ["Password"] = "Test1234", ["__RequestVerificationToken"] = Token(html) }));
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
         html = await client.GetStringAsync("/Sessions");
         Assert.Contains("name=\"year\"", html);
