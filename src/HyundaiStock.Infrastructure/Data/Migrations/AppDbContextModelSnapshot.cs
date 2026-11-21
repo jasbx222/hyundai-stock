@@ -120,7 +120,13 @@ namespace HyundaiStock.Infrastructure.Data.Migrations
                     b.Property<int?>("CreatedByAdminId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsGuest")
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")

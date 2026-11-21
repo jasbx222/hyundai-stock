@@ -89,6 +89,10 @@ public class AppUser : Entity
     public bool CanPickDuplicateRow { get; set; }
     /// <summary>Allowed count type: spare parts, vehicles (VIN scans), or both. Enforced by the API.</summary>
     public CountType CountType { get; set; } = CountType.Both;
+    /// <summary>Guest (view only): opens the app and sees its warehouses, but every count, scan and request is refused with 403.</summary>
+    public bool IsGuest { get; set; }
+    /// <summary>Set when the user deletes the account from the app. The row stays for count history; login data is erased and the account is hidden from the dashboard.</summary>
+    public DateTime? DeletedAt { get; set; }
     public int? CreatedByAdminId { get; set; }
     public Admin? CreatedByAdmin { get; set; }
     public ICollection<AppUserBranch> Branches { get; set; } = new List<AppUserBranch>();
@@ -423,6 +427,8 @@ public static class Labels
     public static string Level(ApprovalLevel l) => l switch { ApprovalLevel.None => "القبول الأول", ApprovalLevel.First => "القبول النهائي", _ => "مكتمل" };
     public static string Recount(RecountStatus s) => s == RecountStatus.Pending ? "قيد المعالجة" : "مكتمل";
     public static string CountTypeLabel(CountType t) => t switch { CountType.Parts => "قطع الغيار فقط", CountType.Vehicles => "السيارات فقط", _ => "قطع الغيار والسيارات" };
+    /// <summary>Count type shown for a mobile user; a guest counts nothing.</summary>
+    public static string UserCountLabel(CountType t, bool guest) => guest ? "ضيف (مشاهدة فقط)" : CountTypeLabel(t);
     /// <summary>API code for the count type: parts | vehicles | both.</summary>
     public static string CountTypeCode(CountType t) => t switch { CountType.Parts => "parts", CountType.Vehicles => "vehicles", _ => "both" };
     /// <summary>Finance wording for a count against the system quantity.</summary>

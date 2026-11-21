@@ -19,7 +19,7 @@ public sealed class ListExports(BranchService branches, WarehouseService warehou
         var rows = (await users.ListAsync(All(search), s)).Items;
         string[] h = { "Name", "Phone", "Branches", "Warehouses", "Count Type", "Status", "Created At" };
         return ExportService.Build("Users", "Users", h, new[] { 24.0, 16, 30, 40, 22, 12, 20 },
-            rows.Select(x => new object?[] { x.Name, x.PhoneNumber, string.Join("، ", x.Branches), string.Join("، ", x.Warehouses), Labels.CountTypeLabel(x.CountType), Active(x.IsActive), x.CreatedAt }));
+            rows.Select(x => new object?[] { x.Name, x.PhoneNumber, string.Join("، ", x.Branches), string.Join("، ", x.Warehouses), Labels.UserCountLabel(x.CountType, x.IsGuest), Active(x.IsActive), x.CreatedAt }));
     }
 
     public async Task<ExportFile> AdminsAsync(string? search, AdminScope s)

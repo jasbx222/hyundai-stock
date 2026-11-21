@@ -27,6 +27,8 @@
             </select></div>@ms.Err("CountType")<div class="hint">التطبيق يعرض للمستخدم أيقونة الجرد المسموحة فقط، والخادم يرفض أي جرد غير مسموح.</div></div>
         <div style="grid-column:1/-1"><label class="allpick"><input type="checkbox" name="CanPickDuplicateRow" value="true" checked="@Model.CanPickDuplicateRow" /><span><b>اختيار السطر عند تكرار رقم القطعة</b></span></label>
             <div class="hint">إذا تكرر رقم القطعة بأكثر من سطر، يشوف المستخدم كل الأسطر برقم السطر والموقع ويختار واحد. بدون هذي الصلاحية يُجرد السطر الافتراضي (أول سطر غير معدود).</div></div>
+        <div style="grid-column:1/-1"><label class="allpick"><input type="checkbox" name="IsGuest" value="true" checked="@Model.IsGuest" /><span><b>حساب ضيف (مشاهدة فقط)</b></span></label>
+            <div class="hint">الضيف يفتح التطبيق ويشوف القطع والسيارات بمستودعاته، بس ما يكدر يجرد ولا يمسح شاصي ولا يرسل طلبات.</div></div>
     </div>
     <div class="facts"><button class="btn p" type="submit">حفظ</button><a class="btn" href="/Users">إلغاء</a></div>
 </form>

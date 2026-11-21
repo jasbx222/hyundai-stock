@@ -690,3 +690,19 @@ GO
 COMMIT;
 GO
 
+
+BEGIN TRANSACTION;
+GO
+
+ALTER TABLE [AppUsers] ADD [IsGuest] bit NOT NULL DEFAULT CAST(0 AS bit);
+GO
+
+ALTER TABLE [AppUsers] ADD [DeletedAt] datetime2 NULL;
+GO
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20261121090000_GuestUsers', N'8.0.11');
+GO
+
+COMMIT;
+GO

@@ -6,8 +6,9 @@ using Microsoft.EntityFrameworkCore;
 namespace HyundaiStock.Infrastructure.Services;
 
 public sealed record MobileWarehouse(int Id, string Name, string Type, int BranchId, string BranchName);
-/// <summary>CountType: parts | vehicles | both. CanCountParts / CanScanVins say which home icons the app shows; the API enforces the same rule.</summary>
-public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses, bool CanPickDuplicateRow = false, string CountType = "both", bool CanCountParts = true, bool CanScanVins = true);
+/// <summary>CountType: parts | vehicles | both. CanCountParts / CanScanVins say which home icons the app shows; the API enforces the same rule.
+/// IsGuest: view only. The app shows the same screens without count, scan or request actions, and the API refuses them with 403.</summary>
+public sealed record MobileProfile(int Id, string Name, string PhoneNumber, List<MobileWarehouse> Warehouses, bool CanPickDuplicateRow = false, string CountType = "both", bool CanCountParts = true, bool CanScanVins = true, bool IsGuest = false);
 public sealed record MobileSession(int Id, int Year, string Name, string Status, DateTime StartedAt);
 /// <summary>
 /// RowNo / RowCount: position of this row among the rows that share its part number in the same warehouse (1 when the number does not repeat).
@@ -97,7 +98,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (u == null) return null;
         var whs = await db.AppUserWarehouses.Where(x => x.AppUserId == userId)
             .Select(x => new MobileWarehouse(x.WarehouseId, x.Warehouse!.Name, x.Warehouse.Type == WarehouseType.Type1 ? "نوع 1" : "نوع 2", x.Warehouse.BranchId, x.Warehouse.Branch!.Name)).ToListAsync();
-        return new MobileProfile(u.Id, u.Name, u.PhoneNumber, whs, u.CanPickDuplicateRow, Labels.CountTypeCode(u.CountType), CountTypes.Parts(u.CountType), CountTypes.Vehicles(u.CountType));
+        return new MobileProfile(u.Id, u.Name, u.PhoneNumber, whs, u.CanPickDuplicateRow, Labels.CountTypeCode(u.CountType), CountTypes.Parts(u.CountType), CountTypes.Vehicles(u.CountType), u.IsGuest);
     }
 
     public async Task<MobileSession?> CurrentSessionAsync()
@@ -177,6 +178,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         if (i.Quantity is null || i.Quantity < 0) return new(null, "الكمية مطلوبة ويجب ألا تكون سالبة", 400);
         if (Validators.GpsError(i.Latitude, i.Longitude) is string g) return new(null, g, 400);
         var user = await db.AppUsers.FirstAsync(x => x.Id == userId);
+        if (user.IsGuest) return new(null, Guests.Denied, 403);
         if (!CountTypes.Parts(user.CountType)) return new(null, CountTypes.PartsDenied, 403);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
         if (whs.Count == 0) return new(null, "لا يوجد مستودع مرتبط بحسابك", 400);
@@ -250,6 +252,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public async Task<MobileResult<MobileVin>> ScanVinAsync(int userId, ScanInput i)
     {
+        if (await IsGuestAsync(userId)) return new(null, Guests.Denied, 403);
         if (!await AllowsVehiclesAsync(userId)) return new(null, CountTypes.VehiclesDenied, 403);
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
@@ -304,6 +307,12 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         var s = await sessions.CurrentAsync();
         var sid = s?.Id ?? -1;
         var q = db.ScannedVins.AsNoTracking().Where(x => x.UserId == userId && x.SessionId == sid);
+        // A guest scans nothing, so it sees every VIN scanned in its warehouses instead.
+        if (await IsGuestAsync(userId))
+        {
+            var whs = await MyWarehouses(userId);
+            q = db.ScannedVins.AsNoTracking().Where(x => x.SessionId == sid && whs.Contains(x.WarehouseId));
+        }
         if (p.Term is string t) q = q.Where(x => x.Vin.Contains(t));
         var rows = q.OrderByDescending(x => x.CreatedAt).Select(x => new MobileVin(x.Id, x.Vin, x.WarehouseId, x.Warehouse!.Name, x.Latitude, x.Longitude, x.CreatedAt,
             db.ExpectedVins.Any(e => e.SessionId == x.SessionId && e.Vin == x.Vin),
@@ -312,6 +321,8 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
             db.ExpectedVins.Where(e => e.SessionId == x.SessionId && e.Vin == x.Vin).Select(e => e.ManufactureYear).FirstOrDefault()));
         return Paging.Build(rows, p);
     }
+
+    public Task<bool> IsGuestAsync(int userId) => db.AppUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsGuest);
 
     private async Task<bool> AllowsVehiclesAsync(int userId) =>
         CountTypes.Vehicles(await db.AppUsers.AsNoTracking().Where(x => x.Id == userId).Select(x => x.CountType).FirstOrDefaultAsync());
@@ -322,6 +333,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public async Task<MobileResult<MobileVinRequest>> VinCorrectionAsync(int userId, VinCorrectionInput i)
     {
+        if (await IsGuestAsync(userId)) return new(null, Guests.Denied, 403);
         if (!await AllowsVehiclesAsync(userId)) return new(null, CountTypes.VehiclesDenied, 403);
         if (i.ScannedVinId is not int sid) return new(null, "scannedVinId مطلوب", 400);
         var newVin = Validators.NormalizeVin(i.NewVin);
@@ -358,6 +370,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
 
     public async Task<MobileResult<MobilePart>> SubmitRecountAsync(int userId, int id, RecountInput i)
     {
+        if (await IsGuestAsync(userId)) return new(null, Guests.Denied, 403);
         var r = await db.RecountRequests.Include(x => x.InventoryPart).ThenInclude(p => p!.Session).FirstOrDefaultAsync(x => x.Id == id && x.AssignedUserId == userId);
         if (r == null) return new(null, "طلب إعادة العد غير موجود", 404);
         if (r.Status != RecountStatus.Pending) return new(null, "طلب إعادة العد مكتمل", 409);
@@ -385,6 +398,7 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     /// <summary>The counter who counted a part asks to count it again. Only that counter may ask, and an admin must approve.</summary>
     public async Task<MobileResult<MobileRecountAsk>> AskRecountAsync(int userId, int partId)
     {
+        if (await IsGuestAsync(userId)) return new(null, Guests.Denied, 403);
         var s = await sessions.CurrentAsync();
         if (s == null) return new(null, "لا توجد جلسة جرد قيد التنفيذ", 409);
         var whs = await MyWarehouses(userId); var brs = await MyBranches(userId);
@@ -413,6 +427,27 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return new(true, null);
     }
 
+    /// <summary>
+    /// The user deletes their own account. Counts and scans keep the row (and its name) for history, so the row is not removed:
+    /// the account is disabled at once, the phone and password are erased, devices stop receiving pushes, and the dashboard no longer lists it.
+    /// </summary>
+    public async Task<MobileResult<bool>> DeleteAccountAsync(int userId, string? password)
+    {
+        var u = await db.AppUsers.FirstOrDefaultAsync(x => x.Id == userId && x.DeletedAt == null);
+        if (u == null) return new(false, "الحساب غير موجود", 404);
+        if (string.IsNullOrEmpty(password) || !pw.Verify(u.PasswordHash, password)) return new(false, "كلمة المرور غير صحيحة", 400);
+        u.IsActive = false;
+        u.DeletedAt = DateTime.UtcNow;
+        u.PhoneNumber = DeletedPhone(u.Id);
+        u.PasswordHash = "";
+        foreach (var d in await db.DeviceRegistrations.Where(x => x.AppUserId == userId && x.IsActive).ToListAsync()) { d.IsActive = false; d.UpdatedAt = DateTime.UtcNow; }
+        await db.SaveChangesAsync();
+        return new(true, null);
+    }
+
+    /// <summary>Unique placeholder (fits the 11-char column) so the real number is free again and never matches a login.</summary>
+    public static string DeletedPhone(int id) => "x" + id;
+
     public async Task<PagedResult<HistoryItem>> HistoryAsync(int userId, PageQuery p, string? type)
     {
         var s = await sessions.CurrentAsync();
@@ -438,4 +473,10 @@ public static class CountTypes
     public static bool Vehicles(CountType t) => t is CountType.Vehicles or CountType.Both;
     public const string PartsDenied = "حسابك غير مخوّل بجرد قطع الغيار";
     public const string VehiclesDenied = "حسابك غير مخوّل بجرد السيارات";
+}
+
+/// <summary>Guest (view-only) mobile users.</summary>
+public static class Guests
+{
+    public const string Denied = "حسابك ضيف للمشاهدة فقط، ما تكدر تجرد أو ترسل طلبات";
 }

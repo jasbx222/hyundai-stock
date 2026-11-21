@@ -162,6 +162,8 @@ public static class SqliteSchema
         await Column(conn, db, "ExpectedVins", "Dealer", "Dealer TEXT NULL");
         await Column(conn, db, "AppUsers", "CanPickDuplicateRow", "CanPickDuplicateRow INTEGER NOT NULL DEFAULT 0");
         await Column(conn, db, "AppUsers", "CountType", "CountType INTEGER NOT NULL DEFAULT 3");
+        await Column(conn, db, "AppUsers", "IsGuest", "IsGuest INTEGER NOT NULL DEFAULT 0");
+        await Column(conn, db, "AppUsers", "DeletedAt", "DeletedAt TEXT NULL");
         await Column(conn, db, "ExpectedVins", "ManufactureYear", "ManufactureYear INTEGER NULL");
         await Column(conn, db, "Sessions", "Kind", "Kind INTEGER NOT NULL DEFAULT 0");
         await Column(conn, db, "Sessions", "Month", "Month INTEGER NULL");

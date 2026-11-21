@@ -17,7 +17,7 @@
                 <td><span class="mono">@u.PhoneNumber</span></td>
                 <td>@(u.Branches.Count == 0 ? "—" : string.Join(" / ", u.Branches))</td>
                 <td>@(u.Warehouses.Count == 0 ? "—" : u.Warehouses.Count > 2 ? $"{string.Join(" / ", u.Warehouses.Take(2))} +{u.Warehouses.Count - 2}" : string.Join(" / ", u.Warehouses))</td>
-                <td>@Labels.CountTypeLabel(u.CountType)</td>
+                <td>@Labels.UserCountLabel(u.CountType, u.IsGuest)</td>
                 <td>@Ui.Active(u.IsActive)</td><td>@Ui.Day(u.CreatedAt)</td>
                 <td><div class="ra">
                     <button type="button" class="btn sm g" title="عرض التفاصيل" aria-label="عرض التفاصيل" data-remote="/Users/Details/@u.Id">@Ui.Icon("eye", 16)</button>

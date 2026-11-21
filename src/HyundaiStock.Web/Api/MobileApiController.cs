@@ -141,6 +141,16 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
         return r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error)) : Ok(ApiResponse.Ok(null, "تم تغيير كلمة المرور"));
     }
 
+    public sealed class DeleteAccountInput { public string? Password { get; set; } }
+
+    /// <summary>حذف حساب المستخدم نفسه بعد تأكيد كلمة المرور. الحساب يتعطل فوراً، ورقم الهاتف وكلمة المرور ينمسحون، وسجل الجرد يبقى.</summary>
+    [HttpPost("me/delete")]
+    public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountInput input)
+    {
+        var r = await svc.DeleteAccountAsync(UserId, input.Password);
+        return r.Error != null ? StatusCode(r.Status, ApiResponse.Fail(r.Error)) : Ok(ApiResponse.Ok(null, "تم حذف الحساب"));
+    }
+
     /// <summary>سجل المستخدم في الجلسة الحالية (type = part | vin | فارغ للكل).</summary>
     [HttpGet("history")]
     public async Task<IActionResult> History([FromQuery] string? type, [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)

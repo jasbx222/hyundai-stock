@@ -47,6 +47,8 @@ Storage__UploadsPath=D:\HyundaiStock\uploads
 - كل سطر يخص فرعه ومخزنه. نفس رقم القطعة بأكثر من مخزن (مثلاً بغداد وأربيل) سطور منفصلة، وكل سطر ينجرد بمخزنه.
 - أي عدد، أعلى أو أقل من كمية النظام، ينحفظ مباشرة بدون طلب موافقة. الفرق يظهر بصفحة «فروقات المخزون المالية»: الأعلى «زيادة» والأقل «نقص»، والتصدير فيه عمود `Variance` بنفس التسمية.
 - نوع الجرد لكل مستخدم تطبيق: قطع الغيار فقط، السيارات فقط، أو الاثنين (الافتراضي). المشرف يحدده عند الإضافة أو التعديل. التطبيق يعرض الأيقونة المسموحة فقط، والـ API يرفض (403) جرد القطع أو طلب إضافة قطعة أو مسح VIN غير المسموح.
+- حساب ضيف (مشاهدة فقط): خيار على مستخدم التطبيق باللوحة. الضيف يدخل برقمه ويشوف قطع مستودعاته والسيارات الممسوحة بيها، بس كل جرد أو مسح أو طلب يرجع 403 «حسابك ضيف للمشاهدة فقط».
+- حذف الحساب: مستخدم التطبيق يحذف حسابه من صفحة المستخدم بعد كلمة المرور. الحساب يتعطل فوراً، ورقم الهاتف وكلمة المرور ينمسحون (الرقم يرجع متاح)، والإشعارات تتوقف، والحساب يختفي من اللوحة. سجل الجرد يبقى باسم الموظف.
 - «مهام إعادة العد» (`/Requests`): قطع أرسلتها الإدارة لموظف حتى يعيد عدّها، مع الحالة والنتيجة. «طلبات إعادة الجرد» (`/RecountAsks`): طلبات الموظفين لإعادة جرد قطعة، والموافقة تنشئ مهمة إعادة عد.
 - طلب إضافة قطعة غير موجودة يمر بمرحلتين: مدير قطع الغيار يوافق أو يرجّع الطلب للموظف مع السبب. بعد موافقته يتحول الطلب «بانتظار الحسابات»، والمحاسب أو مدير الحسابات يوافق أو يرجّعه. بعد موافقة الحسابات فقط تنضاف القطعة للجرد (كمية نظام 0 وسعر 0) وتظهر بصفحة «القطع الجديدة» باسم الموافقَين الاثنين. المدير الرئيسي والسوبر أدمن يقدرون يسوون المرحلتين. الفرع والمخزن من مخزن الموظف اللي أرسل الطلب. صفحة «طلبات إضافة قطعة» فيها تصدير Excel حسب الفلتر.
 - رقم قطعة مكرر بنفس المخزن: المستخدم اللي عنده صلاحية «اختيار السطر عند تكرار رقم القطعة» يشوف كل الأسطر (سطر 1 من 2...) ويختار. بدونها يُجرد السطر الافتراضي: أول سطر غير معدود. إعادة العد تبقى على السطر المحدد بالطلب.
@@ -76,13 +78,14 @@ All responses: `{ success, message, data, errors }`; lists: `data = { items, pag
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `auth/login` | phone + password → JWT (rate limited) |
-| GET | `me` | profile, branches, warehouses, `countType` (`parts` \| `vehicles` \| `both`), `canCountParts`, `canScanVins` |
+| GET | `me` | profile, branches, warehouses, `countType` (`parts` \| `vehicles` \| `both`), `canCountParts`, `canScanVins`, `isGuest` (view only: counts, scans and requests return 403) |
 | GET | `sessions/current` | in-progress stocktaking session |
 | GET | `parts?search=&warehouseId=&page=&pageSize=` | parts in the user's warehouses. `isCounted` and `countedBy` (name) for every row; the counted quantity, location and time only for the user who counted it |
 | GET | `parts/{id}` | part details |
 | POST | `counts` | submit a count (`partId` or `partNumber`+`warehouseId`, `quantity`, `location`, `latitude`, `longitude`). Saved directly whatever the variance. A row counted by another user returns 409 with `data.countedBy`; the user who counted it may count it again. 403 if the user's count type excludes parts |
 | POST | `vins/scan` | scan a VIN (17 chars, GPS required). 403 if the user's count type excludes vehicles. 409 `هذا الشاصي ممسوح من قبل الموظف <name>` (`data.scannedBy`, `data.scannedByMe`) if the VIN was already scanned in the session |
-| GET | `vins` | my scanned VINs |
+| GET | `vins` | my scanned VINs (a guest gets every VIN scanned in its warehouses) |
+| POST | `me/delete` | delete my own account (`password`). Disables it at once, erases phone and password, keeps count history |
 | POST/GET | `vin-corrections` | request / list VIN corrections |
 | GET | `recounts` | my recount tasks |
 | POST | `recounts/{id}/submit` | submit a recount |

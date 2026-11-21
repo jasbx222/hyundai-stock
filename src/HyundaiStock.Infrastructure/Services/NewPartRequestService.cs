@@ -135,8 +135,9 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
     private async Task<MobileResult<MobileNewPart>> SaveAsync(int userId, NewPartInput i, int? editId)
     {
         // A new-part request is a spare-part count, so it follows the user's allowed count type.
-        var countType = await db.AppUsers.AsNoTracking().Where(x => x.Id == userId).Select(x => (CountType?)x.CountType).FirstOrDefaultAsync();
-        if (countType is CountType ct && !CountTypes.Parts(ct)) return new(null, CountTypes.PartsDenied, 403);
+        var who = await db.AppUsers.AsNoTracking().Where(x => x.Id == userId).Select(x => new { x.CountType, x.IsGuest }).FirstOrDefaultAsync();
+        if (who?.IsGuest == true) return new(null, Guests.Denied, 403);
+        if (who != null && !CountTypes.Parts(who.CountType)) return new(null, CountTypes.PartsDenied, 403);
         var existing = editId is int eid
             ? await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eid && x.RequestedByUserId == userId)
             : null;
@@ -210,6 +211,7 @@ public sealed class NewPartRequestService(AppDbContext db, SessionLookup session
 
     public async Task<MobileResult<MobileNewPart>> CancelAsync(int userId, int id)
     {
+        if (await db.AppUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsGuest)) return new(null, Guests.Denied, 403);
         await using var tx = await db.Database.BeginTransactionAsync();
         var r = await db.NewPartRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.RequestedByUserId == userId);
         if (r == null) return new(null, "الطلب غير موجود", 404);
