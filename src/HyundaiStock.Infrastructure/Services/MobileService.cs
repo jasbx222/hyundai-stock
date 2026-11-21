@@ -509,5 +509,5 @@ public static class Guests
     /// <summary>Placeholder phone of the built-in guest. Not a valid Iraqi number, so password login never reaches it.</summary>
     public const string Phone = "guest";
     public const string Name = "ضيف";
-    public const string Denied = "حسابك ضيف للمشاهدة فقط، ما تكدر تجرد أو ترسل طلبات";
+    public const string Denied = "انت داخل كضيف. لازم تسجل دخول بحسابك حتى تجرد أو ترسل طلبات";
 }
