@@ -52,7 +52,30 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     public Task<bool> IsActiveAsync(int userId) =>
         db.AppUsers.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive);
 
-    private Task<List<int>> MyWarehouses(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
+    /// <summary>Assigned warehouses. A guest with none assigned (the built-in app guest) sees every warehouse.</summary>
+    private async Task<List<int>> MyWarehouses(int userId)
+    {
+        var mine = await db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.WarehouseId).ToListAsync();
+        if (mine.Count == 0 && await IsGuestAsync(userId)) mine = await db.Warehouses.Select(x => x.Id).ToListAsync();
+        return mine;
+    }
+
+    /// <summary>
+    /// «الدخول كضيف» from the login screen: one shared built-in guest account, created on first use.
+    /// It has no password and no real phone, so it can only come in through this call. It sees every warehouse and counts nothing.
+    /// Disabling it (IsActive = false) turns guest entry off.
+    /// </summary>
+    public async Task<AppUser?> GuestLoginAsync()
+    {
+        var g = await db.AppUsers.FirstOrDefaultAsync(x => x.PhoneNumber == Guests.Phone);
+        if (g == null)
+        {
+            g = new AppUser { Name = Guests.Name, PhoneNumber = Guests.Phone, PasswordHash = "", IsGuest = true, IsActive = true, CountType = CountType.Both };
+            db.AppUsers.Add(g);
+            await db.SaveChangesAsync();
+        }
+        return g.IsActive && g.IsGuest && g.DeletedAt == null ? g : null;
+    }
 
     /// <summary>One assigned warehouse can be omitted. Several require an explicit assigned id. The branch always comes from that warehouse.</summary>
     private async Task<(int? Id, string? Error, int Status)> ResolveWarehouseAsync(int userId, int? requested)
@@ -88,7 +111,11 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
         return new(null, null, 200);
     }
     /// <summary>Branches of the user's warehouses: parts imported per branch (BranchNo. only) are visible to every warehouse in that branch.</summary>
-    private Task<List<int>> MyBranches(int userId) => db.AppUserWarehouses.Where(x => x.AppUserId == userId).Select(x => x.Warehouse!.BranchId).Distinct().ToListAsync();
+    private async Task<List<int>> MyBranches(int userId)
+    {
+        var whs = await MyWarehouses(userId);
+        return await db.Warehouses.Where(x => whs.Contains(x.Id)).Select(x => x.BranchId).Distinct().ToListAsync();
+    }
     private static bool CanSee(InventoryPart p, List<int> whs, List<int> brs) =>
         p.WarehouseId is int w ? whs.Contains(w) : p.BranchId is int b && brs.Contains(b);
 
@@ -96,8 +123,9 @@ public sealed class MobileService(AppDbContext db, SessionLookup sessions, IPass
     {
         var u = await db.AppUsers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
         if (u == null) return null;
-        var whs = await db.AppUserWarehouses.Where(x => x.AppUserId == userId)
-            .Select(x => new MobileWarehouse(x.WarehouseId, x.Warehouse!.Name, x.Warehouse.Type == WarehouseType.Type1 ? "نوع 1" : "نوع 2", x.Warehouse.BranchId, x.Warehouse.Branch!.Name)).ToListAsync();
+        var ids = await MyWarehouses(userId);
+        var whs = await db.Warehouses.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id)
+            .Select(x => new MobileWarehouse(x.Id, x.Name, x.Type == WarehouseType.Type1 ? "نوع 1" : "نوع 2", x.BranchId, x.Branch!.Name)).ToListAsync();
         return new MobileProfile(u.Id, u.Name, u.PhoneNumber, whs, u.CanPickDuplicateRow, Labels.CountTypeCode(u.CountType), CountTypes.Parts(u.CountType), CountTypes.Vehicles(u.CountType), u.IsGuest);
     }
 
@@ -478,5 +506,8 @@ public static class CountTypes
 /// <summary>Guest (view-only) mobile users.</summary>
 public static class Guests
 {
+    /// <summary>Placeholder phone of the built-in guest. Not a valid Iraqi number, so password login never reaches it.</summary>
+    public const string Phone = "guest";
+    public const string Name = "ضيف";
     public const string Denied = "حسابك ضيف للمشاهدة فقط، ما تكدر تجرد أو ترسل طلبات";
 }

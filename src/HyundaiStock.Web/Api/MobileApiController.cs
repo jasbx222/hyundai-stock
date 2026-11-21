@@ -42,6 +42,20 @@ public sealed class MobileApiController(MobileService svc, NewPartRequestService
         return Ok(ApiResponse.Ok(new TokenDto(token, "Bearer", exp, await svc.ProfileAsync(u.Id) ?? (object)new { })));
     }
 
+    /// <summary>الدخول كضيف بدون رقم وكلمة مرور. الضيف يشوف قطع وسيارات كل المخازن بالجلسة المفتوحة، وكل جرد أو مسح أو طلب يرجع 403.</summary>
+    [HttpPost("auth/guest")]
+    [AllowAnonymous]
+    [EnableRateLimiting("login")]
+    [ProducesResponseType(typeof(ApiResponse), 200)]
+    [ProducesResponseType(typeof(ApiResponse), 403)]
+    public async Task<IActionResult> GuestLogin()
+    {
+        var u = await svc.GuestLoginAsync();
+        if (u == null) return StatusCode(403, ApiResponse.Fail("الدخول كضيف متوقف حالياً"));
+        var (token, exp) = tokens.Create(u);
+        return Ok(ApiResponse.Ok(new TokenDto(token, "Bearer", exp, await svc.ProfileAsync(u.Id) ?? (object)new { })));
+    }
+
     /// <summary>بيانات المستخدم الحالي ومستودعاته ونوع الجرد المسموح (countType: parts | vehicles | both).</summary>
     [HttpGet("me")]
     public async Task<IActionResult> Me() => Ok(ApiResponse.Ok(await svc.ProfileAsync(UserId)));

@@ -162,7 +162,7 @@ public sealed class UserService(AppDbContext db, IPasswordService pw)
     private IQueryable<AppUser> Scoped(AdminScope s)
     {
         // Accounts the user deleted from the app are gone from the dashboard.
-        var q = db.AppUsers.AsNoTracking().Where(u => u.DeletedAt == null);
+        var q = db.AppUsers.AsNoTracking().Where(u => u.DeletedAt == null && u.PhoneNumber != Guests.Phone);
         if (s.ScopeBranch is int b) q = q.Where(u => u.Branches.Any(x => x.BranchId == b) || u.CreatedByAdminId == s.Id);
         return q;
     }

@@ -175,6 +175,48 @@ public sealed class GuestUserTests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
     }
 
+    [Fact]
+    public async Task Built_in_guest_is_created_once_sees_every_warehouse_and_counts_nothing()
+    {
+        var other = new Warehouse { Name = "مخزن 2", Number = 2, BranchId = _branch.Id, Type = WarehouseType.Type1 };
+        _db.Warehouses.Add(other); await _db.SaveChangesAsync();
+        var g = (await _mobile.GuestLoginAsync())!;
+        Assert.Equal(g.Id, (await _mobile.GuestLoginAsync())!.Id);
+        Assert.Equal(1, await _db.AppUsers.CountAsync(x => x.PhoneNumber == Guests.Phone));
+        var me = (await _mobile.ProfileAsync(g.Id))!;
+        Assert.True(me.IsGuest);
+        Assert.Equal(new[] { _wh.Id, other.Id }.OrderBy(x => x), me.Warehouses.Select(x => x.Id).OrderBy(x => x));
+        Assert.Single((await _mobile.PartsAsync(g.Id, new PageQuery(1, 10, null), null, null)).Data!.Items);
+        Assert.Single((await _mobile.MyVinsAsync(g.Id, new PageQuery(1, 10, null))).Items);
+        Assert.Equal(403, (await _mobile.CountAsync(g.Id, new CountInput { PartId = _part.Id, Quantity = 1, Latitude = 33.3, Longitude = 44.3 })).Status);
+        Assert.Equal(400, (await _mobile.DeleteAccountAsync(g.Id, "")).Status);
+        Assert.Null(await _mobile.LoginAsync(Guests.Phone, ""));
+
+        // Not a dashboard user; disabling it turns guest entry off.
+        var users = new UserService(_db, _pw);
+        Assert.DoesNotContain((await users.ListAsync(new PageQuery(1, 50, null), new AdminScope(1, "رئيسي", AdminRole.MainAdmin, null))).Items, x => x.Id == g.Id);
+        g.IsActive = false; await _db.SaveChangesAsync();
+        Assert.Null(await _mobile.GuestLoginAsync());
+    }
+
+    [Fact]
+    public async Task Api_guest_login_needs_no_credentials_and_cannot_count()
+    {
+        using var factory = new ApiFactory { Demo = true };
+        var mobile = factory.CreateClient();
+        var login = await mobile.PostAsync("/api/v1/auth/guest", null);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var data = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("data");
+        Assert.True(data.GetProperty("user").GetProperty("isGuest").GetBoolean());
+        mobile.DefaultRequestHeaders.Authorization = new("Bearer", data.GetProperty("accessToken").GetString());
+        var parts = await mobile.GetFromJsonAsync<JsonElement>("/api/v1/parts");
+        Assert.True(parts.GetProperty("data").GetProperty("totalCount").GetInt32() > 0);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var partId = await scope.ServiceProvider.GetRequiredService<AppDbContext>().InventoryParts.Select(x => x.Id).FirstAsync();
+        var count = await mobile.PostAsJsonAsync("/api/v1/counts", new { partId, quantity = 1, latitude = 33.3, longitude = 44.4 });
+        Assert.Equal(HttpStatusCode.Forbidden, count.StatusCode);
+    }
+
     public void Dispose()
     {
         _db.Dispose();
